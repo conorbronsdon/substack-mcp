@@ -16,10 +16,10 @@ export function createServer(client: SubstackClient): McpServer {
     "Get the current subscriber count for your Substack publication",
     {},
     async () => {
-      const count = await client.getSubscriberCount();
+      const result = await client.getSubscriberCount();
       return {
         content: [
-          { type: "text", text: JSON.stringify({ subscriber_count: count }) },
+          { type: "text", text: JSON.stringify(result, null, 2) },
         ],
       };
     },
@@ -33,7 +33,7 @@ export function createServer(client: SubstackClient): McpServer {
       limit: z.number().optional().default(25).describe("Max posts to return (1-100)"),
     },
     async ({ offset, limit }) => {
-      const posts = await client.getPublishedPosts(offset, Math.min(limit, 100));
+      const { posts, total } = await client.getPublishedPosts(offset, Math.min(limit, 100));
       const summary = posts.map((p) => ({
         id: p.id,
         title: p.title,
@@ -45,7 +45,7 @@ export function createServer(client: SubstackClient): McpServer {
         url: p.canonical_url,
       }));
       return {
-        content: [{ type: "text", text: JSON.stringify(summary, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify({ total, posts: summary }, null, 2) }],
       };
     },
   );

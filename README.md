@@ -36,9 +36,9 @@ An MCP server for Substack that lets AI assistants read your publication data an
 
 Open your Substack in a browser, then:
 
-1. **Session token:** DevTools → Application → Cookies → copy the value of `substack.sid`
-2. **User ID:** DevTools → Console → run `document.cookie.match(/substack.uid=(\d+)/)?.[1]` or check any API response in the Network tab for your user ID
-3. **Publication URL:** Your Substack URL (e.g., `https://yourblog.substack.com`)
+1. **Session token:** Navigate to your publication, open DevTools → Application → Cookies → copy the value of `connect.sid` (URL-encoded string starting with `s%3A`)
+2. **User ID:** In DevTools Console, run: `fetch('/api/v1/archive?sort=new&limit=1').then(r=>r.json()).then(d=>console.log(d[0]?.publishedBylines?.[0]?.id))`
+3. **Publication URL:** Your Substack URL, including custom domain if you have one (e.g., `https://newsletter.yourdomain.com` or `https://yourblog.substack.com`)
 
 ### 2. Configure your MCP client
 
@@ -88,7 +88,7 @@ Ask your AI assistant: "How many Substack subscribers do I have?"
 
 ## Token expiration
 
-Substack session tokens expire periodically. If you get authentication errors, grab a fresh `substack.sid` cookie from your browser and update the env var.
+Substack session tokens expire periodically (typically ~90 days). If you get authentication errors, grab a fresh `connect.sid` cookie from your browser and update the env var. Make sure ad blockers are disabled when copying the cookie.
 
 ## Markdown support
 

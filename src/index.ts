@@ -11,7 +11,7 @@ function getRequiredEnv(name: string): string {
     console.error("");
     console.error("Required environment variables:");
     console.error("  SUBSTACK_PUBLICATION_URL — e.g., https://yourblog.substack.com");
-    console.error("  SUBSTACK_SESSION_TOKEN   — substack.sid cookie from browser DevTools");
+    console.error("  SUBSTACK_SESSION_TOKEN   — connect.sid cookie from browser DevTools");
     console.error("  SUBSTACK_USER_ID         — your numeric Substack user ID");
     console.error("");
     console.error("See README.md for setup instructions.");
@@ -30,7 +30,7 @@ async function main() {
   // Validate auth on startup
   try {
     const user = await client.validateAuth();
-    console.error(`Authenticated as: ${user.name || user.email || "user " + user.id}`);
+    console.error(`Authenticated as user ${user.id}`);
   } catch (err) {
     console.error("Authentication failed. Check your SUBSTACK_SESSION_TOKEN.");
     console.error(err instanceof Error ? err.message : String(err));

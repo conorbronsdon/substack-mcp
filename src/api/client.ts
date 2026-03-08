@@ -15,7 +15,8 @@ export class SubstackClient {
 
   constructor(publicationUrl: string, sessionToken: string, userId: string) {
     this.publicationUrl = publicationUrl.replace(/\/$/, "");
-    this.cookie = `substack.sid=${sessionToken}; connect.sid=${sessionToken};`;
+    // Substack uses connect.sid on custom domains, substack.sid on substack.com
+    this.cookie = `connect.sid=${sessionToken}; substack.sid=${sessionToken};`;
     this.userId = parseInt(userId, 10);
 
     if (isNaN(this.userId)) {
@@ -52,26 +53,49 @@ export class SubstackClient {
     return response.json() as Promise<T>;
   }
 
-  async validateAuth(): Promise<SubstackUser> {
-    return this.request<SubstackUser>(
-      "https://substack.com/api/v1/user/self",
+  async validateAuth(): Promise<{ id: number; name: string }> {
+    // /user/self is restricted; validate by fetching drafts instead
+    const drafts = await this.request<SubstackDraft[]>(
+      `${this.publicationUrl}/api/v1/drafts?limit=1`,
     );
+    // If we get here without a 401/403, auth is valid
+    const byline = drafts[0]?.draft_bylines?.[0];
+    return { id: byline?.id ?? this.userId, name: "authenticated" };
   }
 
-  async getSubscriberCount(): Promise<number> {
-    const data = await this.request<{ subscriber_count?: number; subscriberCount?: number }>(
-      `${this.publicationUrl}/api/v1/publication_launch_checklist`,
-    );
-    return data.subscriber_count ?? data.subscriberCount ?? 0;
+  async getSubscriberCount(): Promise<{ count: number; note: string }> {
+    // Try multiple endpoints — Substack's API is inconsistent
+    try {
+      const data = await this.request<Record<string, unknown>>(
+        `${this.publicationUrl}/api/v1/publication_launch_checklist`,
+      );
+      if (typeof data.subscriber_count === "number") {
+        return { count: data.subscriber_count, note: "exact" };
+      }
+      if (typeof data.subscriberCount === "number") {
+        return { count: data.subscriberCount, note: "exact" };
+      }
+      // The subscribers field is a paginated sample, not the full list
+      if (Array.isArray(data.subscribers)) {
+        return {
+          count: data.subscribers.length,
+          note: "sample only — this is a paginated subset, not the total. Check your Substack dashboard for the exact count.",
+        };
+      }
+    } catch {
+      // Fall through
+    }
+    return { count: -1, note: "Could not retrieve subscriber count. Check your Substack dashboard." };
   }
 
   async getPublishedPosts(
     offset = 0,
     limit = 25,
-  ): Promise<SubstackPost[]> {
-    return this.request<SubstackPost[]>(
+  ): Promise<{ posts: SubstackPost[]; total: number }> {
+    const data = await this.request<{ posts: SubstackPost[]; total: number; offset: number; limit: number }>(
       `${this.publicationUrl}/api/v1/post_management/published?offset=${offset}&limit=${limit}&order_by=post_date&order_direction=desc`,
     );
+    return { posts: data.posts || [], total: data.total || 0 };
   }
 
   async getDrafts(offset = 0, limit = 25): Promise<SubstackDraft[]> {

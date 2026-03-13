@@ -185,6 +185,14 @@ export function markdownToProseMirror(markdown: string): string {
 }
 
 /**
+ * Returns the raw ProseMirror content array (for Notes, which wrap it in their own doc envelope).
+ */
+export function markdownToProseMirrorContent(markdown: string): PMNode[] {
+  const doc = JSON.parse(markdownToProseMirror(markdown));
+  return doc.content;
+}
+
+/**
  * Parse inline markdown (bold, italic, links, inline code) into ProseMirror text nodes with marks.
  */
 function parseInline(text: string): PMNode[] {

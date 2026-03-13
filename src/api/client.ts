@@ -2,6 +2,10 @@ import {
   SubstackUser,
   SubstackPost,
   SubstackDraft,
+  SubstackComment,
+  SubstackNote,
+  NoteCreatePayload,
+  NoteAttachment,
   DraftCreatePayload,
   DraftUpdatePayload,
   ImageUploadResult,
@@ -31,7 +35,7 @@ export class SubstackClient {
     const headers: Record<string, string> = {
       Cookie: this.cookie,
       "Content-Type": "application/json",
-      "User-Agent": "substack-mcp/0.1.0",
+      "User-Agent": "substack-mcp/0.2.0",
       ...(options.headers as Record<string, string> || {}),
     };
 
@@ -160,6 +164,49 @@ export class SubstackClient {
       {
         method: "POST",
         body: JSON.stringify({ image: imageBase64 }),
+      },
+    );
+  }
+
+  async getPostComments(
+    postId: number,
+    limit = 20,
+  ): Promise<SubstackComment[]> {
+    const data = await this.request<{ comments: SubstackComment[] }>(
+      `${this.publicationUrl}/api/v1/post/${postId}/comments`,
+    );
+    const comments = data.comments || [];
+    return comments.slice(0, limit);
+  }
+
+  async createNote(
+    bodyJson: NoteCreatePayload["bodyJson"],
+    attachmentIds?: string[],
+  ): Promise<SubstackNote> {
+    const payload: NoteCreatePayload = {
+      bodyJson,
+      tabId: "for-you",
+      surface: "feed",
+      replyMinimumRole: "everyone",
+    };
+    if (attachmentIds?.length) {
+      payload.attachmentIds = attachmentIds;
+    }
+    return this.request<SubstackNote>(
+      `${this.publicationUrl}/api/v1/comment/feed`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
+  }
+
+  async createNoteAttachment(url: string): Promise<NoteAttachment> {
+    return this.request<NoteAttachment>(
+      `${this.publicationUrl}/api/v1/comment/attachment`,
+      {
+        method: "POST",
+        body: JSON.stringify({ url, type: "link" }),
       },
     );
   }

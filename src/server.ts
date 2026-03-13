@@ -1,12 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { SubstackClient } from "./api/client.js";
-import { markdownToProseMirror } from "./utils/markdown-to-prosemirror.js";
+import { markdownToProseMirror, markdownToProseMirrorContent } from "./utils/markdown-to-prosemirror.js";
 
 export function createServer(client: SubstackClient): McpServer {
   const server = new McpServer({
     name: "substack-mcp",
-    version: "0.1.0",
+    version: "0.2.0",
   });
 
   // --- Read tools ---
@@ -139,6 +139,29 @@ export function createServer(client: SubstackClient): McpServer {
     },
   );
 
+  server.tool(
+    "get_post_comments",
+    "Get comments on a published post. Returns commenter name, comment body, date, and reaction counts.",
+    {
+      post_id: z.number().describe("The post ID to get comments for"),
+      limit: z.number().optional().default(20).describe("Max comments to return (default 20)"),
+    },
+    async ({ post_id, limit }) => {
+      const comments = await client.getPostComments(post_id, limit);
+      const summary = comments.map((c) => ({
+        id: c.id,
+        name: c.name,
+        body: c.body,
+        date: c.date,
+        reactions: c.reactions,
+        replies: c.children_count,
+      }));
+      return {
+        content: [{ type: "text", text: JSON.stringify(summary, null, 2) }],
+      };
+    },
+  );
+
   // --- Write tools ---
 
   server.tool(
@@ -236,6 +259,75 @@ export function createServer(client: SubstackClient): McpServer {
       return {
         content: [
           { type: "text", text: JSON.stringify({ image_url: result.url }) },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    "create_note",
+    "Create a Substack Note (short-form content). Accepts markdown text. Publishes immediately — there is no draft state for notes.",
+    {
+      body: z.string().describe("Note content in markdown format"),
+    },
+    async ({ body }) => {
+      const bodyJson = {
+        type: "doc" as const,
+        attrs: { schemaVersion: "v1" as const },
+        content: markdownToProseMirrorContent(body),
+      };
+      const note = await client.createNote(bodyJson);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                id: note.id,
+                body: note.body,
+                date: note.date,
+                message: "Note published successfully.",
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    "create_note_with_link",
+    "Create a Substack Note with a link attachment. The link is displayed as a rich card below the note text. Publishes immediately.",
+    {
+      body: z.string().describe("Note content in markdown format"),
+      url: z.string().url().describe("URL to attach as a link card"),
+    },
+    async ({ body, url }) => {
+      const attachment = await client.createNoteAttachment(url);
+      const bodyJson = {
+        type: "doc" as const,
+        attrs: { schemaVersion: "v1" as const },
+        content: markdownToProseMirrorContent(body),
+      };
+      const note = await client.createNote(bodyJson, [attachment.id]);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                id: note.id,
+                body: note.body,
+                date: note.date,
+                attachment_id: attachment.id,
+                message: "Note with link published successfully.",
+              },
+              null,
+              2,
+            ),
+          },
         ],
       };
     },

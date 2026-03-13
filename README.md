@@ -19,6 +19,7 @@ An MCP server for Substack that lets AI assistants read your publication data an
 | `list_drafts` | List draft posts |
 | `get_post` | Get full content of a published post by ID |
 | `get_draft` | Get full content of a draft by ID |
+| `get_post_comments` | Get comments on a published post |
 
 ### Write
 
@@ -27,10 +28,12 @@ An MCP server for Substack that lets AI assistants read your publication data an
 | `create_draft` | Create a new draft from markdown |
 | `update_draft` | Update an existing draft (unpublished only) |
 | `upload_image` | Upload an image to Substack's CDN |
+| `create_note` | Publish a Substack Note (short-form, publishes immediately) |
+| `create_note_with_link` | Publish a Note with a link card attachment |
 
 ### Intentionally excluded
 
-- **Publish** — Publishing should be a deliberate human action
+- **Publish posts** — Publishing long-form posts should be a deliberate human action
 - **Delete** — Too destructive for an AI tool
 - **Schedule** — Use Substack's editor for scheduling
 

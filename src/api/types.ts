@@ -77,3 +77,44 @@ export interface PublicationLaunchChecklist {
 export interface ImageUploadResult {
   url: string;
 }
+
+export interface SubstackComment {
+  id: number;
+  body: string;
+  body_json?: unknown;
+  name: string;
+  date: string;
+  user_id: number;
+  author_is_admin?: boolean;
+  reactions?: Record<string, number>;
+  children_count?: number;
+}
+
+export interface NoteCreatePayload {
+  bodyJson: {
+    type: "doc";
+    attrs: { schemaVersion: "v1" };
+    content: unknown[];
+  };
+  tabId: string;
+  surface: string;
+  replyMinimumRole: string;
+  attachmentIds?: string[];
+}
+
+export interface SubstackNote {
+  id: number;
+  body: string;
+  body_json?: unknown;
+  date: string;
+  name: string;
+  reaction_count: number;
+  restacks: number;
+  children_count: number;
+  attachments: unknown[];
+}
+
+export interface NoteAttachment {
+  id: string;
+  type: string;
+}

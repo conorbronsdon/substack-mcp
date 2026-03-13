@@ -4,37 +4,31 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { SubstackClient } from "./api/client.js";
 import { createServer } from "./server.js";
 
-function getRequiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    console.error(`Missing required environment variable: ${name}`);
-    console.error("");
-    console.error("Required environment variables:");
-    console.error("  SUBSTACK_PUBLICATION_URL — e.g., https://yourblog.substack.com");
-    console.error("  SUBSTACK_SESSION_TOKEN   — connect.sid cookie from browser DevTools");
-    console.error("  SUBSTACK_USER_ID         — your numeric Substack user ID");
-    console.error("");
-    console.error("See README.md for setup instructions.");
-    process.exit(1);
-  }
-  return value;
-}
-
 async function main() {
-  const publicationUrl = getRequiredEnv("SUBSTACK_PUBLICATION_URL");
-  const sessionToken = getRequiredEnv("SUBSTACK_SESSION_TOKEN");
-  const userId = getRequiredEnv("SUBSTACK_USER_ID");
+  const publicationUrl = process.env.SUBSTACK_PUBLICATION_URL || "";
+  const sessionToken = process.env.SUBSTACK_SESSION_TOKEN || "";
+  const userId = process.env.SUBSTACK_USER_ID || "0";
+
+  const missingVars = [
+    !process.env.SUBSTACK_PUBLICATION_URL && "SUBSTACK_PUBLICATION_URL",
+    !process.env.SUBSTACK_SESSION_TOKEN && "SUBSTACK_SESSION_TOKEN",
+    !process.env.SUBSTACK_USER_ID && "SUBSTACK_USER_ID",
+  ].filter(Boolean);
+
+  if (missingVars.length > 0) {
+    console.error(`Warning: Missing environment variables: ${missingVars.join(", ")}`);
+    console.error("Tools will error until all variables are configured. See README.md for setup.");
+  }
 
   const client = new SubstackClient(publicationUrl, sessionToken, userId);
 
-  // Validate auth on startup
+  // Validate auth on startup (warn but don't block — allows inspection without credentials)
   try {
     const user = await client.validateAuth();
     console.error(`Authenticated as user ${user.id}`);
   } catch (err) {
-    console.error("Authentication failed. Check your SUBSTACK_SESSION_TOKEN.");
+    console.error("Warning: Authentication failed. Tools will error until a valid session token is provided.");
     console.error(err instanceof Error ? err.message : String(err));
-    process.exit(1);
   }
 
   const server = createServer(client);

@@ -1,5 +1,9 @@
 # substack-mcp
 
+<a href="https://glama.ai/mcp/servers/conorbronsdon/substack-mcp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/conorbronsdon/substack-mcp/badge" alt="substack-mcp MCP server" />
+</a>
+
 An MCP server for Substack that lets AI assistants read your publication data and manage drafts.
 
 **Safe by design:** This server can create and edit drafts but cannot publish or delete posts. You always review and publish manually through Substack's editor.

@@ -1,7 +1,17 @@
 node_modules/
 dist/
+*.tsbuildinfo
+
+# Environment and secrets
 *.env
 .env.*
 credentials.json
 token.json
 client_secret*.json
+*.pem
+*.key
+*.p12
+
+# OS
+.DS_Store
+Thumbs.db

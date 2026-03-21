@@ -11,7 +11,7 @@ export class SubstackAPIError extends Error {
 
 export class AuthenticationError extends SubstackAPIError {
   constructor(endpoint: string) {
-    super(401, "Session token is invalid or expired. Get a fresh token from browser DevTools > Application > Cookies > substack.sid", endpoint);
+    super(401, "Session token is invalid or expired. Get a fresh token from browser DevTools > Application > Cookies > connect.sid (or substack.sid on substack.com)", endpoint);
     this.name = "AuthenticationError";
   }
 }

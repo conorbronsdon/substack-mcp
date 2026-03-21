@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "test": "vitest run",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },
@@ -16,14 +17,21 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0",
     "tsx": "^4.0.0",
-    "@types/node": "^22.0.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.0"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": ["mcp", "substack", "newsletter", "ai", "claude"],
+  "keywords": [
+    "mcp",
+    "substack",
+    "newsletter",
+    "ai",
+    "claude"
+  ],
   "license": "MIT",
   "author": "Conor Bronsdon",
   "repository": {

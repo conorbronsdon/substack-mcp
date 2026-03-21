@@ -195,7 +195,7 @@ export function markdownToProseMirrorContent(markdown: string): PMNode[] {
 /**
  * Parse inline markdown (bold, italic, links, inline code) into ProseMirror text nodes with marks.
  */
-function parseInline(text: string): PMNode[] {
+export function parseInline(text: string): PMNode[] {
   const nodes: PMNode[] = [];
 
   // Regex for inline patterns: bold, italic, links, inline code, images

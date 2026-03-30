@@ -93,6 +93,10 @@ Add to your `.mcp.json`:
 
 Ask your AI assistant: "How many Substack subscribers do I have?"
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/conorbronsdon-substack-mcp).
+
 ## Token expiration
 
 Substack session tokens expire periodically (typically ~90 days). If you get authentication errors, grab a fresh `connect.sid` cookie from your browser and update the env var. Make sure ad blockers are disabled when copying the cookie.

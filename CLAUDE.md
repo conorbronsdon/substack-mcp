@@ -1,6 +1,6 @@
 # substack-mcp
 
-MCP server for Substack — read posts, manage drafts, create notes. No publish or delete by design.
+MCP server for Substack — read posts, manage drafts, create notes. Cannot publish or delete posts by design; notes (short-form) publish immediately since Substack has no note-draft state.
 
 ## Architecture
 - `src/index.ts` — MCP server bootstrap and entry point
@@ -12,8 +12,9 @@ MCP server for Substack — read posts, manage drafts, create notes. No publish 
 - `src/__tests__/` — Vitest tests for client, errors, and markdown conversion
 
 ## Key constraints
-- Read and draft operations only — no publish or delete capabilities by design
-- Uses `connect.sid` session cookie for auth (not `substack.sid` on custom domains)
+- Posts are read/draft only — no publish or delete capabilities by design
+- Notes publish immediately via `create_note` / `create_note_with_link` — Substack has no note-draft state, so there is no preview step
+- Auth sends both `connect.sid` and `substack.sid` cookies set to the same session token (custom domains use `connect.sid`, substack.com uses `substack.sid`)
 - Markdown must be converted to ProseMirror format for Substack's editor
 
 ## Development

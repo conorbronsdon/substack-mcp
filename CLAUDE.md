@@ -33,6 +33,6 @@ npm test        # vitest run
 
 ## Agent workflow
 - Always work on a branch. Never push directly to main.
-- Create PRs targeting main. CI must pass (lint + build + test on Node 20 and 22).
+- Create PRs targeting main. CI must pass (build + test on Node 20 and 22). `npm run build` runs `tsc` and fails on type errors.
 - Keep changes focused — one feature or fix per PR.
-- Run `npm test` locally before pushing.
+- Run `npm run lint` (fast no-emit type-check) and `npm test` locally before pushing.

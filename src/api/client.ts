@@ -35,7 +35,7 @@ export class SubstackClient {
     const headers: Record<string, string> = {
       Cookie: this.cookie,
       "Content-Type": "application/json",
-      "User-Agent": "substack-mcp/0.2.2",
+      "User-Agent": "substack-mcp/0.3.0",
       ...(options.headers as Record<string, string> || {}),
     };
 

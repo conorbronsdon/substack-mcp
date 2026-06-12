@@ -1,20 +1,29 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { SubstackClient } from "./api/client.js";
+import { buildAnnotations } from "./annotations.js";
 import { markdownToProseMirror, markdownToProseMirrorContent } from "./utils/markdown-to-prosemirror.js";
 
 export function createServer(client: SubstackClient): McpServer {
   const server = new McpServer({
     name: "substack-mcp",
-    version: "0.2.2",
+    version: "0.3.0",
   });
+
+  // Every tool is registered with MCP annotations derived from its declared
+  // side-effect class (see annotations.ts) so clients can render accurate
+  // consent UI. Reads are readOnlyHint:true; draft/upload writes are
+  // additive; the Note tools publish public content immediately.
 
   // --- Read tools ---
 
-  server.tool(
+  server.registerTool(
     "get_subscriber_count",
-    "Get the current subscriber count for your Substack publication",
-    {},
+    {
+      description: "Get the current subscriber count for your Substack publication",
+      inputSchema: {},
+      annotations: buildAnnotations("get_subscriber_count"),
+    },
     async () => {
       const result = await client.getSubscriberCount();
       return {
@@ -25,12 +34,15 @@ export function createServer(client: SubstackClient): McpServer {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "list_published_posts",
-    "List published posts with pagination. Returns title, date, slug, and URL for each post.",
     {
-      offset: z.number().optional().default(0).describe("Number of posts to skip"),
-      limit: z.number().optional().default(25).describe("Max posts to return (1-100)"),
+      description: "List published posts with pagination. Returns title, date, slug, and URL for each post.",
+      inputSchema: {
+        offset: z.number().optional().default(0).describe("Number of posts to skip"),
+        limit: z.number().optional().default(25).describe("Max posts to return (1-100)"),
+      },
+      annotations: buildAnnotations("list_published_posts"),
     },
     async ({ offset, limit }) => {
       const { posts, total } = await client.getPublishedPosts(offset, Math.min(limit, 100));
@@ -50,12 +62,15 @@ export function createServer(client: SubstackClient): McpServer {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "list_drafts",
-    "List draft posts. Returns title, creation date, and audience for each draft.",
     {
-      offset: z.number().optional().default(0).describe("Number of drafts to skip"),
-      limit: z.number().optional().default(25).describe("Max drafts to return (1-100)"),
+      description: "List draft posts. Returns title, creation date, and audience for each draft.",
+      inputSchema: {
+        offset: z.number().optional().default(0).describe("Number of drafts to skip"),
+        limit: z.number().optional().default(25).describe("Max drafts to return (1-100)"),
+      },
+      annotations: buildAnnotations("list_drafts"),
     },
     async ({ offset, limit }) => {
       const drafts = await client.getDrafts(offset, Math.min(limit, 100));
@@ -74,11 +89,14 @@ export function createServer(client: SubstackClient): McpServer {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "get_post",
-    "Get the full content of a published post by ID. Returns title, body HTML, metadata.",
     {
-      post_id: z.number().describe("The post ID to retrieve"),
+      description: "Get the full content of a published post by ID. Returns title, body HTML, metadata.",
+      inputSchema: {
+        post_id: z.number().describe("The post ID to retrieve"),
+      },
+      annotations: buildAnnotations("get_post"),
     },
     async ({ post_id }) => {
       const post = await client.getPost(post_id);
@@ -107,11 +125,14 @@ export function createServer(client: SubstackClient): McpServer {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "get_draft",
-    "Get the full content of a draft post by ID. Returns title, body, metadata.",
     {
-      draft_id: z.number().describe("The draft ID to retrieve"),
+      description: "Get the full content of a draft post by ID. Returns title, body, metadata.",
+      inputSchema: {
+        draft_id: z.number().describe("The draft ID to retrieve"),
+      },
+      annotations: buildAnnotations("get_draft"),
     },
     async ({ draft_id }) => {
       const draft = await client.getDraft(draft_id);
@@ -139,12 +160,15 @@ export function createServer(client: SubstackClient): McpServer {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "get_post_comments",
-    "Get comments on a published post. Returns commenter name, comment body, date, and reaction counts.",
     {
-      post_id: z.number().describe("The post ID to get comments for"),
-      limit: z.number().optional().default(20).describe("Max comments to return (default 20)"),
+      description: "Get comments on a published post. Returns commenter name, comment body, date, and reaction counts.",
+      inputSchema: {
+        post_id: z.number().describe("The post ID to get comments for"),
+        limit: z.number().optional().default(20).describe("Max comments to return (default 20)"),
+      },
+      annotations: buildAnnotations("get_post_comments"),
     },
     async ({ post_id, limit }) => {
       const comments = await client.getPostComments(post_id, limit);
@@ -162,20 +186,23 @@ export function createServer(client: SubstackClient): McpServer {
     },
   );
 
-  // --- Write tools ---
+  // --- Write tools (additive: drafts and uploads — nothing goes public) ---
 
-  server.tool(
+  server.registerTool(
     "create_draft",
-    "Create a new draft post. Accepts markdown body which is converted to Substack's format. Does NOT publish — creates a draft only.",
     {
-      title: z.string().describe("Post title"),
-      body: z.string().optional().describe("Post body in markdown format"),
-      subtitle: z.string().optional().describe("Post subtitle"),
-      audience: z
-        .enum(["everyone", "only_paid", "founding", "only_free"])
-        .optional()
-        .default("everyone")
-        .describe("Who can see this post"),
+      description: "Create a new draft post. Accepts markdown body which is converted to Substack's format. Does NOT publish — creates a draft only.",
+      inputSchema: {
+        title: z.string().describe("Post title"),
+        body: z.string().optional().describe("Post body in markdown format"),
+        subtitle: z.string().optional().describe("Post subtitle"),
+        audience: z
+          .enum(["everyone", "only_paid", "founding", "only_free"])
+          .optional()
+          .default("everyone")
+          .describe("Who can see this post"),
+      },
+      annotations: buildAnnotations("create_draft"),
     },
     async ({ title, body, subtitle, audience }) => {
       const prosemirrorBody = body ? markdownToProseMirror(body) : undefined;
@@ -204,18 +231,21 @@ export function createServer(client: SubstackClient): McpServer {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "update_draft",
-    "Update an existing draft post. Only works on unpublished drafts. Accepts markdown body.",
     {
-      draft_id: z.number().describe("The draft ID to update"),
-      title: z.string().optional().describe("New title"),
-      subtitle: z.string().optional().describe("New subtitle"),
-      body: z.string().optional().describe("New body in markdown format"),
-      audience: z
-        .enum(["everyone", "only_paid", "founding", "only_free"])
-        .optional()
-        .describe("Who can see this post"),
+      description: "Update an existing draft post. Only works on unpublished drafts. Accepts markdown body.",
+      inputSchema: {
+        draft_id: z.number().describe("The draft ID to update"),
+        title: z.string().optional().describe("New title"),
+        subtitle: z.string().optional().describe("New subtitle"),
+        body: z.string().optional().describe("New body in markdown format"),
+        audience: z
+          .enum(["everyone", "only_paid", "founding", "only_free"])
+          .optional()
+          .describe("Who can see this post"),
+      },
+      annotations: buildAnnotations("update_draft"),
     },
     async ({ draft_id, title, subtitle, body, audience }) => {
       const updates: Record<string, unknown> = {};
@@ -244,15 +274,18 @@ export function createServer(client: SubstackClient): McpServer {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "upload_image",
-    "Upload a base64-encoded image to Substack's CDN. Returns the hosted image URL.",
     {
-      image_base64: z
-        .string()
-        .describe(
-          'Base64-encoded image with data URI prefix (e.g., "data:image/png;base64,...")',
-        ),
+      description: "Upload a base64-encoded image to Substack's CDN. Returns the hosted image URL.",
+      inputSchema: {
+        image_base64: z
+          .string()
+          .describe(
+            'Base64-encoded image with data URI prefix (e.g., "data:image/png;base64,...")',
+          ),
+      },
+      annotations: buildAnnotations("upload_image"),
     },
     async ({ image_base64 }) => {
       const result = await client.uploadImage(image_base64);
@@ -264,11 +297,16 @@ export function createServer(client: SubstackClient): McpServer {
     },
   );
 
-  server.tool(
+  // --- Note tools (PUBLISH IMMEDIATELY — public the moment they run) ---
+
+  server.registerTool(
     "create_note",
-    "Create a Substack Note (short-form content). Accepts markdown text. Publishes immediately — there is no draft state for notes.",
     {
-      body: z.string().describe("Note content in markdown format"),
+      description: "Create a Substack Note (short-form content). Accepts markdown text. PUBLISHES IMMEDIATELY to your public Notes feed — Notes have no draft state on Substack, and this server has no delete tools, so there is no undo from here.",
+      inputSchema: {
+        body: z.string().describe("Note content in markdown format"),
+      },
+      annotations: buildAnnotations("create_note"),
     },
     async ({ body }) => {
       const bodyJson = {
@@ -297,12 +335,15 @@ export function createServer(client: SubstackClient): McpServer {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "create_note_with_link",
-    "Create a Substack Note with a link attachment. The link is displayed as a rich card below the note text. Publishes immediately.",
     {
-      body: z.string().describe("Note content in markdown format"),
-      url: z.string().url().describe("URL to attach as a link card"),
+      description: "Create a Substack Note with a link attachment, displayed as a rich card below the note text. PUBLISHES IMMEDIATELY to your public Notes feed — same caveats as create_note: no draft state, no undo from this server.",
+      inputSchema: {
+        body: z.string().describe("Note content in markdown format"),
+        url: z.string().url().describe("URL to attach as a link card"),
+      },
+      annotations: buildAnnotations("create_note_with_link"),
     },
     async ({ body, url }) => {
       const attachment = await client.createNoteAttachment(url);

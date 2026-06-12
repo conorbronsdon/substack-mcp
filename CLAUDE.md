@@ -5,6 +5,7 @@ MCP server for Substack — read posts, manage drafts, create notes. Cannot publ
 ## Architecture
 - `src/index.ts` — MCP server bootstrap and entry point
 - `src/server.ts` — Tool registration, request handlers, Zod schema generation
+- `src/annotations.ts` — Tool side-effect classification (read / additive-write / publish) → MCP annotations
 - `src/api/client.ts` — HTTP client for Substack API (session cookie auth)
 - `src/api/types.ts` — TypeScript interfaces for API responses
 - `src/utils/errors.ts` — Error handling utilities
@@ -26,10 +27,11 @@ npm test        # vitest run
 ```
 
 ## Testing
-3 test suites:
+4 test suites:
 - `client.test.ts` — API client auth validation
 - `errors.test.ts` — Error handling and wrapping
 - `markdown-to-prosemirror.test.ts` — Markdown to ProseMirror AST conversion
+- `annotations.test.ts` — Annotation mapping + completeness (every registered tool classified)
 
 ## Agent workflow
 - Always work on a branch. Never push directly to main.

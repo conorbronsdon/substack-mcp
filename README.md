@@ -2,7 +2,7 @@
 
 # substack-mcp
 
-An MCP server for Substack. Read your publication data and manage drafts from your AI agent. No publish or delete by design.
+An MCP server for Substack. Read your publication data and manage drafts from your AI agent. Long-form posts are draft-only by design — no publish, no delete. Short-form Notes publish immediately.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Language: TypeScript](https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -19,7 +19,7 @@ An MCP server for Substack. Read your publication data and manage drafts from yo
 
 An MCP server for Substack that lets AI assistants read your publication data and manage drafts. The draft list shown in the demo above is sample data, not real account values.
 
-**Safe by design:** This server can create and edit drafts but cannot publish or delete posts. You always review and publish manually through Substack's editor.
+**Safe by design — with one loud exception:** This server cannot publish or delete long-form posts. Post tools create and edit drafts only; you review and publish manually through Substack's editor. The exception is Substack **Notes**: `create_note` and `create_note_with_link` publish short-form Notes immediately, because Notes have no draft state on Substack. Treat the Note tools as public-publish actions — there is no preview step and no undo from this server.
 
 <a href="https://glama.ai/mcp/servers/conorbronsdon/substack-mcp">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/conorbronsdon/substack-mcp/badge" alt="substack-mcp MCP server" />
@@ -35,6 +35,8 @@ Built and maintained by [Conor Bronsdon](https://github.com/conorbronsdon) for t
 
 ## Tools
 
+Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/concepts/tools#tool-annotations): reads carry `readOnlyHint: true`, draft/upload writes carry `readOnlyHint: false`, and the Note tools additionally carry `openWorldHint: true` so clients don't treat an immediate public publish as a low-stakes write.
+
 ### Read
 
 | Tool | Description |
@@ -46,19 +48,26 @@ Built and maintained by [Conor Bronsdon](https://github.com/conorbronsdon) for t
 | `get_draft` | Get full content of a draft by ID |
 | `get_post_comments` | Get comments on a published post |
 
-### Write
+### Write (drafts and uploads — nothing goes public)
 
 | Tool | Description |
 |------|-------------|
 | `create_draft` | Create a new draft from markdown |
 | `update_draft` | Update an existing draft (unpublished only) |
 | `upload_image` | Upload an image to Substack's CDN |
-| `create_note` | Publish a Substack Note (short-form, publishes immediately) |
-| `create_note_with_link` | Publish a Note with a link card attachment |
+
+### Publish (Notes — public immediately)
+
+| Tool | Description |
+|------|-------------|
+| `create_note` | Publish a Substack Note (short-form, **publishes immediately**) |
+| `create_note_with_link` | Publish a Note with a link card attachment (**publishes immediately**) |
+
+Notes have no draft state on Substack, so there is no draft-first option for these two tools.
 
 ### Intentionally excluded
 
-- **Publish posts** — Publishing long-form posts should be a deliberate human action
+- **Publish posts** — Publishing long-form posts should be a deliberate human action (Notes are the documented exception above)
 - **Delete** — Too destructive for an AI tool
 - **Schedule** — Use Substack's editor for scheduling
 
@@ -160,7 +169,7 @@ npm start
 
 ## Contributing
 
-Issues and pull requests are welcome. Because this server uses Substack's unofficial API, the most useful contributions are fixes when an endpoint changes. If a tool stops working, open an issue with the tool name and the error. The safe-by-design boundary stays: no publish, no delete, no schedule.
+Issues and pull requests are welcome. Because this server uses Substack's unofficial API, the most useful contributions are fixes when an endpoint changes. If a tool stops working, open an issue with the tool name and the error. The safe-by-design boundary stays: no publish, no delete, no schedule for long-form posts. Notes publish immediately by design and must keep saying so loudly in their descriptions.
 
 ---
 

@@ -1,7 +1,7 @@
 {
   "name": "@conorbronsdon/substack-mcp",
-  "version": "0.2.2",
-  "description": "MCP server for Substack — read posts, manage drafts. No publish or delete by design.",
+  "version": "0.3.0",
+  "description": "MCP server for Substack — read posts, manage drafts, publish Notes. Long-form posts are draft-only by design (no publish, no delete); Notes publish immediately.",
   "type": "module",
   "bin": {
     "substack-mcp": "./dist/index.js"

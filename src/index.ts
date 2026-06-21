@@ -20,7 +20,8 @@ async function main() {
     console.error("Tools will error until all variables are configured. See README.md for setup.");
   }
 
-  const client = new SubstackClient(publicationUrl, sessionToken, userId);
+  const userAgent = process.env.SUBSTACK_USER_AGENT;
+  const client = new SubstackClient(publicationUrl, sessionToken, userId, userAgent);
 
   // Validate auth on startup (warn but don't block — allows inspection without credentials)
   try {

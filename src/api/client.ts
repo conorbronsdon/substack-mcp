@@ -16,12 +16,26 @@ export class SubstackClient {
   private publicationUrl: string;
   private cookie: string;
   private userId: number;
+  private userAgent: string;
 
-  constructor(publicationUrl: string, sessionToken: string, userId: string) {
+  constructor(
+    publicationUrl: string,
+    sessionToken: string,
+    userId: string,
+    userAgent?: string,
+  ) {
     this.publicationUrl = publicationUrl.replace(/\/$/, "");
     // Substack uses connect.sid on custom domains, substack.sid on substack.com
     this.cookie = `connect.sid=${sessionToken}; substack.sid=${sessionToken};`;
     this.userId = parseInt(userId, 10);
+    // Substack sits behind Cloudflare, which rejects non-browser User-Agents
+    // (the default Node/undici UA, "node", etc.) with HTTP 403 "error code:
+    // 1010" on some publications — notably custom domains. Default to a browser
+    // UA; allow override via SUBSTACK_USER_AGENT.
+    this.userAgent =
+      userAgent ||
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
     if (isNaN(this.userId)) {
       throw new Error(`Invalid SUBSTACK_USER_ID: "${userId}" — must be a number`);
@@ -35,7 +49,13 @@ export class SubstackClient {
     const headers: Record<string, string> = {
       Cookie: this.cookie,
       "Content-Type": "application/json",
-      "User-Agent": "substack-mcp/0.3.0",
+      "User-Agent": this.userAgent,
+      Accept: "application/json, text/plain, */*",
+      // Without a Referer, Substack 301-redirects canonical *.substack.com API
+      // calls to the publication's custom domain; following that redirect lands
+      // on a 401. Presenting the publish UI as referer keeps the request
+      // first-party and served directly.
+      Referer: `${this.publicationUrl}/publish/home`,
       ...(options.headers as Record<string, string> || {}),
     };
 
@@ -58,10 +78,8 @@ export class SubstackClient {
   }
 
   async validateAuth(): Promise<{ id: number; name: string }> {
-    // /user/self is restricted; validate by fetching drafts instead
-    const drafts = await this.request<SubstackDraft[]>(
-      `${this.publicationUrl}/api/v1/drafts?limit=1`,
-    );
+    // /user/self is restricted; validate by listing drafts instead.
+    const drafts = await this.getDrafts(0, 1);
     // If we get here without a 401/403, auth is valid
     const byline = drafts[0]?.draft_bylines?.[0];
     return { id: byline?.id ?? this.userId, name: "authenticated" };
@@ -103,9 +121,14 @@ export class SubstackClient {
   }
 
   async getDrafts(offset = 0, limit = 25): Promise<SubstackDraft[]> {
-    return this.request<SubstackDraft[]>(
-      `${this.publicationUrl}/api/v1/drafts?offset=${offset}&limit=${limit}`,
+    // The bare /api/v1/drafts collection returns 403 "Not authorized" on many
+    // publications; /api/v1/post_management/drafts is the endpoint the Substack
+    // editor itself uses. It requires explicit ordering params and returns the
+    // drafts wrapped in { posts, total } rather than a bare array.
+    const data = await this.request<{ posts: SubstackDraft[]; total?: number }>(
+      `${this.publicationUrl}/api/v1/post_management/drafts?offset=${offset}&limit=${limit}&order_by=draft_updated_at&order_direction=desc`,
     );
+    return data.posts || [];
   }
 
   async getDraft(id: number): Promise<SubstackDraft> {

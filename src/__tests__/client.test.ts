@@ -82,4 +82,22 @@ describe("SubstackClient requests", () => {
     const opts = fetchMock.mock.calls[0][1] as { headers: Record<string, string> };
     expect(opts.headers["User-Agent"]).toBe("MyUA/1.0");
   });
+
+  it("omits Content-Type on a bodyless GET", async () => {
+    const fetchMock = stubFetch({ posts: [] });
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    await client.getDrafts();
+
+    const opts = fetchMock.mock.calls[0][1] as { headers: Record<string, string> };
+    expect(opts.headers["Content-Type"]).toBeUndefined();
+  });
+
+  it("sends Content-Type on a request with a body", async () => {
+    const fetchMock = stubFetch({ id: 1, draft_title: "hi" });
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    await client.createDraft("hi");
+
+    const opts = fetchMock.mock.calls[0][1] as { headers: Record<string, string> };
+    expect(opts.headers["Content-Type"]).toBe("application/json");
+  });
 });

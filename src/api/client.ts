@@ -48,7 +48,6 @@ export class SubstackClient {
   ): Promise<T> {
     const headers: Record<string, string> = {
       Cookie: this.cookie,
-      "Content-Type": "application/json",
       "User-Agent": this.userAgent,
       Accept: "application/json, text/plain, */*",
       // Without a Referer, Substack 301-redirects canonical *.substack.com API
@@ -58,6 +57,13 @@ export class SubstackClient {
       Referer: `${this.publicationUrl}/publish/home`,
       ...(options.headers as Record<string, string> || {}),
     };
+
+    // Only send Content-Type when there's a body. A bodyless GET carrying
+    // Content-Type is a non-browser signature — the same class of tell the
+    // browser UA/Referer above exist to avoid. Respect a caller override.
+    if (options.body && !("Content-Type" in headers)) {
+      headers["Content-Type"] = "application/json";
+    }
 
     const response = await fetch(url, {
       ...options,

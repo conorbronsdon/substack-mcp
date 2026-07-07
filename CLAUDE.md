@@ -5,7 +5,7 @@ MCP server for Substack — read posts, manage drafts, create notes. Cannot publ
 ## Architecture
 - `src/index.ts` — MCP server bootstrap and entry point
 - `src/server.ts` — Tool registration, request handlers, Zod schema generation
-- `src/annotations.ts` — Tool side-effect classification (read / additive-write / publish) → MCP annotations
+- `src/annotations.ts` — Tool side-effect classification (read / draft-write / public-upload / publish) → MCP annotations (hints set explicitly; MCP defaults omitted hints to the unsafe direction)
 - `src/api/client.ts` — HTTP client for Substack API (session cookie auth)
 - `src/api/types.ts` — TypeScript interfaces for API responses
 - `src/utils/errors.ts` — Error handling utilities

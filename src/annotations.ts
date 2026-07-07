@@ -7,6 +7,20 @@
  * effects and render accurate consent UI. A completeness test asserts the
  * registry matches the set of tools actually registered on the server, so
  * new tools cannot ship unclassified.
+ *
+ * IMPORTANT — MCP hints default to the UNSAFE direction. Per the spec
+ * (schema 2025-06-18), an omitted `destructiveHint` defaults to `true` and an
+ * omitted `openWorldHint` defaults to `true`. So we set EVERY relevant hint
+ * explicitly on writes; leaving one off would make a reversible private draft
+ * edit read to a conformant client as destructive and open-world. Annotations
+ * are also untrusted hints — the authoritative consent surface is the tool
+ * description, so descriptions carry the load-bearing wording (e.g. that
+ * `upload_image` returns a publicly-fetchable URL).
+ *
+ * `openWorldHint` convention used here: `true` means the tool's output enters
+ * an open world of external entities — a public Substack Note, or a
+ * publicly-fetchable CDN image URL. Private draft writes stay in your account
+ * and are `false`.
  */
 
 /** Side-effect classes for substack-mcp tools. */
@@ -14,10 +28,16 @@ export type ToolKind =
   /** Pure read: no side effects on the user's Substack data. */
   | "read"
   /**
-   * Additive write to PRIVATE state (drafts, CDN image uploads). Reversible
-   * in Substack's editor; nothing becomes public from these tools.
+   * Additive write to PRIVATE draft state. Reversible in Substack's editor;
+   * nothing becomes reachable outside your account.
    */
-  | "additive-write"
+  | "draft-write"
+  /**
+   * Additive write that returns a PUBLICLY FETCHABLE (but unlisted) CDN URL.
+   * The image bytes are served without authentication to anyone holding the
+   * URL, though the asset is not attributed or added to your feed.
+   */
+  | "public-upload"
   /**
    * Write with IMMEDIATE PUBLIC effect: Substack Notes publish the moment
    * the tool runs. Notes have no draft state on Substack, and this server
@@ -28,9 +48,10 @@ export type ToolKind =
 /**
  * Exhaustive tool-name → kind registry.
  *
- * This server has NO destructive tools (no deletes) by design. If one is
- * ever added, introduce a "destructive" kind mapping to
- * `{ readOnlyHint: false, destructiveHint: true }` per the MCP spec.
+ * This server has NO destructive tools (no deletes) by design — every write
+ * is additive, so all writes set `destructiveHint: false` explicitly. If a
+ * destructive tool is ever added, set `destructiveHint: true` for it per the
+ * MCP spec.
  */
 export const TOOL_KINDS = {
   // Reads
@@ -40,10 +61,11 @@ export const TOOL_KINDS = {
   get_post: "read",
   get_draft: "read",
   get_post_comments: "read",
-  // Additive writes (private: drafts and uploads — nothing goes public)
-  create_draft: "additive-write",
-  update_draft: "additive-write",
-  upload_image: "additive-write",
+  // Additive writes to private draft state (nothing reachable outside account)
+  create_draft: "draft-write",
+  update_draft: "draft-write",
+  // Additive write returning a publicly-fetchable CDN URL
+  upload_image: "public-upload",
   // Immediate public publishes (Substack Notes)
   create_note: "publish",
   create_note_with_link: "publish",
@@ -59,23 +81,37 @@ export interface ToolAnnotationHints {
 }
 
 /**
- * Map a tool's declared kind into MCP `annotations`.
+ * Map a tool's declared kind into MCP `annotations`, setting every relevant
+ * hint EXPLICITLY (never relying on MCP's unsafe-by-default omission).
  *
- * Every tool gets an explicit `readOnlyHint` (true for reads, false for any
- * write) so clients always know the side-effect class. Additive writes carry
- * `readOnlyHint: false` and no destructive hint (matching gws-mcp-server:
- * they create or update reversible private state, never remove data). The
- * Note tools additionally carry `openWorldHint: true` because they publish
- * public content immediately — clients should not treat them as low-stakes
- * writes.
+ * - Reads: `readOnlyHint: true` (destructive/open-world hints are not
+ *   meaningful for a read).
+ * - Every write is additive, so `destructiveHint: false`.
+ * - `openWorldHint` is `true` only when the tool's output becomes reachable
+ *   by outside parties: a public Note, or a publicly-fetchable CDN image URL.
+ *   Private draft writes are `false`.
  */
 export function buildAnnotations(name: ToolName): ToolAnnotationHints {
   switch (TOOL_KINDS[name]) {
     case "read":
       return { readOnlyHint: true };
-    case "additive-write":
-      return { readOnlyHint: false };
+    case "draft-write":
+      return {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+      };
+    case "public-upload":
+      return {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: true,
+      };
     case "publish":
-      return { readOnlyHint: false, openWorldHint: true };
+      return {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: true,
+      };
   }
 }

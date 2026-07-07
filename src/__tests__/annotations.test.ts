@@ -26,11 +26,9 @@ const READ_TOOLS: ToolName[] = [
   "get_post_comments",
 ];
 
-const ADDITIVE_WRITE_TOOLS: ToolName[] = [
-  "create_draft",
-  "update_draft",
-  "upload_image",
-];
+const DRAFT_WRITE_TOOLS: ToolName[] = ["create_draft", "update_draft"];
+
+const PUBLIC_UPLOAD_TOOLS: ToolName[] = ["upload_image"];
 
 const PUBLISH_TOOLS: ToolName[] = ["create_note", "create_note_with_link"];
 
@@ -40,16 +38,31 @@ describe("buildAnnotations mapping", () => {
     expect(a).toEqual({ readOnlyHint: true });
   });
 
-  it("additive write -> { readOnlyHint: false } with no destructive or open-world hint", () => {
+  it("draft write -> readOnlyHint:false, explicitly non-destructive and closed-world", () => {
     const a = buildAnnotations("create_draft");
-    expect(a).toEqual({ readOnlyHint: false });
-    expect(a.destructiveHint).toBeUndefined();
-    expect(a.openWorldHint).toBeUndefined();
+    expect(a).toEqual({
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    });
   });
 
-  it("publish (Notes) -> { readOnlyHint: false, openWorldHint: true }", () => {
+  it("public upload -> openWorldHint:true (returns a publicly-fetchable URL), non-destructive", () => {
+    const a = buildAnnotations("upload_image");
+    expect(a).toEqual({
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+    });
+  });
+
+  it("publish (Notes) -> readOnlyHint:false, openWorldHint:true, non-destructive", () => {
     const a = buildAnnotations("create_note");
-    expect(a).toEqual({ readOnlyHint: false, openWorldHint: true });
+    expect(a).toEqual({
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+    });
   });
 });
 
@@ -78,12 +91,21 @@ describe("tool annotation classifications", () => {
     }
   });
 
-  it("additive writes are readOnlyHint:false with no destructive or open-world hint", () => {
-    for (const name of ADDITIVE_WRITE_TOOLS) {
+  it("draft writes are readOnlyHint:false, explicitly non-destructive and closed-world", () => {
+    for (const name of DRAFT_WRITE_TOOLS) {
       const a = buildAnnotations(name);
       expect(a.readOnlyHint, name).toBe(false);
-      expect(a.destructiveHint, name).toBeUndefined();
-      expect(a.openWorldHint, name).toBeUndefined();
+      expect(a.destructiveHint, name).toBe(false);
+      expect(a.openWorldHint, name).toBe(false);
+    }
+  });
+
+  it("public uploads carry openWorldHint:true (publicly-fetchable URL), non-destructive", () => {
+    for (const name of PUBLIC_UPLOAD_TOOLS) {
+      const a = buildAnnotations(name);
+      expect(a.readOnlyHint, name).toBe(false);
+      expect(a.destructiveHint, name).toBe(false);
+      expect(a.openWorldHint, name).toBe(true);
     }
   });
 
@@ -95,9 +117,15 @@ describe("tool annotation classifications", () => {
     }
   });
 
-  it("no tool is destructive (this server has no deletes by design)", () => {
-    for (const name of Object.keys(TOOL_KINDS) as ToolName[]) {
-      expect(buildAnnotations(name).destructiveHint, name).toBeUndefined();
+  it("no write tool is destructive (this server has no deletes by design)", () => {
+    // Writes set destructiveHint explicitly to false — never left to MCP's
+    // unsafe default of true. Reads omit it (not meaningful for a read).
+    for (const name of [
+      ...DRAFT_WRITE_TOOLS,
+      ...PUBLIC_UPLOAD_TOOLS,
+      ...PUBLISH_TOOLS,
+    ]) {
+      expect(buildAnnotations(name).destructiveHint, name).toBe(false);
     }
   });
 
@@ -110,7 +138,12 @@ describe("tool annotation classifications", () => {
   });
 
   it("the classification groups above cover the whole registry", () => {
-    const grouped = [...READ_TOOLS, ...ADDITIVE_WRITE_TOOLS, ...PUBLISH_TOOLS];
+    const grouped = [
+      ...READ_TOOLS,
+      ...DRAFT_WRITE_TOOLS,
+      ...PUBLIC_UPLOAD_TOOLS,
+      ...PUBLISH_TOOLS,
+    ];
     expect(grouped.sort()).toEqual(Object.keys(TOOL_KINDS).sort());
   });
 });

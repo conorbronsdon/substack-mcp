@@ -186,7 +186,7 @@ export function createServer(client: SubstackClient): McpServer {
     },
   );
 
-  // --- Write tools (additive: drafts and uploads — nothing goes public) ---
+  // --- Write tools (additive: private drafts + a public-URL image upload) ---
 
   server.registerTool(
     "create_draft",
@@ -277,7 +277,8 @@ export function createServer(client: SubstackClient): McpServer {
   server.registerTool(
     "upload_image",
     {
-      description: "Upload a base64-encoded image to Substack's CDN. Returns the hosted image URL.",
+      description:
+        "Upload a base64-encoded image to Substack's CDN. Returns a hosted image URL that is publicly fetchable by anyone with the link (an unlisted asset — not attributed to you or added to your feed).",
       inputSchema: {
         image_base64: z
           .string()

@@ -35,7 +35,7 @@ Built and maintained by [Conor Bronsdon](https://github.com/conorbronsdon) for t
 
 ## Tools
 
-Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/concepts/tools#tool-annotations): reads carry `readOnlyHint: true`, draft/upload writes carry `readOnlyHint: false`, and the Note tools additionally carry `openWorldHint: true` so clients don't treat an immediate public publish as a low-stakes write.
+Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/concepts/tools#tool-annotations), set **explicitly** rather than left to MCP's defaults (an omitted `destructiveHint` or `openWorldHint` defaults to `true`). Reads carry `readOnlyHint: true`. Every write is additive, so all writes carry `destructiveHint: false`. Draft writes are private (`openWorldHint: false`); `upload_image` carries `openWorldHint: true` because it returns a publicly-fetchable CDN URL; and the Note tools carry `openWorldHint: true` for immediate public publish. Annotations are untrusted hints, so the authoritative wording lives in each tool's description.
 
 ### Read
 
@@ -48,13 +48,13 @@ Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/
 | `get_draft` | Get full content of a draft by ID |
 | `get_post_comments` | Get comments on a published post |
 
-### Write (drafts and uploads — nothing goes public)
+### Write (private drafts; image upload returns a public URL)
 
 | Tool | Description |
 |------|-------------|
-| `create_draft` | Create a new draft from markdown |
-| `update_draft` | Update an existing draft (unpublished only) |
-| `upload_image` | Upload an image to Substack's CDN |
+| `create_draft` | Create a new draft from markdown (private) |
+| `update_draft` | Update an existing draft (unpublished only; private) |
+| `upload_image` | Upload an image to Substack's CDN — returns a publicly-fetchable (unlisted) URL |
 
 ### Publish (Notes — public immediately)
 

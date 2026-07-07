@@ -131,6 +131,22 @@ Ask your AI assistant: "How many Substack subscribers do I have?"
 
 Substack session tokens expire periodically (typically ~90 days). If you get authentication errors, grab a fresh `connect.sid` cookie from your browser and update the env var. Make sure ad blockers are disabled when copying the cookie.
 
+## Custom domains & Cloudflare
+
+Substack publications served on a custom domain (e.g. `blog.example.com`) sit behind Cloudflare, which can reject non-browser requests with `403 error code: 1010`. To avoid this, the server sends a browser `User-Agent` and a `Referer` by default, and addresses the publication by its canonical `*.substack.com` host.
+
+- **Use the canonical host.** Set `SUBSTACK_PUBLICATION_URL` to the publication's `*.substack.com` address rather than the custom domain. Calls to the canonical host are served directly; custom-domain calls may 301-redirect and then 401.
+- **Override the User-Agent** (optional) via `SUBSTACK_USER_AGENT` if you need a different browser signature:
+
+```json
+"env": {
+  "SUBSTACK_PUBLICATION_URL": "https://yourblog.substack.com",
+  "SUBSTACK_SESSION_TOKEN": "your-session-token",
+  "SUBSTACK_USER_ID": "your-user-id",
+  "SUBSTACK_USER_AGENT": "Mozilla/5.0 ..."
+}
+```
+
 ## Markdown support
 
 The `create_draft` and `update_draft` tools accept markdown and convert it to Substack's native format. Supported:

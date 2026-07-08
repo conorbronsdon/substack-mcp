@@ -1,0 +1,69 @@
+name: Publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Check if package.json version is already published
+        id: version
+        run: |
+          LOCAL_VERSION="$(node -p "require('./package.json').version")"
+          PKG_NAME="$(node -p "require('./package.json').name")"
+          PUBLISHED_VERSION="$(npm view "$PKG_NAME" version 2>/dev/null || echo none)"
+          echo "local=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
+          echo "published=$PUBLISHED_VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$LOCAL_VERSION" = "$PUBLISHED_VERSION" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "package.json version ($LOCAL_VERSION) is already published — nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "package.json version ($LOCAL_VERSION) differs from published ($PUBLISHED_VERSION) — publishing."
+          fi
+
+      - name: Install dependencies
+        if: steps.version.outputs.changed == 'true'
+        run: npm ci
+
+      - name: Build
+        if: steps.version.outputs.changed == 'true'
+        run: npm run build --if-present
+
+      - name: Test
+        if: steps.version.outputs.changed == 'true'
+        run: npm test --if-present
+
+      - name: Publish to npm
+        if: steps.version.outputs.changed == 'true'
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub release
+        if: steps.version.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.local }}"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "Release v$VERSION already exists — skipping."
+          else
+            gh release create "v$VERSION" --target "$GITHUB_SHA" --generate-notes
+          fi

@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { SubstackClient } from "../api/client.js";
+import {
+  AuthenticationError,
+  RateLimitError,
+  ValidationError,
+  NotFoundError,
+  ServerError,
+  SubstackAPIError,
+} from "../utils/errors.js";
 
 describe("SubstackClient constructor", () => {
   it("parses valid numeric userId without throwing", () => {
@@ -99,5 +107,97 @@ describe("SubstackClient requests", () => {
 
     const opts = fetchMock.mock.calls[0][1] as { headers: Record<string, string> };
     expect(opts.headers["Content-Type"]).toBe("application/json");
+  });
+});
+
+describe("SubstackClient error mapping (end-to-end through request())", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stubFetchError(status: number, body: string) {
+    const fetchMock = vi.fn(async (..._args: any[]) => ({
+      ok: false,
+      status,
+      json: async () => JSON.parse(body),
+      text: async () => body,
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("maps a 401 response to AuthenticationError", async () => {
+    stubFetchError(401, "Not authorized");
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    await expect(client.getDrafts()).rejects.toBeInstanceOf(AuthenticationError);
+  });
+
+  it("maps a 403 Cloudflare-style block to AuthenticationError", async () => {
+    stubFetchError(403, "error code: 1010");
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    await expect(client.getDrafts()).rejects.toBeInstanceOf(AuthenticationError);
+  });
+
+  it("maps a 429 response to RateLimitError with the body as detail", async () => {
+    stubFetchError(429, JSON.stringify({ error: "Too many requests" }));
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    try {
+      await client.getDrafts();
+      throw new Error("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(RateLimitError);
+      expect((err as RateLimitError).message).toContain("Too many requests");
+    }
+  });
+
+  it("maps a 400 response to ValidationError", async () => {
+    stubFetchError(400, JSON.stringify({ error: "draft_title is required" }));
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    try {
+      await client.createDraft("");
+      throw new Error("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).message).toContain("draft_title is required");
+    }
+  });
+
+  it("maps a 404 response to NotFoundError", async () => {
+    stubFetchError(404, "Draft not found");
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    try {
+      await client.getDraft(999);
+      throw new Error("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(NotFoundError);
+      expect((err as NotFoundError).message).toContain("Draft not found");
+    }
+  });
+
+  it("maps a 500 response to ServerError", async () => {
+    stubFetchError(500, "Internal Server Error");
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    try {
+      await client.getDrafts();
+      throw new Error("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(ServerError);
+      expect((err as ServerError).message).toContain("Internal Server Error");
+    }
+  });
+
+  it("falls back to base SubstackAPIError for an unmapped status", async () => {
+    stubFetchError(418, "I'm a teapot");
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    try {
+      await client.getDrafts();
+      throw new Error("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(SubstackAPIError);
+      expect(err).not.toBeInstanceOf(AuthenticationError);
+      expect(err).not.toBeInstanceOf(RateLimitError);
+      expect(err).not.toBeInstanceOf(ValidationError);
+      expect(err).not.toBeInstanceOf(NotFoundError);
+      expect(err).not.toBeInstanceOf(ServerError);
+      expect((err as SubstackAPIError).message).toContain("I'm a teapot");
+    }
   });
 });

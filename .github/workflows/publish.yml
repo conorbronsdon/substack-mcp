@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org
 
       - name: Check if package.json version is already published
@@ -50,11 +50,13 @@ jobs:
         if: steps.version.outputs.changed == 'true'
         run: npm test --if-present
 
+      - name: Update npm for trusted publishing
+        if: steps.version.outputs.changed == 'true'
+        run: npm install -g npm@latest
+
       - name: Publish to npm
         if: steps.version.outputs.changed == 'true'
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub release
         if: steps.version.outputs.changed == 'true'

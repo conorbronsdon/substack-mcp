@@ -10,7 +10,7 @@ import {
   DraftUpdatePayload,
   ImageUploadResult,
 } from "./types.js";
-import { SubstackAPIError, AuthenticationError } from "../utils/errors.js";
+import { mapHttpStatusToError, extractErrorDetail } from "../utils/errors.js";
 
 export class SubstackClient {
   private publicationUrl: string;
@@ -71,13 +71,10 @@ export class SubstackClient {
       redirect: "follow",
     });
 
-    if (response.status === 401 || response.status === 403) {
-      throw new AuthenticationError(url);
-    }
-
     if (!response.ok) {
       const body = await response.text().catch(() => "unknown error");
-      throw new SubstackAPIError(response.status, body, url);
+      const detail = extractErrorDetail(body, "unknown error");
+      throw mapHttpStatusToError(response.status, detail, url);
     }
 
     return response.json() as Promise<T>;

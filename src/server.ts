@@ -7,7 +7,7 @@ import { markdownToProseMirror, markdownToProseMirrorContent } from "./utils/mar
 export function createServer(client: SubstackClient): McpServer {
   const server = new McpServer({
     name: "substack-mcp",
-    version: "0.4.0",
+    version: "0.5.0",
   });
 
   // Every tool is registered with MCP annotations derived from its declared

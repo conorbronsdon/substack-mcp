@@ -4,7 +4,8 @@
   "description": "MCP server for Substack — read posts, manage drafts, publish Notes. Long-form posts are draft-only by design (no publish, no delete); Notes publish immediately.",
   "type": "module",
   "bin": {
-    "substack-mcp": "./dist/index.js"
+    "substack-mcp": "./dist/index.js",
+    "substack-mcp-login": "./dist/login.js"
   },
   "scripts": {
     "build": "tsc",

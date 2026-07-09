@@ -76,7 +76,33 @@ Notes have no draft state on Substack, so there is no draft-first option for the
 
 ## Setup
 
-### 1. Get your credentials
+You can supply credentials two ways: paste them as env vars (below), or run the
+optional **browser login** which captures and stores them for you.
+
+### Option A — Browser login (optional, no manual cookie copying)
+
+Removes the DevTools cookie hunt and the ~90-day re-copy. Playwright is **not**
+bundled (it's large), so install it once, then sign in:
+
+```bash
+npm i -g playwright && npx playwright install chromium
+npx --package @conorbronsdon/substack-mcp substack-mcp-login https://yourblog.substack.com
+```
+
+A browser opens; sign in to Substack (CAPTCHA included). The tool captures your
+session cookie, auto-resolves your user id, and writes them to
+`~/.substack-mcp/session.json` (override the directory with `SUBSTACK_MCP_HOME`).
+The MCP server reads that file automatically whenever the `SUBSTACK_*` env vars
+are unset — so with browser login you can omit the `env` block entirely.
+
+**Storage & security:** the file is written `0600` and encrypted with AES-256-GCM
+under a key derived from this OS account + machine (never stored). A copied file
+is useless elsewhere and casual disk/backup reads see only ciphertext. This is
+machine-binding + obfuscation, **not** a secret vault — code running as you on
+this machine can re-derive the key (the same caveat as the plaintext env-var
+path). If you prefer, use Option B and let your MCP client handle the secret.
+
+### Option B — Get your credentials manually
 
 Open your Substack in a browser, then:
 
@@ -132,7 +158,7 @@ Ask your AI assistant: "How many Substack subscribers do I have?"
 
 ## Token expiration
 
-Substack session tokens expire periodically (typically ~90 days). If you get authentication errors, grab a fresh `connect.sid` cookie from your browser and update the env var. Make sure ad blockers are disabled when copying the cookie.
+Substack session tokens expire periodically (typically ~90 days). If you get authentication errors, grab a fresh `connect.sid` cookie from your browser and update the env var (make sure ad blockers are disabled when copying the cookie) — or, if you used the browser login, just re-run `substack-mcp-login` to refresh the stored session.
 
 ## Custom domains & Cloudflare
 

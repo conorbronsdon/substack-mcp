@@ -95,9 +95,8 @@ async function main(): Promise<void> {
 
     const token = await waitForSessionCookie(context);
     if (!token) {
-      console.error("Timed out waiting for sign-in. Nothing was saved.");
-      process.exit(1);
-      return;
+      // Throw (don't exit here) so the finally below closes the browser first.
+      throw new Error("Timed out waiting for sign-in. Nothing was saved.");
     }
 
     console.log("Signed in. Resolving your user id from the publication...");
@@ -119,13 +118,12 @@ async function main(): Promise<void> {
     const publicationToken = (await readSessionCookie(context)) || token;
 
     if (!userId) {
-      console.error(
-        "\nSigned in, but could not auto-resolve your user id from " +
+      // Throw (don't exit here) so the finally below closes the browser first.
+      throw new Error(
+        "Signed in, but could not auto-resolve your user id from " +
           `${publicationUrl}. Find it via DevTools (see the README) and set ` +
           "SUBSTACK_USER_ID manually, or re-run with the correct publication URL.",
       );
-      process.exit(1);
-      return;
     }
 
     const file = saveSession({

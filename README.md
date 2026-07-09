@@ -173,10 +173,12 @@ The `create_draft` and `update_draft` tools accept markdown and convert it to Su
 - **Bold**, *italic*, `inline code`
 - [Links](https://example.com)
 - Images
-- Bullet and numbered lists
+- Bullet and numbered lists, including **nested lists** (arbitrary depth, mixed ordered/unordered)
 - Code blocks (with language)
 - Blockquotes
 - Horizontal rules
+
+**Tables:** Substack's post editor has no table node, so a markdown table cannot be rendered natively. Rather than mangle the pipes into a paragraph, a detected GFM table is preserved verbatim inside a code block — the content survives so you can reformat it (as an image or embed) in Substack's editor.
 
 ## Important notes
 

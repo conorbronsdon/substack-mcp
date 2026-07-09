@@ -104,6 +104,153 @@ describe("markdownToProseMirror", () => {
     });
   });
 
+  describe("nested lists", () => {
+    it("nests a deeper-indented bullet inside the parent list_item", () => {
+      const md = "- Parent\n  - Child\n- Sibling";
+      const doc = parse(md);
+      const list = doc.content[0];
+      expect(doc.content).toHaveLength(1);
+      expect(list.type).toBe("bullet_list");
+      expect(list.content).toHaveLength(2); // Parent, Sibling
+
+      const parent = list.content[0];
+      expect(parent.content[0].content[0].text).toBe("Parent");
+      // Parent's second child is the nested list
+      const nested = parent.content[1];
+      expect(nested.type).toBe("bullet_list");
+      expect(nested.content).toHaveLength(1);
+      expect(nested.content[0].content[0].content[0].text).toBe("Child");
+
+      // Sibling stays at the top level, no nested list
+      expect(list.content[1].content[0].content[0].text).toBe("Sibling");
+      expect(list.content[1].content).toHaveLength(1);
+    });
+
+    it("nests to arbitrary depth", () => {
+      const md = "- L1\n  - L2\n    - L3";
+      const doc = parse(md);
+      const l1Item = doc.content[0].content[0];
+      const l2 = l1Item.content[1];
+      expect(l2.type).toBe("bullet_list");
+      const l2Item = l2.content[0];
+      const l3 = l2Item.content[1];
+      expect(l3.type).toBe("bullet_list");
+      expect(l3.content[0].content[0].content[0].text).toBe("L3");
+    });
+
+    it("nests an ordered list inside a bullet item (mixed types)", () => {
+      const md = "- Bullet\n  1. One\n  2. Two";
+      const doc = parse(md);
+      const bulletItem = doc.content[0].content[0];
+      const nested = bulletItem.content[1];
+      expect(nested.type).toBe("ordered_list");
+      expect(nested.content).toHaveLength(2);
+      expect(nested.content[1].content[0].content[0].text).toBe("Two");
+    });
+
+    it("starts a new sibling list when the marker type flips at the same level", () => {
+      const md = "- Bullet\n1. Number";
+      const doc = parse(md);
+      expect(doc.content).toHaveLength(2);
+      expect(doc.content[0].type).toBe("bullet_list");
+      expect(doc.content[1].type).toBe("ordered_list");
+    });
+
+    it("treats 4-space indentation as one nesting level", () => {
+      const md = "- Parent\n    - Child";
+      const doc = parse(md);
+      const parent = doc.content[0].content[0];
+      expect(parent.content[1].type).toBe("bullet_list");
+      expect(parent.content[1].content[0].content[0].content[0].text).toBe(
+        "Child",
+      );
+    });
+  });
+
+  describe("tables (Substack has no table node — code_block fallback)", () => {
+    it("preserves a GFM table verbatim inside a code_block", () => {
+      const md = "| A | B |\n| --- | --- |\n| 1 | 2 |";
+      const doc = parse(md);
+      expect(doc.content).toHaveLength(1);
+      const node = doc.content[0];
+      expect(node.type).toBe("code_block");
+      expect(node.content[0].text).toBe(md);
+    });
+
+    it("supports alignment colons in the delimiter row", () => {
+      const md = "| L | R |\n|:---|---:|\n| a | b |";
+      const doc = parse(md);
+      expect(doc.content[0].type).toBe("code_block");
+      expect(doc.content[0].content[0].text).toContain(":---");
+    });
+
+    it("separates a preceding paragraph from the table", () => {
+      const doc = parse("Intro line\n| A | B |\n| --- | --- |\n| 1 | 2 |");
+      expect(doc.content).toHaveLength(2);
+      expect(doc.content[0].type).toBe("paragraph");
+      expect(doc.content[0].content[0].text).toBe("Intro line");
+      expect(doc.content[1].type).toBe("code_block");
+    });
+
+    it("does not treat a paragraph containing a lone pipe as a table", () => {
+      const doc = parse("a | b is just prose");
+      expect(doc.content[0].type).toBe("paragraph");
+    });
+  });
+
+  describe("nested list robustness (no data loss)", () => {
+    it("keeps a leading over-indented item as its own top-level list", () => {
+      // Regression: the old min-indent recursion silently dropped a leading
+      // deeper-indented item. Nothing may be lost.
+      const doc = parse("  - deep first\n- shallow");
+      const json = JSON.stringify(doc);
+      expect(json).toContain("deep first");
+      expect(json).toContain("shallow");
+    });
+
+    it("preserves every item when indentation jumps 0 -> 4 -> 2", () => {
+      const doc = parse("- a\n    - b\n  - c");
+      const json = JSON.stringify(doc);
+      expect(json).toContain('"a"');
+      expect(json).toContain('"b"');
+      expect(json).toContain('"c"');
+    });
+  });
+
+  describe("paragraph termination", () => {
+    it("does not swallow a following h4-h6 heading into the paragraph", () => {
+      const doc = parse("Some text\n#### Deep heading");
+      expect(doc.content).toHaveLength(2);
+      expect(doc.content[0].type).toBe("paragraph");
+      expect(doc.content[0].content[0].text).toBe("Some text");
+      expect(doc.content[1].type).toBe("heading");
+      expect(doc.content[1].attrs.level).toBe(4);
+    });
+
+    it("consumes an indented heading (no hang) and emits a heading node", () => {
+      const doc = parse("   # Indented heading");
+      expect(doc.content).toHaveLength(1);
+      expect(doc.content[0].type).toBe("heading");
+      expect(doc.content[0].attrs.level).toBe(1);
+      expect(doc.content[0].content[0].text).toBe("Indented heading");
+    });
+
+    it("consumes an indented image line (no hang) and emits captionedImage", () => {
+      const doc = parse("  ![alt](https://example.com/y.png)");
+      expect(doc.content).toHaveLength(1);
+      expect(doc.content[0].type).toBe("captionedImage");
+      expect(doc.content[0].attrs.src).toBe("https://example.com/y.png");
+    });
+
+    it("separates a paragraph from a following indented heading", () => {
+      const doc = parse("intro\n   ## Sub");
+      expect(doc.content).toHaveLength(2);
+      expect(doc.content[0].type).toBe("paragraph");
+      expect(doc.content[1].type).toBe("heading");
+      expect(doc.content[1].attrs.level).toBe(2);
+    });
+  });
+
   describe("horizontal rules", () => {
     it("converts --- to horizontal_rule", () => {
       const doc = parse("---");

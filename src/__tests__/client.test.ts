@@ -109,6 +109,20 @@ describe("SubstackClient requests", () => {
     expect(fetchMock.mock.calls[0][0]).toContain("/api/v1/subscriptions");
   });
 
+  it("getSections does not substring-match an unrelated publication host", async () => {
+    // `ample.substack.com` is a substring of `example.substack.com`; exact-host
+    // matching must skip it and return the real publication's sections.
+    stubFetch({
+      publications: [
+        { hostname: "ample.substack.com", sections: [{ id: 1, name: "Wrong" }] },
+        { hostname: "example.substack.com", sections: [{ id: 2, name: "Right" }] },
+      ],
+    });
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const sections = await client.getSections();
+    expect(sections).toEqual([{ id: 2, name: "Right" }]);
+  });
+
   it("getSections returns [] when no publication matches", async () => {
     stubFetch({ publications: [{ hostname: "nope.substack.com", sections: [{ id: 1, name: "X" }] }] });
     const client = new SubstackClient("https://example.substack.com", "tok", "1");

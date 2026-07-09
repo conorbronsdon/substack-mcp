@@ -207,7 +207,7 @@ export function createServer(client: SubstackClient): McpServer {
     "get_post_analytics",
     {
       description:
-        "Get performance stats (views, emails sent/delivered/opened, signups, subscribes, comments, reactions) for a published post by ID. Substack has no per-post stats endpoint, so this searches your 500 most recent published posts for the ID; returns a not-found note if it isn't among them.",
+        "Get performance stats (views, emails sent/delivered/opened, signups, subscribes, estimated value, comments, reactions) for a published post by ID. Substack has no per-post stats endpoint, so this searches your 500 most recent published posts for the ID; returns a not-found note if it isn't among them.",
       inputSchema: {
         post_id: z.number().describe("The published post ID to get stats for"),
       },
@@ -220,11 +220,15 @@ export function createServer(client: SubstackClient): McpServer {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                found: false,
-                post_id,
-                note: "Post not found among the 500 most recent published posts. Check the ID with list_published_posts.",
-              }),
+              text: JSON.stringify(
+                {
+                  found: false,
+                  post_id,
+                  note: "Post not found among the 500 most recent published posts. Check the ID with list_published_posts.",
+                },
+                null,
+                2,
+              ),
             },
           ],
         };

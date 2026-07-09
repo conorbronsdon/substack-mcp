@@ -222,10 +222,18 @@ export class SubstackClient {
     }>(`${this.publicationUrl}/api/v1/subscriptions`);
 
     const publications = data.publications || [];
+    // Match on exact host, not substring — the subscriptions payload lists
+    // every publication you follow, so `includes` would let an unrelated
+    // `ample.substack.com` match `example.substack.com` and return the wrong
+    // sections.
+    let host: string;
+    try {
+      host = new URL(this.publicationUrl).hostname;
+    } catch {
+      host = this.publicationUrl;
+    }
     const match = publications.find(
-      (p) =>
-        (p.hostname && this.publicationUrl.includes(p.hostname)) ||
-        (p.custom_domain && this.publicationUrl.includes(p.custom_domain)),
+      (p) => p.hostname === host || p.custom_domain === host,
     );
     return match?.sections || [];
   }

@@ -59,7 +59,6 @@ export interface SubstackPost {
 export interface SubstackSection {
   id: number;
   name: string;
-  hostname?: string;
 }
 
 /**
@@ -72,7 +71,7 @@ export interface SubstackScheduledPost {
   title?: string | null;
   audience: string;
   trigger_at: string | null;
-  post_date: string | null;
+  post_date?: string | null;
 }
 
 export interface SubstackDraft {

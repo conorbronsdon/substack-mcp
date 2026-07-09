@@ -198,6 +198,25 @@ describe("markdownToProseMirror", () => {
     });
   });
 
+  describe("nested list robustness (no data loss)", () => {
+    it("keeps a leading over-indented item as its own top-level list", () => {
+      // Regression: the old min-indent recursion silently dropped a leading
+      // deeper-indented item. Nothing may be lost.
+      const doc = parse("  - deep first\n- shallow");
+      const json = JSON.stringify(doc);
+      expect(json).toContain("deep first");
+      expect(json).toContain("shallow");
+    });
+
+    it("preserves every item when indentation jumps 0 -> 4 -> 2", () => {
+      const doc = parse("- a\n    - b\n  - c");
+      const json = JSON.stringify(doc);
+      expect(json).toContain('"a"');
+      expect(json).toContain('"b"');
+      expect(json).toContain('"c"');
+    });
+  });
+
   describe("paragraph termination", () => {
     it("does not swallow a following h4-h6 heading into the paragraph", () => {
       const doc = parse("Some text\n#### Deep heading");
@@ -206,6 +225,29 @@ describe("markdownToProseMirror", () => {
       expect(doc.content[0].content[0].text).toBe("Some text");
       expect(doc.content[1].type).toBe("heading");
       expect(doc.content[1].attrs.level).toBe(4);
+    });
+
+    it("consumes an indented heading (no hang) and emits a heading node", () => {
+      const doc = parse("   # Indented heading");
+      expect(doc.content).toHaveLength(1);
+      expect(doc.content[0].type).toBe("heading");
+      expect(doc.content[0].attrs.level).toBe(1);
+      expect(doc.content[0].content[0].text).toBe("Indented heading");
+    });
+
+    it("consumes an indented image line (no hang) and emits captionedImage", () => {
+      const doc = parse("  ![alt](https://example.com/y.png)");
+      expect(doc.content).toHaveLength(1);
+      expect(doc.content[0].type).toBe("captionedImage");
+      expect(doc.content[0].attrs.src).toBe("https://example.com/y.png");
+    });
+
+    it("separates a paragraph from a following indented heading", () => {
+      const doc = parse("intro\n   ## Sub");
+      expect(doc.content).toHaveLength(2);
+      expect(doc.content[0].type).toBe("paragraph");
+      expect(doc.content[1].type).toBe("heading");
+      expect(doc.content[1].attrs.level).toBe(2);
     });
   });
 

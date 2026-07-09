@@ -97,60 +97,76 @@ function startsBlock(line: string): boolean {
   );
 }
 
+/** A live nesting level while lists are being assembled. */
+interface ListFrame {
+  indent: number;
+  ordered: boolean;
+  list: PMNode;
+  lastItem: PMNode | null;
+}
+
 /**
  * Build ProseMirror list nodes from a flat, ordered run of list items.
  *
- * Nesting is recovered from indentation: items at the run's minimum indent are
- * siblings; any deeper-indented items immediately following an item become a
- * nested list inside that item's `list_item` (after its paragraph). A change
- * of marker type at the same indent starts a new sibling list, matching how
- * ProseMirror models "a bullet list then a numbered list".
+ * A stack tracks the open nesting levels. A deeper indent opens a nested list
+ * inside the current item; a shallower indent closes levels; a marker-type
+ * flip at the same indent starts a sibling list of the other kind. The design
+ * goal is that NO item is ever dropped — a leading over-indented item with no
+ * parent simply becomes its own top-level list rather than being discarded, so
+ * even malformed indentation round-trips its content.
  */
 function buildListNodes(raws: ListItemRaw[]): PMNode[] {
-  const result: PMNode[] = [];
-  if (raws.length === 0) return result;
+  const root: PMNode[] = [];
+  const stack: ListFrame[] = [];
 
-  const baseIndent = Math.min(...raws.map((r) => r.indent));
-  let currentList: PMNode | null = null;
-  let currentOrdered: boolean | null = null;
-  let idx = 0;
+  const openList = (ordered: boolean): PMNode => ({
+    type: ordered ? "ordered_list" : "bullet_list",
+    content: [],
+  });
 
-  while (idx < raws.length) {
-    const raw = raws[idx];
-
-    if (raw.indent === baseIndent) {
-      // Start a new list when there is none yet or the marker type flipped.
-      if (currentList === null || currentOrdered !== raw.ordered) {
-        currentList = {
-          type: raw.ordered ? "ordered_list" : "bullet_list",
-          content: [],
-        };
-        currentOrdered = raw.ordered;
-        result.push(currentList);
-      }
-
-      const item: PMNode = {
-        type: "list_item",
-        content: [{ type: "paragraph", content: parseInline(raw.text) }],
-      };
-      currentList.content!.push(item);
-
-      // Gather the contiguous, deeper-indented items that belong under this
-      // one and recurse to build the nested list(s).
-      let j = idx + 1;
-      while (j < raws.length && raws[j].indent > baseIndent) j++;
-      if (j > idx + 1) {
-        item.content!.push(...buildListNodes(raws.slice(idx + 1, j)));
-      }
-      idx = j;
-    } else {
-      // baseIndent is the minimum, so this branch is unreachable for
-      // well-formed input; advance defensively to avoid a stuck loop.
-      idx++;
+  for (const raw of raws) {
+    // Close any levels deeper than this item.
+    while (stack.length && raw.indent < stack[stack.length - 1].indent) {
+      stack.pop();
     }
+
+    let top: ListFrame | undefined = stack[stack.length - 1];
+
+    if (!top || raw.indent > top.indent) {
+      // Open a nested list under the current item, or a new root list when
+      // there is no enclosing item (including a leading over-indented item).
+      const list = openList(raw.ordered);
+      if (top && top.lastItem) {
+        top.lastItem.content!.push(list);
+      } else {
+        root.push(list);
+      }
+      top = { indent: raw.indent, ordered: raw.ordered, list, lastItem: null };
+      stack.push(top);
+    } else if (raw.ordered !== top.ordered) {
+      // Same level, different marker → a sibling list of the other kind,
+      // attached wherever the current list lives (parent item, or root).
+      const list = openList(raw.ordered);
+      const parent = stack[stack.length - 2];
+      if (parent && parent.lastItem) {
+        parent.lastItem.content!.push(list);
+      } else {
+        root.push(list);
+      }
+      stack.pop();
+      top = { indent: raw.indent, ordered: raw.ordered, list, lastItem: null };
+      stack.push(top);
+    }
+
+    const item: PMNode = {
+      type: "list_item",
+      content: [{ type: "paragraph", content: parseInline(raw.text) }],
+    };
+    top.list.content!.push(item);
+    top.lastItem = item;
   }
 
-  return result;
+  return root;
 }
 
 export function markdownToProseMirror(markdown: string): string {
@@ -192,8 +208,11 @@ export function markdownToProseMirror(markdown: string): string {
       continue;
     }
 
-    // Heading
-    const headingMatch = line.match(HEADING_RE);
+    // Heading. Match the left-trimmed line so an indented `  # h` (valid up to
+    // 3 leading spaces in CommonMark) is consumed here — this MUST agree with
+    // startsBlock's trimmed test, or such a line would be flagged as a block
+    // start yet consumed by nothing, stalling the loop.
+    const headingMatch = line.trimStart().match(HEADING_RE);
     if (headingMatch) {
       const level = headingMatch[1].length;
       nodes.push({
@@ -255,8 +274,9 @@ export function markdownToProseMirror(markdown: string): string {
       continue;
     }
 
-    // Image (standalone line)
-    const imgMatch = line.match(IMAGE_LINE_RE);
+    // Image (standalone line). Left-trimmed for the same reason as headings:
+    // it must agree with startsBlock so an indented image line is consumed.
+    const imgMatch = line.trimStart().match(IMAGE_LINE_RE);
     if (imgMatch) {
       nodes.push({
         type: "captionedImage",
@@ -291,6 +311,12 @@ export function markdownToProseMirror(markdown: string): string {
           content: inlineContent,
         });
       }
+    } else {
+      // Safety net: a line was flagged as a block start (startsBlock/startsTable)
+      // but no dispatch branch above consumed it. Advance unconditionally so
+      // the main loop can never stall, whatever future edits do to the two
+      // sets of predicates.
+      i++;
     }
   }
 

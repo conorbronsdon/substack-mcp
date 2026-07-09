@@ -61,6 +61,9 @@ export const TOOL_KINDS = {
   get_post: "read",
   get_draft: "read",
   get_post_comments: "read",
+  get_sections: "read",
+  get_post_analytics: "read",
+  list_scheduled_posts: "read",
   // Additive writes to private draft state (nothing reachable outside account)
   create_draft: "draft-write",
   update_draft: "draft-write",

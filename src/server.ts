@@ -186,6 +186,104 @@ export function createServer(client: SubstackClient): McpServer {
     },
   );
 
+  server.registerTool(
+    "get_sections",
+    {
+      description:
+        "List your publication's sections (categories). Returns each section's id and name. Use a section id as `section_id` when creating or updating a draft to file it under that section.",
+      inputSchema: {},
+      annotations: buildAnnotations("get_sections"),
+    },
+    async () => {
+      const sections = await client.getSections();
+      const summary = sections.map((s) => ({ id: s.id, name: s.name }));
+      return {
+        content: [{ type: "text", text: JSON.stringify(summary, null, 2) }],
+      };
+    },
+  );
+
+  server.registerTool(
+    "get_post_analytics",
+    {
+      description:
+        "Get performance stats (views, emails sent/delivered/opened, signups, subscribes, comments, reactions) for a published post by ID. Substack has no per-post stats endpoint, so this searches your 500 most recent published posts for the ID; returns a not-found note if it isn't among them.",
+      inputSchema: {
+        post_id: z.number().describe("The published post ID to get stats for"),
+      },
+      annotations: buildAnnotations("get_post_analytics"),
+    },
+    async ({ post_id }) => {
+      const post = await client.getPostAnalytics(post_id);
+      if (!post) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                found: false,
+                post_id,
+                note: "Post not found among the 500 most recent published posts. Check the ID with list_published_posts.",
+              }),
+            },
+          ],
+        };
+      }
+      const stats = post.stats ?? {};
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                found: true,
+                id: post.id,
+                title: post.title,
+                post_date: post.post_date,
+                views: stats.views ?? null,
+                sent: stats.sent ?? null,
+                delivered: stats.delivered ?? null,
+                opened: stats.opened ?? null,
+                signups: stats.signups ?? null,
+                subscribes: stats.subscribes ?? null,
+                estimated_value: stats.estimated_value ?? null,
+                comment_count: post.comment_count ?? null,
+                reaction_count: post.reaction_count ?? null,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "list_scheduled_posts",
+    {
+      description:
+        "List posts scheduled for future publication, soonest first. Read-only visibility into what's queued — scheduling itself is done in Substack's editor (this server does not schedule, publish, or delete long-form posts). Returns id, title, audience, and scheduled time (`trigger_at`).",
+      inputSchema: {
+        offset: z.number().optional().default(0).describe("Number of posts to skip"),
+        limit: z.number().optional().default(25).describe("Max posts to return (1-100)"),
+      },
+      annotations: buildAnnotations("list_scheduled_posts"),
+    },
+    async ({ offset, limit }) => {
+      const posts = await client.getScheduledPosts(offset, Math.min(limit, 100));
+      const summary = posts.map((p) => ({
+        id: p.id,
+        title: p.draft_title ?? p.title ?? null,
+        audience: p.audience,
+        scheduled_at: p.trigger_at,
+      }));
+      return {
+        content: [{ type: "text", text: JSON.stringify(summary, null, 2) }],
+      };
+    },
+  );
+
   // --- Write tools (additive: private drafts + a public-URL image upload) ---
 
   server.registerTool(

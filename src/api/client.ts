@@ -9,6 +9,8 @@ import {
   DraftCreatePayload,
   DraftUpdatePayload,
   ImageUploadResult,
+  SubstackSection,
+  SubstackScheduledPost,
 } from "./types.js";
 import { mapHttpStatusToError, extractErrorDetail } from "../utils/errors.js";
 
@@ -203,6 +205,57 @@ export class SubstackClient {
     );
     const comments = data.comments || [];
     return comments.slice(0, limit);
+  }
+
+  async getSections(): Promise<SubstackSection[]> {
+    // Substack exposes no dedicated sections endpoint; the sections list rides
+    // along on the subscriptions payload, one entry per publication you belong
+    // to. Pick the entry whose hostname (or custom domain) matches this
+    // publication. Mirrors python-substack's approach, extended to also match
+    // on custom_domain so custom-domain publications resolve correctly.
+    const data = await this.request<{
+      publications?: Array<{
+        hostname?: string;
+        custom_domain?: string | null;
+        sections?: SubstackSection[];
+      }>;
+    }>(`${this.publicationUrl}/api/v1/subscriptions`);
+
+    const publications = data.publications || [];
+    const match = publications.find(
+      (p) =>
+        (p.hostname && this.publicationUrl.includes(p.hostname)) ||
+        (p.custom_domain && this.publicationUrl.includes(p.custom_domain)),
+    );
+    return match?.sections || [];
+  }
+
+  async getScheduledPosts(
+    offset = 0,
+    limit = 25,
+  ): Promise<SubstackScheduledPost[]> {
+    // `scheduled` is a distinct post_management view (sibling of `published`
+    // and `drafts`). Each row carries a `trigger_at` future publish time.
+    const data = await this.request<{ posts?: SubstackScheduledPost[] }>(
+      `${this.publicationUrl}/api/v1/post_management/scheduled?offset=${offset}&limit=${limit}&order_by=trigger_at&order_direction=asc`,
+    );
+    return data.posts || [];
+  }
+
+  async getPostAnalytics(postId: number): Promise<SubstackPost | null> {
+    // Substack has no per-post stats endpoint. Each row of the published
+    // feed already carries a `stats` object, so page through the feed
+    // (newest first) until the matching id turns up. Bounded so a bad id
+    // can't scan forever: up to 500 of the most recent published posts.
+    const pageSize = 100;
+    const maxPages = 5;
+    for (let page = 0; page < maxPages; page++) {
+      const { posts } = await this.getPublishedPosts(page * pageSize, pageSize);
+      const found = posts.find((p) => p.id === postId);
+      if (found) return found;
+      if (posts.length < pageSize) break; // reached the end of the feed
+    }
+    return null;
   }
 
   async createNote(

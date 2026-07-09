@@ -3,25 +3,28 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SubstackClient } from "./api/client.js";
 import { createServer } from "./server.js";
+import { resolveCredentials } from "./auth/resolve-credentials.js";
 
 async function main() {
-  const publicationUrl = process.env.SUBSTACK_PUBLICATION_URL || "";
-  const sessionToken = process.env.SUBSTACK_SESSION_TOKEN || "";
-  const userId = process.env.SUBSTACK_USER_ID || "0";
+  // Env vars take precedence; a stored session (from `substack-mcp-login`)
+  // fills any gaps.
+  const creds = resolveCredentials();
+  const { publicationUrl, sessionToken, userId } = creds;
 
-  const missingVars = [
-    !process.env.SUBSTACK_PUBLICATION_URL && "SUBSTACK_PUBLICATION_URL",
-    !process.env.SUBSTACK_SESSION_TOKEN && "SUBSTACK_SESSION_TOKEN",
-    !process.env.SUBSTACK_USER_ID && "SUBSTACK_USER_ID",
-  ].filter(Boolean);
-
-  if (missingVars.length > 0) {
-    console.error(`Warning: Missing environment variables: ${missingVars.join(", ")}`);
-    console.error("Tools will error until all variables are configured. See README.md for setup.");
+  if (creds.missing.length > 0) {
+    console.error(`Warning: Missing credentials: ${creds.missing.join(", ")}`);
+    console.error(
+      "Set them as SUBSTACK_* env vars, or run `substack-mcp-login` to sign in via browser. See README.md.",
+    );
+  } else if (creds.source !== "env") {
+    console.error(`Using stored credentials (source: ${creds.source}).`);
   }
 
   const userAgent = process.env.SUBSTACK_USER_AGENT;
-  const client = new SubstackClient(publicationUrl, sessionToken, userId, userAgent);
+  // The client constructor rejects a non-numeric user id; fall back to "0" so
+  // startup surfaces the friendly missing-credentials warning above instead of
+  // throwing when nothing is configured yet.
+  const client = new SubstackClient(publicationUrl, sessionToken, userId || "0", userAgent);
 
   // Validate auth on startup (warn but don't block — allows inspection without credentials)
   try {

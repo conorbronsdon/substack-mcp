@@ -47,6 +47,9 @@ Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/
 | `get_post` | Get full content of a published post by ID |
 | `get_draft` | Get full content of a draft by ID |
 | `get_post_comments` | Get comments on a published post |
+| `get_sections` | List your publication's sections (categories) with their IDs |
+| `get_post_analytics` | Get a published post's stats (views, opens, signups, subscribes, reactions) by ID |
+| `list_scheduled_posts` | List posts scheduled for future publication (read-only; scheduling stays in Substack's editor) |
 
 ### Write (private drafts; image upload returns a public URL)
 
@@ -69,7 +72,7 @@ Notes have no draft state on Substack, so there is no draft-first option for the
 
 - **Publish posts** — Publishing long-form posts should be a deliberate human action (Notes are the documented exception above)
 - **Delete** — Too destructive for an AI tool
-- **Schedule** — Use Substack's editor for scheduling
+- **Schedule** — Use Substack's editor for scheduling. (`list_scheduled_posts` *reads* what you've queued there, but this server never creates, edits, or cancels a schedule.)
 
 ## Setup
 

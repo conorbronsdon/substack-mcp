@@ -72,6 +72,104 @@ describe("SubstackClient requests", () => {
     expect(calledUrl).not.toContain("/api/v1/drafts?");
   });
 
+  it("getSections matches the publication by hostname and returns its sections", async () => {
+    const fetchMock = stubFetch({
+      publications: [
+        { hostname: "other.substack.com", sections: [{ id: 1, name: "Other" }] },
+        {
+          hostname: "example.substack.com",
+          sections: [
+            { id: 10, name: "Essays" },
+            { id: 11, name: "Notes" },
+          ],
+        },
+      ],
+    });
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const sections = await client.getSections();
+
+    expect(sections).toHaveLength(2);
+    expect(sections[0]).toEqual({ id: 10, name: "Essays" });
+    expect(fetchMock.mock.calls[0][0]).toContain("/api/v1/subscriptions");
+  });
+
+  it("getSections matches on custom_domain when hostname does not match", async () => {
+    const fetchMock = stubFetch({
+      publications: [
+        {
+          hostname: "example.substack.com",
+          custom_domain: "newsletter.example.com",
+          sections: [{ id: 7, name: "Custom" }],
+        },
+      ],
+    });
+    const client = new SubstackClient("https://newsletter.example.com", "tok", "1");
+    const sections = await client.getSections();
+    expect(sections).toEqual([{ id: 7, name: "Custom" }]);
+    expect(fetchMock.mock.calls[0][0]).toContain("/api/v1/subscriptions");
+  });
+
+  it("getSections does not substring-match an unrelated publication host", async () => {
+    // `ample.substack.com` is a substring of `example.substack.com`; exact-host
+    // matching must skip it and return the real publication's sections.
+    stubFetch({
+      publications: [
+        { hostname: "ample.substack.com", sections: [{ id: 1, name: "Wrong" }] },
+        { hostname: "example.substack.com", sections: [{ id: 2, name: "Right" }] },
+      ],
+    });
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const sections = await client.getSections();
+    expect(sections).toEqual([{ id: 2, name: "Right" }]);
+  });
+
+  it("getSections returns [] when no publication matches", async () => {
+    stubFetch({ publications: [{ hostname: "nope.substack.com", sections: [{ id: 1, name: "X" }] }] });
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    expect(await client.getSections()).toEqual([]);
+  });
+
+  it("getScheduledPosts uses the scheduled view ordered by trigger_at asc", async () => {
+    const fetchMock = stubFetch({
+      posts: [{ id: 5, draft_title: "Queued", audience: "everyone", trigger_at: "2030-01-01T00:00:00Z" }],
+    });
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const posts = await client.getScheduledPosts(0, 10);
+
+    expect(posts).toHaveLength(1);
+    expect(posts[0].id).toBe(5);
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain("/api/v1/post_management/scheduled");
+    expect(url).toContain("order_by=trigger_at");
+    expect(url).toContain("order_direction=asc");
+  });
+
+  it("getPostAnalytics finds a post's stats row in the published feed", async () => {
+    const fetchMock = stubFetch({
+      posts: [
+        { id: 100, title: "A", stats: { views: 1 } },
+        { id: 200, title: "B", stats: { views: 42, opened: 10 } },
+      ],
+      total: 2,
+    });
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const post = await client.getPostAnalytics(200);
+
+    expect(post?.id).toBe(200);
+    expect(post?.stats?.views).toBe(42);
+    expect(fetchMock.mock.calls[0][0]).toContain("/api/v1/post_management/published");
+  });
+
+  it("getPostAnalytics returns null and stops paging when the feed is exhausted", async () => {
+    const fetchMock = stubFetch({ posts: [{ id: 1, title: "only" }], total: 1 });
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const post = await client.getPostAnalytics(999);
+
+    expect(post).toBeNull();
+    // A short page (1 < 100) means end-of-feed: exactly one request, no over-paging.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("sends a browser User-Agent and a Referer by default", async () => {
     const fetchMock = stubFetch({ posts: [] });
     const client = new SubstackClient("https://example.substack.com", "tok", "1");

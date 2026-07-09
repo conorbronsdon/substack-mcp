@@ -16,6 +16,22 @@ export interface SubstackPublication {
   theme_var_background_pop: string | null;
 }
 
+/**
+ * Per-post performance metrics. Substack has no dedicated per-post stats
+ * endpoint — these fields ride along on each row of the
+ * `post_management/published` feed. All are optional because Substack omits
+ * them for posts that were never emailed.
+ */
+export interface PostStats {
+  views?: number;
+  sent?: number;
+  delivered?: number;
+  opened?: number;
+  signups?: number;
+  subscribes?: number;
+  estimated_value?: number | null;
+}
+
 export interface SubstackPost {
   id: number;
   title: string;
@@ -33,6 +49,29 @@ export interface SubstackPost {
   description: string | null;
   cover_image: string | null;
   section_id: number | null;
+  stats?: PostStats;
+  comment_count?: number;
+  reaction_count?: number;
+  email_sent_at?: string | null;
+}
+
+/** A publication section (category). Assign a draft via `section_id`. */
+export interface SubstackSection {
+  id: number;
+  name: string;
+}
+
+/**
+ * A row from the `post_management/scheduled` feed: a draft with a future
+ * publish time. `trigger_at` is what distinguishes it from a plain draft.
+ */
+export interface SubstackScheduledPost {
+  id: number;
+  draft_title: string | null;
+  title?: string | null;
+  audience: string;
+  trigger_at: string | null;
+  post_date?: string | null;
 }
 
 export interface SubstackDraft {

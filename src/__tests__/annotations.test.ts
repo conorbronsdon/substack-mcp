@@ -24,6 +24,9 @@ const READ_TOOLS: ToolName[] = [
   "get_post",
   "get_draft",
   "get_post_comments",
+  "get_sections",
+  "get_post_analytics",
+  "list_scheduled_posts",
 ];
 
 const DRAFT_WRITE_TOOLS: ToolName[] = ["create_draft", "update_draft"];

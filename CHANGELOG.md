@@ -8,6 +8,8 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-10
+
 ### Added
 - `upload_image` accepts a local file path via `image_path` (mutually exclusive
   with `image_base64`). The file is read and encoded to a data URI internally,

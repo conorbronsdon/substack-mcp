@@ -300,6 +300,26 @@ describe("markdownToProseMirror", () => {
       expect(image.attrs.height).toBeNull();
       expect(image.attrs.type).toBeNull();
     });
+
+    it("does not read an aspect-ratio filename on a non-CDN URL as dimensions", () => {
+      // `hero_16x9.jpg` matches the `_WxH_` shape but is an aspect-ratio label,
+      // not pixel dimensions — only Substack-hosted URLs use it for real dims.
+      const doc = parse("![logo](https://example.com/hero_16x9.jpg)");
+      const image = doc.content[0].content[0];
+      expect(image.attrs.width).toBeNull();
+      expect(image.attrs.height).toBeNull();
+      expect(image.attrs.type).toBeNull();
+    });
+
+    it("parses dimensions from a substackcdn.com fetch URL", () => {
+      const doc = parse(
+        "![t](https://substackcdn.com/image/fetch/w_1456/abc_800x600.png)",
+      );
+      const image = doc.content[0].content[0];
+      expect(image.attrs.width).toBe(800);
+      expect(image.attrs.height).toBe(600);
+      expect(image.attrs.type).toBe("image/png");
+    });
   });
 });
 

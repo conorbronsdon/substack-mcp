@@ -46,6 +46,11 @@ const IMAGE_LINE_RE = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/;
 // same suffix also tells us the MIME type. Non-CDN URLs simply yield nulls.
 const IMAGE_DIMENSIONS_RE =
   /_(\d+)x(\d+)\.(png|jpe?g|gif|webp|avif|bmp|tiff?)(?:$|[?#])/i;
+// The `_WxH_` suffix is a Substack CDN convention, so only trust it on
+// Substack-hosted URLs. A foreign URL like `hero_16x9.jpg` uses that shape as
+// an aspect-ratio label, not pixel dimensions — parsing it would emit a bogus
+// 16x9-pixel layout. Those fall through to null, which the editor tolerates.
+const SUBSTACK_CDN_RE = /(?:substackcdn\.com|substack-post-media\.s3\.amazonaws\.com)/i;
 
 // Build a Substack image node. Substack renders an image as a `captionedImage`
 // that WRAPS an `image2` child — the `src` and dimensions live on that child,
@@ -54,7 +59,7 @@ const IMAGE_DIMENSIONS_RE =
 // tries to render the (missing) child, so we always nest an `image2` here and
 // attach a `caption` node when alt text is present.
 function buildImageNode(alt: string, src: string): PMNode {
-  const dims = src.match(IMAGE_DIMENSIONS_RE);
+  const dims = SUBSTACK_CDN_RE.test(src) ? src.match(IMAGE_DIMENSIONS_RE) : null;
   const width = dims ? parseInt(dims[1], 10) : null;
   const height = dims ? parseInt(dims[2], 10) : null;
   const ext = dims ? dims[3].toLowerCase() : null;

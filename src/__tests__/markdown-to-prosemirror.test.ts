@@ -239,7 +239,9 @@ describe("markdownToProseMirror", () => {
       const doc = parse("  ![alt](https://example.com/y.png)");
       expect(doc.content).toHaveLength(1);
       expect(doc.content[0].type).toBe("captionedImage");
-      expect(doc.content[0].attrs.src).toBe("https://example.com/y.png");
+      expect(doc.content[0].content[0].attrs.src).toBe(
+        "https://example.com/y.png",
+      );
     });
 
     it("separates a paragraph from a following indented heading", () => {
@@ -259,20 +261,44 @@ describe("markdownToProseMirror", () => {
   });
 
   describe("images", () => {
-    it("converts standalone image to captionedImage node", () => {
+    it("wraps a standalone image in captionedImage > image2 with a caption", () => {
       const doc = parse("![Alt text](https://example.com/img.png)");
       const node = doc.content[0];
       expect(node.type).toBe("captionedImage");
-      expect(node.attrs.src).toBe("https://example.com/img.png");
-      expect(node.attrs.alt).toBe("Alt text");
-      expect(node.attrs.caption).toBe("Alt text");
+      const [image, caption] = node.content;
+      expect(image.type).toBe("image2");
+      expect(image.attrs.src).toBe("https://example.com/img.png");
+      expect(image.attrs.alt).toBe("Alt text");
+      expect(caption.type).toBe("caption");
+      expect(caption.content[0].text).toBe("Alt text");
     });
 
-    it("handles image with empty alt text", () => {
+    it("omits the caption node and nulls alt for empty alt text", () => {
       const doc = parse("![](https://example.com/img.png)");
       const node = doc.content[0];
-      expect(node.attrs.alt).toBe("");
-      expect(node.attrs.caption).toBeNull();
+      expect(node.type).toBe("captionedImage");
+      expect(node.content).toHaveLength(1);
+      expect(node.content[0].type).toBe("image2");
+      expect(node.content[0].attrs.alt).toBeNull();
+    });
+
+    it("parses width/height and MIME from a Substack CDN filename", () => {
+      const doc = parse(
+        "![t](https://substack-post-media.s3.amazonaws.com/public/images/abc_1265x5808.png)",
+      );
+      const image = doc.content[0].content[0];
+      expect(image.attrs.width).toBe(1265);
+      expect(image.attrs.height).toBe(5808);
+      expect(image.attrs.resizeWidth).toBe(1265);
+      expect(image.attrs.type).toBe("image/png");
+    });
+
+    it("falls back to null dimensions for a non-CDN URL", () => {
+      const doc = parse("![t](https://example.com/plain.png)");
+      const image = doc.content[0].content[0];
+      expect(image.attrs.width).toBeNull();
+      expect(image.attrs.height).toBeNull();
+      expect(image.attrs.type).toBeNull();
     });
   });
 });

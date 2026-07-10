@@ -19,8 +19,8 @@ an issue with the tool name and the exact error.
 ## Verifying rendering changes
 
 If you touch the markdown → ProseMirror converter or image handling, the drafts
-API accepting your payload is **not** enough — Substack stores structures its
-editor then fails to render. Verify the change against a live publication by
+API accepting your payload is **not** enough — Substack stores structures that
+its editor then fails to render. Verify the change against a live publication by
 opening the resulting draft in Substack's editor, and note that you did so in
 the PR. Cover the cases your change can hit (e.g. images with and without a
 caption, and non-CDN image URLs where dimensions are unknown).

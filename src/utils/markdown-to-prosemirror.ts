@@ -41,6 +41,59 @@ const LIST_ITEM_RE = /^(\s*)([-*+]|\d+\.)\s+(.*)$/;
 const HEADING_RE = /^(#{1,6})\s+(.+)$/;
 const HR_RE = /^(-{3,}|\*{3,}|_{3,})\s*$/;
 const IMAGE_LINE_RE = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/;
+// Substack CDN uploads encode the pixel dimensions in the filename, e.g.
+// `..._1265x5808.png`. We parse them so the editor can lay the image out; the
+// same suffix also tells us the MIME type. Non-CDN URLs simply yield nulls.
+const IMAGE_DIMENSIONS_RE =
+  /_(\d+)x(\d+)\.(png|jpe?g|gif|webp|avif|bmp|tiff?)(?:$|[?#])/i;
+// The `_WxH_` suffix is a Substack CDN convention, so only trust it on
+// Substack-hosted URLs. A foreign URL like `hero_16x9.jpg` uses that shape as
+// an aspect-ratio label, not pixel dimensions — parsing it would emit a bogus
+// 16x9-pixel layout. Those fall through to null, which the editor tolerates.
+const SUBSTACK_CDN_RE = /(?:substackcdn\.com|substack-post-media\.s3\.amazonaws\.com)/i;
+
+// Build a Substack image node. Substack renders an image as a `captionedImage`
+// that WRAPS an `image2` child — the `src` and dimensions live on that child,
+// not on the wrapper. Emitting a flat `{type:"captionedImage", attrs:{src}}`
+// node is accepted by the drafts API but crashes Substack's editor when it
+// tries to render the (missing) child, so we always nest an `image2` here and
+// attach a `caption` node when alt text is present.
+function buildImageNode(alt: string, src: string): PMNode {
+  const dims = SUBSTACK_CDN_RE.test(src) ? src.match(IMAGE_DIMENSIONS_RE) : null;
+  const width = dims ? parseInt(dims[1], 10) : null;
+  const height = dims ? parseInt(dims[2], 10) : null;
+  const ext = dims ? dims[3].toLowerCase() : null;
+  const mime = ext
+    ? `image/${ext === "jpg" ? "jpeg" : ext === "tif" ? "tiff" : ext}`
+    : null;
+
+  const image2: PMNode = {
+    type: "image2",
+    attrs: {
+      src,
+      srcNoWatermark: null,
+      fullscreen: false,
+      imageSize: "normal",
+      height,
+      width,
+      resizeWidth: width,
+      bytes: null,
+      alt: alt || null,
+      title: null,
+      type: mime,
+      href: null,
+      belowTheFold: false,
+      topImage: false,
+      internalRedirect: null,
+    },
+  };
+
+  const content: PMNode[] = [image2];
+  if (alt) {
+    content.push({ type: "caption", content: [{ type: "text", text: alt }] });
+  }
+  return { type: "captionedImage", content };
+}
 
 /**
  * True for a GFM table delimiter row — the `|---|:--:|` line under the header.
@@ -278,15 +331,7 @@ export function markdownToProseMirror(markdown: string): string {
     // it must agree with startsBlock so an indented image line is consumed.
     const imgMatch = line.trimStart().match(IMAGE_LINE_RE);
     if (imgMatch) {
-      nodes.push({
-        type: "captionedImage",
-        attrs: {
-          src: imgMatch[2],
-          alt: imgMatch[1],
-          title: null,
-          caption: imgMatch[1] || null,
-        },
-      });
+      nodes.push(buildImageNode(imgMatch[1], imgMatch[2]));
       i++;
       continue;
     }

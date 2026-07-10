@@ -3,6 +3,7 @@ import { z } from "zod";
 import { SubstackClient } from "./api/client.js";
 import { buildAnnotations } from "./annotations.js";
 import { markdownToProseMirror, markdownToProseMirrorContent } from "./utils/markdown-to-prosemirror.js";
+import { fileToDataUri } from "./utils/image.js";
 
 export function createServer(client: SubstackClient): McpServer {
   const server = new McpServer({
@@ -380,18 +381,33 @@ export function createServer(client: SubstackClient): McpServer {
     "upload_image",
     {
       description:
-        "Upload a base64-encoded image to Substack's CDN. Returns a hosted image URL that is publicly fetchable by anyone with the link (an unlisted asset — not attributed to you or added to your feed).",
+        "Upload an image to Substack's CDN. Provide exactly one of `image_base64` (a base64 data URI) or `image_path` (a local file path). Returns a hosted image URL that is publicly fetchable by anyone with the link (an unlisted asset — not attributed to you or added to your feed).",
       inputSchema: {
         image_base64: z
           .string()
+          .optional()
           .describe(
-            'Base64-encoded image with data URI prefix (e.g., "data:image/png;base64,...")',
+            'Base64-encoded image with data URI prefix (e.g., "data:image/png;base64,..."). Mutually exclusive with image_path.',
+          ),
+        image_path: z
+          .string()
+          .optional()
+          .describe(
+            'Absolute path to a local image file (e.g., "/Users/me/pic.png"). Read and encoded automatically; MIME type inferred from the extension. Mutually exclusive with image_base64.',
           ),
       },
       annotations: buildAnnotations("upload_image"),
     },
-    async ({ image_base64 }) => {
-      const result = await client.uploadImage(image_base64);
+    async ({ image_base64, image_path }) => {
+      if (!image_base64 === !image_path) {
+        throw new Error(
+          "Provide exactly one of `image_base64` or `image_path`.",
+        );
+      }
+      const dataUri = image_path
+        ? await fileToDataUri(image_path)
+        : (image_base64 as string);
+      const result = await client.uploadImage(dataUri);
       return {
         content: [
           { type: "text", text: JSON.stringify({ image_url: result.url }) },

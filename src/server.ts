@@ -8,7 +8,7 @@ import { fileToDataUri } from "./utils/image.js";
 export function createServer(client: SubstackClient): McpServer {
   const server = new McpServer({
     name: "substack-mcp",
-    version: "0.5.0",
+    version: "0.6.0",
   });
 
   // Every tool is registered with MCP annotations derived from its declared

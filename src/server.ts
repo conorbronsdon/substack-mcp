@@ -21,7 +21,11 @@ export function createServer(client: SubstackClient): McpServer {
   server.registerTool(
     "get_subscriber_count",
     {
-      description: "Get the current subscriber count for your Substack publication",
+      description:
+        "Get the current subscriber count for your Substack publication. Returns `precision`: " +
+        "'exact' when the API reports a true count, 'approximate' when only Substack's rounded " +
+        "value is available (the real number is that or higher — render it hedged, e.g. '1,000+'), " +
+        "or 'unavailable' with count -1. Never treat an approximate value as exact.",
       inputSchema: {},
       annotations: buildAnnotations("get_subscriber_count"),
     },

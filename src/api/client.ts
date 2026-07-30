@@ -14,6 +14,25 @@ import {
 } from "./types.js";
 import { mapHttpStatusToError, extractErrorDetail } from "../utils/errors.js";
 
+/**
+ * Parse Substack's order-of-magnitude subscriber bucket into a number.
+ *
+ * Values look like "1K+", "2.5K+", "750+", "1M+". Exported for tests.
+ *
+ * The previous implementation did `.replace("K", "000")`, which turns "2.5K"
+ * into "2.5000" and then NaN — so any publication in a fractional-K bucket
+ * silently lost its count.
+ */
+export function parseMagnitude(raw: string): number | null {
+  const m = raw.trim().replace(/,/g, "").match(/^([\d.]+)\s*([KMkm]?)\+?$/);
+  if (!m) return null;
+  const base = parseFloat(m[1]);
+  if (!Number.isFinite(base)) return null;
+  const scale = m[2].toUpperCase() === "M" ? 1_000_000 : m[2].toUpperCase() === "K" ? 1_000 : 1;
+  const n = Math.round(base * scale);
+  return n > 0 ? n : null;
+}
+
 export class SubstackClient {
   private publicationUrl: string;
   private cookie: string;
@@ -90,29 +109,96 @@ export class SubstackClient {
     return { id: byline?.id ?? this.userId, name: "authenticated" };
   }
 
-  async getSubscriberCount(): Promise<{ count: number; note: string }> {
-    // Try multiple endpoints — Substack's API is inconsistent
+  /**
+   * Subscriber count, with its precision stated rather than implied.
+   *
+   * As of 2026-07, `publication_launch_checklist` no longer returns
+   * `subscriber_count`/`subscriberCount` — it returns `subscribers` as an
+   * ~11-item paginated SAMPLE. This method used to fall back to that array's
+   * length, which reported "11 subscribers" for a publication with over a
+   * thousand. A wrong number with a caveat attached is still a wrong number:
+   * callers (and models reading the tool result) use the integer, not the prose.
+   * So the sample is never counted.
+   *
+   * Substack rounds the free subscriber count on every surface reachable without
+   * its internal dashboard API — the public page AND the authenticated
+   * /publish/home payload both report e.g. "1,000" for a true 1,073. So
+   * `approximate` is the honest ceiling for the fallback path, and callers should
+   * render it hedged ("1,000+") rather than as an exact figure.
+   */
+  async getSubscriberCount(): Promise<{
+    count: number;
+    precision: "exact" | "approximate" | "unavailable";
+    note: string;
+  }> {
     try {
       const data = await this.request<Record<string, unknown>>(
         `${this.publicationUrl}/api/v1/publication_launch_checklist`,
       );
+      // Kept in case Substack restores these fields.
       if (typeof data.subscriber_count === "number") {
-        return { count: data.subscriber_count, note: "exact" };
+        return { count: data.subscriber_count, precision: "exact", note: "Exact count from the publication API." };
       }
       if (typeof data.subscriberCount === "number") {
-        return { count: data.subscriberCount, note: "exact" };
-      }
-      // The subscribers field is a paginated sample, not the full list
-      if (Array.isArray(data.subscribers)) {
-        return {
-          count: data.subscribers.length,
-          note: "sample only — this is a paginated subset, not the total. Check your Substack dashboard for the exact count.",
-        };
+        return { count: data.subscriberCount, precision: "exact", note: "Exact count from the publication API." };
       }
     } catch {
-      // Fall through
+      // Fall through to the public page.
     }
-    return { count: -1, note: "Could not retrieve subscriber count. Check your Substack dashboard." };
+
+    const rounded = await this.getRoundedSubscriberCount();
+    if (rounded !== null) {
+      return {
+        count: rounded,
+        precision: "approximate",
+        note:
+          `Approximate — Substack rounds this value, so the true count is ${rounded} or higher. ` +
+          "Render it hedged (e.g. \"" + rounded.toLocaleString("en-US") + "+\"), not as exact. " +
+          "The publication API no longer exposes an exact count; see your Substack dashboard.",
+      };
+    }
+
+    return {
+      count: -1,
+      precision: "unavailable",
+      note: "Could not retrieve subscriber count. Check your Substack dashboard.",
+    };
+  }
+
+  /**
+   * Scrape the rounded free-subscriber count off the publication page.
+   * Returns null when no count can be parsed. Never throws.
+   */
+  private async getRoundedSubscriberCount(): Promise<number | null> {
+    let html: string;
+    try {
+      const res = await fetch(`${this.publicationUrl}/`, {
+        headers: { "User-Agent": this.userAgent },
+        redirect: "follow",
+      });
+      if (!res.ok) return null;
+      html = await res.text();
+    } catch {
+      return null;
+    }
+
+    // Substack embeds JSON in script tags with escaped quotes.
+    const normalized = html.replace(/\\"/g, '"');
+
+    const exactish = normalized.match(/"freeSubscriberCount"\s*:\s*"?([\d,]+)"?/);
+    if (exactish) {
+      const n = parseInt(exactish[1].replace(/,/g, ""), 10);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+
+    // Order-of-magnitude bucket, e.g. "1K+", "2.5K+", "750+".
+    const oom = normalized.match(/"freeSubscriberCountOrderOfMagnitude"\s*:\s*"([^"]+)"/);
+    if (oom) {
+      const n = parseMagnitude(oom[1]);
+      if (n !== null) return n;
+    }
+
+    return null;
   }
 
   async getPublishedPosts(

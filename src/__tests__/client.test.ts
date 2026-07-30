@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { SubstackClient } from "../api/client.js";
+import { SubstackClient, parseMagnitude } from "../api/client.js";
 import {
   AuthenticationError,
   RateLimitError,
@@ -297,5 +297,86 @@ describe("SubstackClient error mapping (end-to-end through request())", () => {
       expect(err).not.toBeInstanceOf(ServerError);
       expect((err as SubstackAPIError).message).toContain("I'm a teapot");
     }
+  });
+});
+
+describe("parseMagnitude", () => {
+  it("parses whole-K buckets", () => {
+    expect(parseMagnitude("1K+")).toBe(1000);
+    expect(parseMagnitude("2K")).toBe(2000);
+  });
+
+  it("parses fractional-K buckets (regression: .replace('K','000') produced NaN)", () => {
+    expect(parseMagnitude("2.5K+")).toBe(2500);
+    expect(parseMagnitude("1.2K")).toBe(1200);
+  });
+
+  it("parses bare numbers and M buckets", () => {
+    expect(parseMagnitude("750+")).toBe(750);
+    expect(parseMagnitude("1,500+")).toBe(1500);
+    expect(parseMagnitude("1M+")).toBe(1000000);
+  });
+
+  it("returns null for unparseable or zero values", () => {
+    expect(parseMagnitude("")).toBeNull();
+    expect(parseMagnitude("lots")).toBeNull();
+    expect(parseMagnitude("0")).toBeNull();
+    expect(parseMagnitude("0K")).toBeNull();
+  });
+});
+
+describe("SubstackClient.getSubscriberCount", () => {
+  const client = () =>
+    new SubstackClient("https://example.substack.com", "tok123", "42");
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const jsonResponse = (body: unknown) =>
+    ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) }) as Response;
+  const htmlResponse = (html: string) =>
+    ({ ok: true, status: 200, text: async () => html }) as Response;
+
+  it("reports exact when the API returns subscriber_count", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ subscriber_count: 1073 }));
+    const r = await client().getSubscriberCount();
+    expect(r).toMatchObject({ count: 1073, precision: "exact" });
+  });
+
+  it("NEVER counts the paginated subscribers sample as the total", async () => {
+    // The regression this guards: an 11-item sample was returned as count: 11
+    // for a publication with >1,000 subscribers.
+    const sample = { subscribers: Array.from({ length: 11 }, (_, i) => ({ id: i })) };
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(sample))
+      .mockResolvedValueOnce(htmlResponse('{"freeSubscriberCount":"1,000"}'));
+    const r = await client().getSubscriberCount();
+    expect(r.count).not.toBe(11);
+    expect(r).toMatchObject({ count: 1000, precision: "approximate" });
+  });
+
+  it("falls back to the rounded public value and marks it approximate", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ audience: null }))
+      .mockResolvedValueOnce(htmlResponse('{\\"freeSubscriberCount\\":\\"1,000\\"}'));
+    const r = await client().getSubscriberCount();
+    expect(r.precision).toBe("approximate");
+    expect(r.count).toBe(1000);
+    expect(r.note).toMatch(/or higher/);
+  });
+
+  it("uses the order-of-magnitude bucket when no numeric count is present", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(htmlResponse('{"freeSubscriberCountOrderOfMagnitude":"2.5K+"}'));
+    const r = await client().getSubscriberCount();
+    expect(r).toMatchObject({ count: 2500, precision: "approximate" });
+  });
+
+  it("returns unavailable rather than a fabricated number when everything fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
+    const r = await client().getSubscriberCount();
+    expect(r).toMatchObject({ count: -1, precision: "unavailable" });
   });
 });

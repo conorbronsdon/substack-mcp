@@ -63,6 +63,52 @@ jobs:
         if: steps.version.outputs.changed == 'true'
         run: npm publish --provenance --access public
 
+      # server.json is derived from package.json at publish time so the two can
+      # never drift again — the registry stayed pinned at the June 2026 versions
+      # because server.json was hand-maintained and nobody re-published it.
+      - name: Sync server.json version from package.json
+        run: |
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            const server = JSON.parse(fs.readFileSync("server.json", "utf8"));
+            server.version = pkg.version;
+            for (const p of server.packages || []) p.version = pkg.version;
+            fs.writeFileSync("server.json", JSON.stringify(server, null, 2) + "\n");
+          '
+          node -p "\"server.json is now at \" + require('./server.json').version"
+
+      # Checked independently of the npm gate above: npm and the registry can be
+      # out of sync on their own, so a workflow_dispatch has to be able to push a
+      # registry-only catch-up without an npm version bump.
+      - name: Check if version is already in the MCP registry
+        id: registry
+        run: |
+          SERVER_NAME="$(node -p "require('./package.json').mcpName")"
+          LOCAL_VERSION="${{ steps.version.outputs.local }}"
+          if curl -fsSL "https://registry.modelcontextprotocol.io/v0.1/servers?search=$SERVER_NAME" -o registry.json; then
+            REGISTRY_VERSION="$(SERVER_NAME="$SERVER_NAME" node -p "const r = JSON.parse(require('fs').readFileSync('registry.json', 'utf8')).servers || []; const m = r.find(s => s.server && s.server.name === process.env.SERVER_NAME); m ? m.server.version : 'none'")"
+          else
+            REGISTRY_VERSION=unknown
+            echo "Registry lookup failed — will attempt the publish and let it decide."
+          fi
+          rm -f registry.json
+          if [ "$LOCAL_VERSION" = "$REGISTRY_VERSION" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "MCP registry already has $SERVER_NAME@$LOCAL_VERSION — nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "MCP registry has $REGISTRY_VERSION, package.json is $LOCAL_VERSION — publishing."
+          fi
+
+      - name: Publish to the MCP registry
+        if: steps.registry.outputs.changed == 'true'
+        # Pinned: an unpinned /latest/ URL silently changes the CLI under CI.
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/v1.8.0/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
+
       - name: Create GitHub release
         if: steps.version.outputs.changed == 'true'
         env:

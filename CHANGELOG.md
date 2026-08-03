@@ -8,6 +8,35 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+### Added
+- A 30-second deadline on every request to Substack, overridable with
+  `SUBSTACK_REQUEST_TIMEOUT_MS`. Node applies no request timeout by default —
+  only undici's 10s *connect* timeout — so a host that accepted the connection
+  and then went silent could hang a tool call indefinitely. A request that hits
+  the deadline now raises `TimeoutError`, which names the endpoint and the
+  limit, instead of surfacing a bare `DOMException`. (#31)
+- `SIGTERM`/`SIGINT` handlers that close the transport and exit 0. Node installs
+  no handler by default and the kernel ignores default-disposition signals for
+  PID 1, so `docker stop` waited out its full 10s grace period and then
+  SIGKILLed (exit 137). Measured against the published Dockerfile: 10,334ms and
+  exit 137 before, 357ms and exit 0 after. No init process (`tini`) needed. (#31)
+
+### Fixed
+- The startup auth check no longer blocks the MCP handshake. It ran *before*
+  `server.connect()`, so a host that hangs rather than refuses stalled
+  `initialize` for undici's full connect timeout with no output. Measured in a
+  container against a blackholed host: `initialize` took 11,182ms before, 822ms
+  after; the credential-free path (what the Docker MCP registry check exercises)
+  is unchanged at 14 tools and exit 0. The check still runs — it just runs after
+  connect, and it only ever warned. (#31)
+- `tsconfig.json` now excludes `src/__tests__` from the build. `tsc` was emitting
+  the test suite into `dist/`, where its `vitest` imports cannot resolve because
+  `npm ci --omit=dev` correctly drops vitest — dead code in the published
+  package, and a stale `dist/` also made `vitest run` collect every suite twice.
+  The Dockerfile's `RUN rm -rf dist/__tests__` workaround is removed with it.
+  Tests are still type-checked: `npm run lint` now uses `tsconfig.lint.json`,
+  which covers all of `src/`. (#31)
+
 ## [0.6.1] - 2026-08-03
 
 ### Fixed

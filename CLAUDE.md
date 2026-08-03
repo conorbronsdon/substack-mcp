@@ -21,8 +21,8 @@ MCP server for Substack — read posts, manage drafts, create notes. Cannot publ
 ## Development
 ```bash
 npm ci
-npm run lint    # tsc --noEmit (type-check)
-npm run build   # tsc (outputs to dist/)
+npm run lint    # tsc --noEmit -p tsconfig.lint.json (type-checks all of src/, tests included)
+npm run build   # tsc (outputs to dist/; excludes src/__tests__)
 npm test        # vitest run
 ```
 

@@ -176,6 +176,18 @@ Substack publications served on a custom domain (e.g. `blog.example.com`) sit be
 }
 ```
 
+## Request timeout
+
+Every request to Substack is bounded by a 30-second deadline. Node applies no request timeout of its own — only a 10-second *connect* timeout — so a host that accepts the connection and then goes silent (a proxy that drops packets rather than refusing them) would otherwise hang a tool call indefinitely. A request that hits the deadline fails with a `TimeoutError` naming the endpoint and the limit.
+
+Raise or lower it with `SUBSTACK_REQUEST_TIMEOUT_MS` (milliseconds; a non-numeric or non-positive value is ignored with a warning and the default is used):
+
+```json
+"env": {
+  "SUBSTACK_REQUEST_TIMEOUT_MS": "60000"
+}
+```
+
 ## Typed errors
 
 API failures are mapped to a typed error hierarchy (`SubstackAPIError` base, with `AuthenticationError`, `RateLimitError`, `ValidationError`, `NotFoundError`, and `ServerError` subclasses keyed off HTTP status) in `src/utils/errors.ts`. Every tool call still surfaces the same error response shape on failure — the typed hierarchy just makes the message specific to what went wrong instead of a single generic "Substack API error" string.
@@ -187,6 +199,7 @@ API failures are mapped to a typed error hierarchy (`SubstackAPIError` base, wit
 | `ValidationError` | 400 | Malformed or invalid arguments passed to a tool (e.g. a missing required field) |
 | `NotFoundError` | 404 | The referenced draft, post, or note doesn't exist |
 | `ServerError` | 5xx | Failure on Substack's side |
+| `TimeoutError` | 408 (synthetic) | The request hit the client's own deadline — no response arrived, so there is no real status to report (see [Request timeout](#request-timeout)) |
 | `SubstackAPIError` | any other status | Fallback for unmapped status codes |
 
 Substack error response bodies are inconsistent — sometimes JSON (`{"error": "..."}` or `{"errors": [...]}`), sometimes plain text, and sometimes a large Cloudflare HTML block page. `extractErrorDetail` handles all three: it tries `JSON.parse` first, falls back to the raw text (trimmed and capped at ~500 characters so a multi-KB HTML page doesn't become the whole error message), and only uses a generic fallback string if the body is empty.
@@ -210,7 +223,8 @@ The `create_draft` and `update_draft` tools accept markdown and convert it to Su
 
 - This server uses Substack's **unofficial API**. It may break if Substack changes their endpoints.
 - Session tokens are sent as cookies. Keep your `SUBSTACK_SESSION_TOKEN` secure.
-- The server validates authentication on startup and will fail fast if your token is expired.
+- The server checks your credentials on startup, *after* the MCP handshake completes, and only warns — it never blocks startup on a network call. Tools still error individually if the token is expired, which is where the failure is actionable.
+- `SIGTERM` and `SIGINT` are handled: the server closes its transport and exits 0, so `docker stop` returns promptly instead of waiting out the grace period.
 
 ## Development
 

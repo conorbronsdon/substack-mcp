@@ -49,6 +49,48 @@ export class ServerError extends SubstackAPIError {
 }
 
 /**
+ * The client's own request deadline fired before any response arrived.
+ *
+ * There is no real status here — Substack never answered — so 408 is synthetic,
+ * chosen only so this fits the `SubstackAPIError` shape every tool handler
+ * already renders. Without it, an aborted fetch surfaces as a bare
+ * `DOMException: The operation was aborted due to timeout`, which says nothing
+ * about which request died or how to fix it.
+ */
+export class TimeoutError extends SubstackAPIError {
+  constructor(endpoint: string, timeoutMs: number) {
+    super(
+      408,
+      `Request timed out after ${timeoutMs}ms with no response. The host may be unreachable, ` +
+        "or behind a proxy that drops packets instead of refusing the connection. " +
+        "Set SUBSTACK_REQUEST_TIMEOUT_MS to raise the limit if the publication is just slow.",
+      endpoint,
+    );
+    this.name = "TimeoutError";
+  }
+}
+
+/**
+ * True when a rejected `fetch` was aborted rather than failing on its own.
+ *
+ * Shape varies by runtime: `AbortSignal.timeout()` rejects with a DOMException
+ * named `TimeoutError`, older undici builds substitute a generic `AbortError`
+ * instead of propagating the signal's reason, and some wrap the abort in a
+ * `TypeError` with the real reason on `.cause`. All three mean the same thing,
+ * so all three are matched.
+ */
+export function isAbortError(err: unknown): boolean {
+  const isAbortNamed = (e: unknown): boolean => {
+    const name = (e as { name?: unknown } | null | undefined)?.name;
+    return name === "TimeoutError" || name === "AbortError";
+  };
+  return (
+    isAbortNamed(err) ||
+    isAbortNamed((err as { cause?: unknown } | null | undefined)?.cause)
+  );
+}
+
+/**
  * Maps an HTTP status code + error detail string to the appropriate typed
  * error. 401/403 route to AuthenticationError with `detail` intentionally
  * discarded — AuthenticationError's constructor takes only `endpoint` so its

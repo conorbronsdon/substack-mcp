@@ -1,0 +1,13 @@
+// Type-check config: same compiler options as the build, but it also covers
+// src/__tests__, which tsconfig.json excludes so tsc doesn't emit tests into
+// dist/. `npm run lint` uses this file so excluding tests from the build did
+// not quietly drop them from the type checker — nothing else type-checks them
+// (vitest strips types with esbuild rather than checking them).
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

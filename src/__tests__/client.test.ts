@@ -5,6 +5,7 @@ import {
   MAX_PAGE_SIZE,
   ANALYTICS_MAX_PAGES,
   ANALYTICS_SCAN_DEPTH,
+  DEFAULT_REQUEST_TIMEOUT_MS,
 } from "../api/client.js";
 import {
   AuthenticationError,
@@ -13,6 +14,7 @@ import {
   NotFoundError,
   ServerError,
   SubstackAPIError,
+  TimeoutError,
 } from "../utils/errors.js";
 
 describe("SubstackClient constructor", () => {
@@ -488,5 +490,105 @@ describe("SubstackClient.getSubscriberCount", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
     const r = await client().getSubscriberCount();
     expect(r).toMatchObject({ count: -1, precision: "unavailable" });
+  });
+});
+
+describe("SubstackClient request timeout", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function stubOk() {
+    const fetchMock = vi.fn(async (..._args: any[]) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ posts: [] }),
+      text: async () => "{}",
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("attaches an AbortSignal to every request", async () => {
+    const fetchMock = stubOk();
+    await new SubstackClient("https://example.substack.com", "tok", "1").getDrafts();
+
+    const opts = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(opts.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("uses a 30s deadline by default", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    stubOk();
+    await new SubstackClient("https://example.substack.com", "tok", "1").getDrafts();
+
+    expect(DEFAULT_REQUEST_TIMEOUT_MS).toBe(30_000);
+    expect(timeoutSpy).toHaveBeenCalledWith(30_000);
+  });
+
+  it("honors an explicit timeout override", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    stubOk();
+    await new SubstackClient("https://example.substack.com", "tok", "1", undefined, 1234).getDrafts();
+
+    expect(timeoutSpy).toHaveBeenCalledWith(1234);
+  });
+
+  it.each([0, -1, NaN])("falls back to the default for a nonsense override (%s)", async (bad) => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    stubOk();
+    await new SubstackClient("https://example.substack.com", "tok", "1", undefined, bad).getDrafts();
+
+    expect(timeoutSpy).toHaveBeenCalledWith(DEFAULT_REQUEST_TIMEOUT_MS);
+  });
+
+  it("surfaces an aborted request as TimeoutError, not a bare DOMException", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+      }),
+    );
+    const client = new SubstackClient("https://example.substack.com", "tok", "1", undefined, 5000);
+
+    await expect(client.getDrafts()).rejects.toBeInstanceOf(TimeoutError);
+    await expect(client.getDrafts()).rejects.toThrow(/timed out after 5000ms/);
+    await expect(client.getDrafts()).rejects.toThrow(/post_management\/drafts/);
+  });
+
+  it("leaves a non-abort network failure alone instead of calling it a timeout", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("fetch failed");
+      }),
+    );
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+
+    await expect(client.getDrafts()).rejects.toBeInstanceOf(TypeError);
+    await expect(client.getDrafts()).rejects.not.toBeInstanceOf(TimeoutError);
+  });
+
+  it("bounds the public-page scrape too, and reports unavailable when it aborts", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+      }),
+    );
+    const r = await new SubstackClient(
+      "https://example.substack.com",
+      "tok",
+      "1",
+      undefined,
+      7000,
+    ).getSubscriberCount();
+
+    expect(r).toMatchObject({ count: -1, precision: "unavailable" });
+    // Both the API attempt and the HTML fallback are bounded.
+    expect(timeoutSpy).toHaveBeenCalledTimes(2);
+    expect(timeoutSpy).toHaveBeenNthCalledWith(2, 7000);
   });
 });

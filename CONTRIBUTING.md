@@ -4,7 +4,10 @@ Thanks for helping improve substack-mcp. Issues and pull requests are welcome.
 
 ## Before you open a PR
 
-- `npm run lint` passes (this runs `tsc --noEmit` — the type checker is the linter).
+- `npm run lint` passes (this runs `tsc --noEmit -p tsconfig.lint.json` — the type
+  checker is the linter). It covers `src/__tests__` too, which the build config
+  excludes so `tsc` doesn't emit tests into `dist/`; nothing else type-checks
+  them, since vitest strips types rather than checking them.
 - `npm test` passes (`vitest run`). Add or update tests for any behavior you change.
 - The safe-by-design boundary stays: no publish, no delete, no schedule for
   long-form posts. Notes publish immediately by design and their descriptions

@@ -18,10 +18,6 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 COPY --from=builder /app/dist ./dist
-# tsconfig has no test exclusion, so tsc emits src/__tests__ into dist. Those
-# files import vitest, which --omit=dev correctly leaves out, so they are dead
-# weight and scanner surface in a published image.
-RUN rm -rf dist/__tests__
 
 # Credentials come from the environment and are never baked into the image:
 #   SUBSTACK_PUBLICATION_URL — e.g. https://example.substack.com

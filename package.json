@@ -1,6 +1,6 @@
 {
   "name": "@conorbronsdon/substack-mcp",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "MCP server for Substack — read posts, manage drafts, publish Notes. Long-form posts are draft-only by design (no publish, no delete); Notes publish immediately.",
   "type": "module",
   "bin": {
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit -p tsconfig.lint.json",
     "test": "vitest run",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"

@@ -6,6 +6,8 @@ import {
   ValidationError,
   NotFoundError,
   ServerError,
+  TimeoutError,
+  isAbortError,
   mapHttpStatusToError,
   extractErrorDetail,
 } from "../utils/errors.js";
@@ -109,6 +111,50 @@ describe("ServerError", () => {
     const err = new ServerError("/api", "x");
     expect(err.name).toBe("ServerError");
     expect(err).toBeInstanceOf(SubstackAPIError);
+  });
+});
+
+describe("TimeoutError", () => {
+  it("names the elapsed limit, the endpoint, and the override knob", () => {
+    const err = new TimeoutError("https://example.substack.com/api/v1/drafts", 30000);
+    expect(err.message).toContain("30000ms");
+    expect(err.message).toContain("https://example.substack.com/api/v1/drafts");
+    expect(err.message).toContain("SUBSTACK_REQUEST_TIMEOUT_MS");
+    expect(err.endpoint).toBe("https://example.substack.com/api/v1/drafts");
+  });
+
+  it("has correct name property and extends SubstackAPIError", () => {
+    const err = new TimeoutError("/api", 1000);
+    expect(err.name).toBe("TimeoutError");
+    expect(err).toBeInstanceOf(SubstackAPIError);
+    expect(err.statusCode).toBe(408);
+  });
+});
+
+describe("isAbortError", () => {
+  it("recognizes an AbortSignal.timeout rejection (DOMException named TimeoutError)", () => {
+    const err = new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    expect(isAbortError(err)).toBe(true);
+  });
+
+  it("recognizes the older generic AbortError shape", () => {
+    const err = new DOMException("This operation was aborted", "AbortError");
+    expect(isAbortError(err)).toBe(true);
+  });
+
+  it("recognizes an abort wrapped as the cause of a TypeError", () => {
+    const err = new TypeError("fetch failed");
+    (err as Error & { cause?: unknown }).cause = new DOMException("aborted", "AbortError");
+    expect(isAbortError(err)).toBe(true);
+  });
+
+  it("does NOT claim an ordinary network failure was a timeout", () => {
+    expect(isAbortError(new TypeError("fetch failed"))).toBe(false);
+    expect(isAbortError(new Error("ECONNREFUSED"))).toBe(false);
+    expect(isAbortError(new SubstackAPIError(500, "boom", "/api"))).toBe(false);
+    expect(isAbortError(null)).toBe(false);
+    expect(isAbortError(undefined)).toBe(false);
+    expect(isAbortError("TimeoutError")).toBe(false);
   });
 });
 

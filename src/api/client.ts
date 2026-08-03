@@ -12,7 +12,19 @@ import {
   SubstackSection,
   SubstackScheduledPost,
 } from "./types.js";
-import { mapHttpStatusToError, extractErrorDetail } from "../utils/errors.js";
+import { mapHttpStatusToError, extractErrorDetail, TimeoutError, isAbortError } from "../utils/errors.js";
+
+/**
+ * Per-request deadline applied to every outbound fetch.
+ *
+ * Node's default is no request timeout at all — only undici's 10s *connect*
+ * timeout — so a host that accepts the connection and then goes quiet hangs the
+ * call forever. 30s is long enough for a base64 image upload on a slow link and
+ * short enough that a dropped connection becomes an error instead of a stall.
+ * Override per client via the constructor (SUBSTACK_REQUEST_TIMEOUT_MS at the
+ * entry point).
+ */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
 /**
  * Largest `limit` Substack's post_management endpoints will accept.
@@ -60,12 +72,14 @@ export class SubstackClient {
   private cookie: string;
   private userId: number;
   private userAgent: string;
+  private timeoutMs: number;
 
   constructor(
     publicationUrl: string,
     sessionToken: string,
     userId: string,
     userAgent?: string,
+    timeoutMs?: number,
   ) {
     this.publicationUrl = publicationUrl.replace(/\/$/, "");
     // Substack uses connect.sid on custom domains, substack.sid on substack.com
@@ -79,6 +93,13 @@ export class SubstackClient {
       userAgent ||
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
         "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+    // A zero, negative, or non-finite override would abort every request
+    // instantly (or never), so it falls back to the default rather than
+    // silently breaking the client.
+    this.timeoutMs =
+      typeof timeoutMs === "number" && Number.isFinite(timeoutMs) && timeoutMs > 0
+        ? timeoutMs
+        : DEFAULT_REQUEST_TIMEOUT_MS;
 
     if (isNaN(this.userId)) {
       throw new Error(`Invalid SUBSTACK_USER_ID: "${userId}" — must be a number`);
@@ -108,11 +129,20 @@ export class SubstackClient {
       headers["Content-Type"] = "application/json";
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-      redirect: "follow",
-    });
+    // The signal is set last so it can't be overridden by `options`: every
+    // request through this method is bounded, no exceptions.
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers,
+        redirect: "follow",
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+    } catch (err) {
+      if (isAbortError(err)) throw new TimeoutError(url, this.timeoutMs);
+      throw err;
+    }
 
     if (!response.ok) {
       const body = await response.text().catch(() => "unknown error");
@@ -197,6 +227,7 @@ export class SubstackClient {
       const res = await fetch(`${this.publicationUrl}/`, {
         headers: { "User-Agent": this.userAgent },
         redirect: "follow",
+        signal: AbortSignal.timeout(this.timeoutMs),
       });
       if (!res.ok) return null;
       html = await res.text();

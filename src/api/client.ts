@@ -15,6 +15,28 @@ import {
 import { mapHttpStatusToError, extractErrorDetail } from "../utils/errors.js";
 
 /**
+ * Largest `limit` Substack's post_management endpoints will accept.
+ *
+ * Probed directly against `/api/v1/post_management/published` (2026-08-02):
+ * `limit=50` → HTTP 200, `limit=51` → HTTP 400
+ * `{"errors":[{"location":"query","param":"limit","value":51,"msg":"Invalid value"}]}`,
+ * `limit=100` → 400. So 51 is the exact boundary and 50 is the largest page the
+ * API will serve. Never send a `limit` above this — the request fails outright
+ * rather than returning a truncated page.
+ */
+export const MAX_PAGE_SIZE = 50;
+
+/** Pages `getPostAnalytics` will scan before giving up. */
+export const ANALYTICS_MAX_PAGES = 10;
+
+/**
+ * How many of the most recent published posts `getPostAnalytics` searches.
+ * Derived, not stated: tool descriptions that quote this bound must interpolate
+ * it so they can't rot when either factor changes.
+ */
+export const ANALYTICS_SCAN_DEPTH = MAX_PAGE_SIZE * ANALYTICS_MAX_PAGES;
+
+/**
  * Parse Substack's order-of-magnitude subscriber bucket into a number.
  *
  * Values look like "1K+", "2.5K+", "750+", "1M+". Exported for tests.
@@ -340,9 +362,13 @@ export class SubstackClient {
     // Substack has no per-post stats endpoint. Each row of the published
     // feed already carries a `stats` object, so page through the feed
     // (newest first) until the matching id turns up. Bounded so a bad id
-    // can't scan forever: up to 500 of the most recent published posts.
-    const pageSize = 100;
-    const maxPages = 5;
+    // can't scan forever: ANALYTICS_SCAN_DEPTH most recent published posts.
+    //
+    // Pages are awaited one at a time, so the worst case is ANALYTICS_MAX_PAGES
+    // *sequential* requests, not a parallel burst — and that worst case only
+    // occurs when the id isn't in the feed at all. A found post short-circuits.
+    const pageSize = MAX_PAGE_SIZE;
+    const maxPages = ANALYTICS_MAX_PAGES;
     for (let page = 0; page < maxPages; page++) {
       const { posts } = await this.getPublishedPosts(page * pageSize, pageSize);
       const found = posts.find((p) => p.id === postId);

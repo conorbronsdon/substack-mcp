@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { SubstackClient, parseMagnitude } from "../api/client.js";
+import {
+  SubstackClient,
+  parseMagnitude,
+  MAX_PAGE_SIZE,
+  ANALYTICS_MAX_PAGES,
+  ANALYTICS_SCAN_DEPTH,
+} from "../api/client.js";
 import {
   AuthenticationError,
   RateLimitError,
@@ -166,7 +172,8 @@ describe("SubstackClient requests", () => {
     const post = await client.getPostAnalytics(999);
 
     expect(post).toBeNull();
-    // A short page (1 < 100) means end-of-feed: exactly one request, no over-paging.
+    // A short page (1 < MAX_PAGE_SIZE) means end-of-feed: exactly one request,
+    // no over-paging.
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -205,6 +212,109 @@ describe("SubstackClient requests", () => {
 
     const opts = fetchMock.mock.calls[0][1] as { headers: Record<string, string> };
     expect(opts.headers["Content-Type"]).toBe("application/json");
+  });
+});
+
+describe("pagination limit cap (regression: #28)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  // Substack 400s on limit=51 and above, so every request this client issues on
+  // its own initiative must carry a limit VALUE within the cap. The pre-fix
+  // suite passed with limit=100 on the wire because it only asserted that the
+  // URL *contained* the endpoint path — a shape assertion cannot see a bad
+  // value. These read the query params back off the URLs the client actually
+  // built.
+  function paramValues(
+    fetchMock: { mock: { calls: any[][] } },
+    name: string,
+  ): number[] {
+    return fetchMock.mock.calls
+      .map((call) => new URL(String(call[0])).searchParams.get(name))
+      .filter((v): v is string => v !== null)
+      .map(Number);
+  }
+
+  /**
+   * A published feed that honors offset/limit, so paging behavior follows the
+   * page size the client asks for rather than a fixture hardcoded around one.
+   */
+  function stubPagedFeed(totalPosts: number) {
+    const fetchMock = vi.fn(async (url: any) => {
+      const params = new URL(String(url)).searchParams;
+      const offset = Number(params.get("offset") ?? 0);
+      const limit = Number(params.get("limit") ?? 0);
+      const count = Math.max(0, Math.min(limit, totalPosts - offset));
+      const body = {
+        posts: Array.from({ length: count }, (_, i) => ({
+          id: offset + i + 1,
+          title: `Post ${offset + i + 1}`,
+          stats: { views: 1 },
+        })),
+        total: totalPosts,
+      };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => body,
+        text: async () => JSON.stringify(body),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("MAX_PAGE_SIZE is within Substack's observed 50 cap", () => {
+    // limit=50 → 200, limit=51 → 400 "Invalid value" (probed 2026-08-02).
+    expect(MAX_PAGE_SIZE).toBeLessThanOrEqual(50);
+    expect(MAX_PAGE_SIZE).toBeGreaterThan(0);
+  });
+
+  it("preserves the documented 500-post analytics scan depth", () => {
+    expect(MAX_PAGE_SIZE * ANALYTICS_MAX_PAGES).toBe(500);
+    expect(ANALYTICS_SCAN_DEPTH).toBe(500);
+  });
+
+  it("getPostAnalytics sends a limit value within the cap on every page", async () => {
+    const fetchMock = stubPagedFeed(10_000); // feed deeper than the scan bound
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+
+    // An id past the scan depth, so the loop runs to its bound.
+    const post = await client.getPostAnalytics(9_999);
+    expect(post).toBeNull();
+
+    const limits = paramValues(fetchMock, "limit");
+    // Every request carries a limit — none slipped through unparameterized.
+    expect(limits).toHaveLength(fetchMock.mock.calls.length);
+    expect(fetchMock).toHaveBeenCalledTimes(ANALYTICS_MAX_PAGES);
+    // The value, not the shape: no page may exceed what Substack accepts.
+    expect(Math.max(...limits)).toBeLessThanOrEqual(MAX_PAGE_SIZE);
+    expect(limits).toEqual(Array(ANALYTICS_MAX_PAGES).fill(MAX_PAGE_SIZE));
+  });
+
+  it("getPostAnalytics tiles offsets across exactly the scan depth", async () => {
+    const fetchMock = stubPagedFeed(10_000);
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    await client.getPostAnalytics(9_999);
+
+    const offsets = paramValues(fetchMock, "offset");
+    expect(offsets).toEqual(
+      Array.from({ length: ANALYTICS_MAX_PAGES }, (_, i) => i * MAX_PAGE_SIZE),
+    );
+    // Last page starts one page short of the bound, so the scan covers
+    // ANALYTICS_SCAN_DEPTH posts with no gap and no overshoot.
+    expect(Math.max(...offsets)).toBe(ANALYTICS_SCAN_DEPTH - MAX_PAGE_SIZE);
+    expect(Math.max(...offsets) + MAX_PAGE_SIZE).toBe(ANALYTICS_SCAN_DEPTH);
+  });
+
+  it("getPostAnalytics stops as soon as the post is found", async () => {
+    const fetchMock = stubPagedFeed(10_000);
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+
+    // Post 60 lands on page 1 (offset 50), so page 2 must never be requested.
+    const post = await client.getPostAnalytics(60);
+    expect(post?.id).toBe(60);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(paramValues(fetchMock, "limit")).toEqual([MAX_PAGE_SIZE, MAX_PAGE_SIZE]);
   });
 });
 

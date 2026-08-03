@@ -6,7 +6,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases before
 `0.6.0` are recorded in the [GitHub Releases](https://github.com/conorbronsdon/substack-mcp/releases)
 and the git tag history (`v0.1.0`–`v0.5.0`).
 
-## [Unreleased]
+## [0.6.2] - 2026-08-03
 
 ### Added
 - A 30-second deadline on every request to Substack, overridable with

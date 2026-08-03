@@ -1,6 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { SubstackClient } from "./api/client.js";
+import {
+  SubstackClient,
+  MAX_PAGE_SIZE,
+  ANALYTICS_SCAN_DEPTH,
+} from "./api/client.js";
 import { buildAnnotations } from "./annotations.js";
 import { markdownToProseMirror, markdownToProseMirrorContent } from "./utils/markdown-to-prosemirror.js";
 import { fileToDataUri } from "./utils/image.js";
@@ -8,7 +12,7 @@ import { fileToDataUri } from "./utils/image.js";
 export function createServer(client: SubstackClient): McpServer {
   const server = new McpServer({
     name: "substack-mcp",
-    version: "0.6.0",
+    version: "0.6.1",
   });
 
   // Every tool is registered with MCP annotations derived from its declared
@@ -45,12 +49,18 @@ export function createServer(client: SubstackClient): McpServer {
       description: "List published posts with pagination. Returns title, date, slug, and URL for each post.",
       inputSchema: {
         offset: z.number().optional().default(0).describe("Number of posts to skip"),
-        limit: z.number().optional().default(25).describe("Max posts to return (1-100)"),
+        limit: z
+          .number()
+          .optional()
+          .default(25)
+          .describe(
+            `Max posts to return (1-${MAX_PAGE_SIZE}; Substack rejects anything higher, so larger values are clamped)`,
+          ),
       },
       annotations: buildAnnotations("list_published_posts"),
     },
     async ({ offset, limit }) => {
-      const { posts, total } = await client.getPublishedPosts(offset, Math.min(limit, 100));
+      const { posts, total } = await client.getPublishedPosts(offset, Math.min(limit, MAX_PAGE_SIZE));
       const summary = posts.map((p) => ({
         id: p.id,
         title: p.title,
@@ -73,12 +83,18 @@ export function createServer(client: SubstackClient): McpServer {
       description: "List draft posts. Returns title, creation date, and audience for each draft.",
       inputSchema: {
         offset: z.number().optional().default(0).describe("Number of drafts to skip"),
-        limit: z.number().optional().default(25).describe("Max drafts to return (1-100)"),
+        limit: z
+          .number()
+          .optional()
+          .default(25)
+          .describe(
+            `Max drafts to return (1-${MAX_PAGE_SIZE}; Substack rejects anything higher, so larger values are clamped)`,
+          ),
       },
       annotations: buildAnnotations("list_drafts"),
     },
     async ({ offset, limit }) => {
-      const drafts = await client.getDrafts(offset, Math.min(limit, 100));
+      const drafts = await client.getDrafts(offset, Math.min(limit, MAX_PAGE_SIZE));
       const summary = drafts.map((d) => ({
         id: d.id,
         title: d.draft_title,
@@ -212,7 +228,8 @@ export function createServer(client: SubstackClient): McpServer {
     "get_post_analytics",
     {
       description:
-        "Get performance stats (views, emails sent/delivered/opened, signups, subscribes, estimated value, comments, reactions) for a published post by ID. Substack has no per-post stats endpoint, so this searches your 500 most recent published posts for the ID; returns a not-found note if it isn't among them.",
+        "Get performance stats (views, emails sent/delivered/opened, signups, subscribes, estimated value, comments, reactions) for a published post by ID. " +
+        `Substack has no per-post stats endpoint, so this searches your ${ANALYTICS_SCAN_DEPTH} most recent published posts for the ID; returns a not-found note if it isn't among them.`,
       inputSchema: {
         post_id: z.number().describe("The published post ID to get stats for"),
       },
@@ -229,7 +246,7 @@ export function createServer(client: SubstackClient): McpServer {
                 {
                   found: false,
                   post_id,
-                  note: "Post not found among the 500 most recent published posts. Check the ID with list_published_posts.",
+                  note: `Post not found among the ${ANALYTICS_SCAN_DEPTH} most recent published posts. Check the ID with list_published_posts.`,
                 },
                 null,
                 2,
@@ -275,12 +292,18 @@ export function createServer(client: SubstackClient): McpServer {
         "List posts scheduled for future publication, soonest first. Read-only visibility into what's queued — scheduling itself is done in Substack's editor (this server does not schedule, publish, or delete long-form posts). Returns id, title, audience, and scheduled time (`trigger_at`).",
       inputSchema: {
         offset: z.number().optional().default(0).describe("Number of posts to skip"),
-        limit: z.number().optional().default(25).describe("Max posts to return (1-100)"),
+        limit: z
+          .number()
+          .optional()
+          .default(25)
+          .describe(
+            `Max posts to return (1-${MAX_PAGE_SIZE}; Substack rejects anything higher, so larger values are clamped)`,
+          ),
       },
       annotations: buildAnnotations("list_scheduled_posts"),
     },
     async ({ offset, limit }) => {
-      const posts = await client.getScheduledPosts(offset, Math.min(limit, 100));
+      const posts = await client.getScheduledPosts(offset, Math.min(limit, MAX_PAGE_SIZE));
       const summary = posts.map((p) => ({
         id: p.id,
         title: p.draft_title ?? p.title ?? null,

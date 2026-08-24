@@ -180,6 +180,26 @@ Raise or lower it with `SUBSTACK_REQUEST_TIMEOUT_MS` (milliseconds; a non-numeri
 }
 ```
 
+## Transports
+
+By default the server speaks MCP over **stdio** — the client spawns it as a subprocess per session, which is what the Claude Desktop/Code configs above assume.
+
+For a persistent, network-reachable deployment (e.g. one server shared by multiple machines, connected to via [`mcp-remote`](https://www.npmjs.com/package/mcp-remote)), set `MCP_TRANSPORT=http`. This starts a stateless Streamable HTTP server instead:
+
+- `POST /mcp` — the MCP endpoint
+- `GET /health` — returns `{"status":"ok"}` for container healthchecks
+
+```bash
+docker run -d --restart unless-stopped -p 8080:8080 \
+  -e MCP_TRANSPORT=http \
+  -e SUBSTACK_PUBLICATION_URL=https://yourblog.substack.com \
+  -e SUBSTACK_SESSION_TOKEN=your-session-token \
+  -e SUBSTACK_USER_ID=your-user-id \
+  substack-mcp
+```
+
+`MCP_HTTP_PORT` (default `8080`) and `MCP_HTTP_HOST` (default `0.0.0.0`, so the container is reachable from outside) configure the listener. Each request gets its own server instance — there's no session state kept between requests, so nothing to lose if the container restarts. This mode has no built-in authentication; put it behind a VPN/private network, the same way you would any other credentialed internal service.
+
 ## Typed errors
 
 API failures are mapped to a typed error hierarchy (`SubstackAPIError` base, with `AuthenticationError`, `RateLimitError`, `ValidationError`, `NotFoundError`, and `ServerError` subclasses keyed off HTTP status) in `src/utils/errors.ts`. Every tool call still surfaces the same error response shape on failure — the typed hierarchy just makes the message specific to what went wrong instead of a single generic "Substack API error" string.

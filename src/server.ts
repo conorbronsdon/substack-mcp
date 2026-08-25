@@ -9,11 +9,51 @@ import { buildAnnotations } from "./annotations.js";
 import { markdownToProseMirror, markdownToProseMirrorContent } from "./utils/markdown-to-prosemirror.js";
 import { fileToDataUri } from "./utils/image.js";
 
-export function createServer(client: SubstackClient): McpServer {
+export interface PublicationConfig {
+  /** Tool-facing `publication` enum value, e.g. "kevin-muldoon". */
+  key: string;
+  /** Human-readable label, e.g. "Kevin Muldoon" — used in descriptions/errors only. */
+  label: string;
+  client: SubstackClient;
+}
+
+export function createServer(publications: PublicationConfig[]): McpServer {
+  if (publications.length === 0) {
+    throw new Error("createServer requires at least one publication configuration.");
+  }
+
   const server = new McpServer({
     name: "substack-mcp",
     version: "0.6.1",
   });
+
+  const multi = publications.length > 1;
+  const pubKeys = publications.map((p) => p.key) as [string, ...string[]];
+
+  // With exactly one publication configured, every tool's schema is left
+  // untouched — no `publication` field at all — so single-publication
+  // deployments (the common case) see zero change. With 2+, every tool gains
+  // a *required* enum field: Zod itself then rejects an unconfigured or
+  // missing value before any handler (and therefore any Substack API call)
+  // runs, so a write tool can never silently land on the wrong publication.
+  function publicationField(): Record<string, z.ZodTypeAny> {
+    if (!multi) return {};
+    const options = publications.map((p) => `${p.key} (${p.label})`).join(", ");
+    return {
+      publication: z.enum(pubKeys).describe(`Which publication to operate on. One of: ${options}.`),
+    };
+  }
+
+  // Unreachable in practice when multi (see publicationField above) — this
+  // is a defensive fallback, not the primary validation path.
+  function clientFor(publication?: string): SubstackClient {
+    if (!multi) return publications[0].client;
+    const found = publications.find((p) => p.key === publication);
+    if (!found) {
+      throw new Error(`Unknown publication "${publication}". Configured: ${pubKeys.join(", ")}.`);
+    }
+    return found.client;
+  }
 
   // Every tool is registered with MCP annotations derived from its declared
   // side-effect class (see annotations.ts) so clients can render accurate
@@ -30,11 +70,11 @@ export function createServer(client: SubstackClient): McpServer {
         "'exact' when the API reports a true count, 'approximate' when only Substack's rounded " +
         "value is available (the real number is that or higher — render it hedged, e.g. '1,000+'), " +
         "or 'unavailable' with count -1. Never treat an approximate value as exact.",
-      inputSchema: {},
+      inputSchema: { ...publicationField() },
       annotations: buildAnnotations("get_subscriber_count"),
     },
-    async () => {
-      const result = await client.getSubscriberCount();
+    async ({ publication }: { publication?: string }) => {
+      const result = await clientFor(publication).getSubscriberCount();
       return {
         content: [
           { type: "text", text: JSON.stringify(result, null, 2) },
@@ -56,11 +96,12 @@ export function createServer(client: SubstackClient): McpServer {
           .describe(
             `Max posts to return (1-${MAX_PAGE_SIZE}; Substack rejects anything higher, so larger values are clamped)`,
           ),
+        ...publicationField(),
       },
       annotations: buildAnnotations("list_published_posts"),
     },
-    async ({ offset, limit }) => {
-      const { posts, total } = await client.getPublishedPosts(offset, Math.min(limit, MAX_PAGE_SIZE));
+    async ({ offset, limit, publication }: { offset: number; limit: number; publication?: string }) => {
+      const { posts, total } = await clientFor(publication).getPublishedPosts(offset, Math.min(limit, MAX_PAGE_SIZE));
       const summary = posts.map((p) => ({
         id: p.id,
         title: p.title,
@@ -90,11 +131,12 @@ export function createServer(client: SubstackClient): McpServer {
           .describe(
             `Max drafts to return (1-${MAX_PAGE_SIZE}; Substack rejects anything higher, so larger values are clamped)`,
           ),
+        ...publicationField(),
       },
       annotations: buildAnnotations("list_drafts"),
     },
-    async ({ offset, limit }) => {
-      const drafts = await client.getDrafts(offset, Math.min(limit, MAX_PAGE_SIZE));
+    async ({ offset, limit, publication }: { offset: number; limit: number; publication?: string }) => {
+      const drafts = await clientFor(publication).getDrafts(offset, Math.min(limit, MAX_PAGE_SIZE));
       const summary = drafts.map((d) => ({
         id: d.id,
         title: d.draft_title,
@@ -116,11 +158,12 @@ export function createServer(client: SubstackClient): McpServer {
       description: "Get the full content of a published post by ID. Returns title, body HTML, metadata.",
       inputSchema: {
         post_id: z.number().describe("The post ID to retrieve"),
+        ...publicationField(),
       },
       annotations: buildAnnotations("get_post"),
     },
-    async ({ post_id }) => {
-      const post = await client.getPost(post_id);
+    async ({ post_id, publication }: { post_id: number; publication?: string }) => {
+      const post = await clientFor(publication).getPost(post_id);
       return {
         content: [
           {
@@ -152,11 +195,12 @@ export function createServer(client: SubstackClient): McpServer {
       description: "Get the full content of a draft post by ID. Returns title, body, metadata.",
       inputSchema: {
         draft_id: z.number().describe("The draft ID to retrieve"),
+        ...publicationField(),
       },
       annotations: buildAnnotations("get_draft"),
     },
-    async ({ draft_id }) => {
-      const draft = await client.getDraft(draft_id);
+    async ({ draft_id, publication }: { draft_id: number; publication?: string }) => {
+      const draft = await clientFor(publication).getDraft(draft_id);
       return {
         content: [
           {
@@ -188,11 +232,12 @@ export function createServer(client: SubstackClient): McpServer {
       inputSchema: {
         post_id: z.number().describe("The post ID to get comments for"),
         limit: z.number().optional().default(20).describe("Max comments to return (default 20)"),
+        ...publicationField(),
       },
       annotations: buildAnnotations("get_post_comments"),
     },
-    async ({ post_id, limit }) => {
-      const comments = await client.getPostComments(post_id, limit);
+    async ({ post_id, limit, publication }: { post_id: number; limit: number; publication?: string }) => {
+      const comments = await clientFor(publication).getPostComments(post_id, limit);
       const summary = comments.map((c) => ({
         id: c.id,
         name: c.name,
@@ -212,11 +257,11 @@ export function createServer(client: SubstackClient): McpServer {
     {
       description:
         "List your publication's sections (categories). Returns each section's id and name. Use a section id as `section_id` when creating or updating a draft to file it under that section.",
-      inputSchema: {},
+      inputSchema: { ...publicationField() },
       annotations: buildAnnotations("get_sections"),
     },
-    async () => {
-      const sections = await client.getSections();
+    async ({ publication }: { publication?: string }) => {
+      const sections = await clientFor(publication).getSections();
       const summary = sections.map((s) => ({ id: s.id, name: s.name }));
       return {
         content: [{ type: "text", text: JSON.stringify(summary, null, 2) }],
@@ -232,11 +277,12 @@ export function createServer(client: SubstackClient): McpServer {
         `Substack has no per-post stats endpoint, so this searches your ${ANALYTICS_SCAN_DEPTH} most recent published posts for the ID; returns a not-found note if it isn't among them.`,
       inputSchema: {
         post_id: z.number().describe("The published post ID to get stats for"),
+        ...publicationField(),
       },
       annotations: buildAnnotations("get_post_analytics"),
     },
-    async ({ post_id }) => {
-      const post = await client.getPostAnalytics(post_id);
+    async ({ post_id, publication }: { post_id: number; publication?: string }) => {
+      const post = await clientFor(publication).getPostAnalytics(post_id);
       if (!post) {
         return {
           content: [
@@ -299,11 +345,12 @@ export function createServer(client: SubstackClient): McpServer {
           .describe(
             `Max posts to return (1-${MAX_PAGE_SIZE}; Substack rejects anything higher, so larger values are clamped)`,
           ),
+        ...publicationField(),
       },
       annotations: buildAnnotations("list_scheduled_posts"),
     },
-    async ({ offset, limit }) => {
-      const posts = await client.getScheduledPosts(offset, Math.min(limit, MAX_PAGE_SIZE));
+    async ({ offset, limit, publication }: { offset: number; limit: number; publication?: string }) => {
+      const posts = await clientFor(publication).getScheduledPosts(offset, Math.min(limit, MAX_PAGE_SIZE));
       const summary = posts.map((p) => ({
         id: p.id,
         title: p.draft_title ?? p.title ?? null,
@@ -331,12 +378,25 @@ export function createServer(client: SubstackClient): McpServer {
           .optional()
           .default("everyone")
           .describe("Who can see this post"),
+        ...publicationField(),
       },
       annotations: buildAnnotations("create_draft"),
     },
-    async ({ title, body, subtitle, audience }) => {
+    async ({
+      title,
+      body,
+      subtitle,
+      audience,
+      publication,
+    }: {
+      title: string;
+      body?: string;
+      subtitle?: string;
+      audience: "everyone" | "only_paid" | "founding" | "only_free";
+      publication?: string;
+    }) => {
       const prosemirrorBody = body ? markdownToProseMirror(body) : undefined;
-      const draft = await client.createDraft(
+      const draft = await clientFor(publication).createDraft(
         title,
         prosemirrorBody,
         subtitle,
@@ -374,17 +434,32 @@ export function createServer(client: SubstackClient): McpServer {
           .enum(["everyone", "only_paid", "founding", "only_free"])
           .optional()
           .describe("Who can see this post"),
+        ...publicationField(),
       },
       annotations: buildAnnotations("update_draft"),
     },
-    async ({ draft_id, title, subtitle, body, audience }) => {
+    async ({
+      draft_id,
+      title,
+      subtitle,
+      body,
+      audience,
+      publication,
+    }: {
+      draft_id: number;
+      title?: string;
+      subtitle?: string;
+      body?: string;
+      audience?: "everyone" | "only_paid" | "founding" | "only_free";
+      publication?: string;
+    }) => {
       const updates: Record<string, unknown> = {};
       if (title !== undefined) updates.draft_title = title;
       if (subtitle !== undefined) updates.draft_subtitle = subtitle;
       if (body !== undefined) updates.draft_body = markdownToProseMirror(body);
       if (audience !== undefined) updates.audience = audience;
 
-      const draft = await client.updateDraft(draft_id, updates);
+      const draft = await clientFor(publication).updateDraft(draft_id, updates);
       return {
         content: [
           {
@@ -422,10 +497,19 @@ export function createServer(client: SubstackClient): McpServer {
           .describe(
             'Absolute path to a local image file (e.g., "/Users/me/pic.png"). Read and encoded automatically; MIME type inferred from the extension. Mutually exclusive with image_base64.',
           ),
+        ...publicationField(),
       },
       annotations: buildAnnotations("upload_image"),
     },
-    async ({ image_base64, image_path }) => {
+    async ({
+      image_base64,
+      image_path,
+      publication,
+    }: {
+      image_base64?: string;
+      image_path?: string;
+      publication?: string;
+    }) => {
       if (!image_base64 === !image_path) {
         throw new Error(
           "Provide exactly one of `image_base64` or `image_path`.",
@@ -434,7 +518,7 @@ export function createServer(client: SubstackClient): McpServer {
       const dataUri = image_path
         ? await fileToDataUri(image_path)
         : (image_base64 as string);
-      const result = await client.uploadImage(dataUri);
+      const result = await clientFor(publication).uploadImage(dataUri);
       return {
         content: [
           { type: "text", text: JSON.stringify({ image_url: result.url }) },
@@ -451,16 +535,17 @@ export function createServer(client: SubstackClient): McpServer {
       description: "Create a Substack Note (short-form content). Accepts markdown text. PUBLISHES IMMEDIATELY to your public Notes feed — Notes have no draft state on Substack, and this server has no delete tools, so there is no undo from here.",
       inputSchema: {
         body: z.string().describe("Note content in markdown format"),
+        ...publicationField(),
       },
       annotations: buildAnnotations("create_note"),
     },
-    async ({ body }) => {
+    async ({ body, publication }: { body: string; publication?: string }) => {
       const bodyJson = {
         type: "doc" as const,
         attrs: { schemaVersion: "v1" as const },
         content: markdownToProseMirrorContent(body),
       };
-      const note = await client.createNote(bodyJson);
+      const note = await clientFor(publication).createNote(bodyJson);
       return {
         content: [
           {
@@ -488,10 +573,12 @@ export function createServer(client: SubstackClient): McpServer {
       inputSchema: {
         body: z.string().describe("Note content in markdown format"),
         url: z.string().url().describe("URL to attach as a link card"),
+        ...publicationField(),
       },
       annotations: buildAnnotations("create_note_with_link"),
     },
-    async ({ body, url }) => {
+    async ({ body, url, publication }: { body: string; url: string; publication?: string }) => {
+      const client = clientFor(publication);
       const attachment = await client.createNoteAttachment(url);
       const bodyJson = {
         type: "doc" as const,

@@ -4,8 +4,10 @@ import { createServer } from "../server.js";
 import type { SubstackClient } from "../api/client.js";
 
 // The server only touches the client inside tool handlers, which these tests
-// never invoke — a bare object is enough to register everything.
-const server = createServer({} as SubstackClient);
+// never invoke — a bare object is enough to register everything. A single
+// publication keeps every tool's schema unchanged (see server.ts), which is
+// what this file's name-only completeness check assumes.
+const server = createServer([{ key: "default", label: "Default", client: {} as SubstackClient }]);
 
 interface RegisteredToolShape {
   description?: string;

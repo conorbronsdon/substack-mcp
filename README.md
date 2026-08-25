@@ -148,6 +148,29 @@ Add to your `.mcp.json`:
 
 Ask your AI assistant: "How many Substack subscribers do I have?"
 
+## Multiple publications
+
+Running more than one publication behind a single server? Set a `SUBSTACK_PUB_<KEY>_*` triplet per publication instead of the plain `SUBSTACK_*` vars. `<KEY>` is any name you choose (letters, digits, underscores) — it becomes the publication's lowercase, hyphenated key, e.g. `KEVIN_MULDOON` → `kevin-muldoon`.
+
+```json
+"env": {
+  "SUBSTACK_PUB_KEVIN_MULDOON_PUBLICATION_URL": "https://kevinmuldoon.substack.com",
+  "SUBSTACK_PUB_KEVIN_MULDOON_SESSION_TOKEN": "token-1",
+  "SUBSTACK_PUB_KEVIN_MULDOON_USER_ID": "111",
+  "SUBSTACK_PUB_SAPERE_PUBLICATION_URL": "https://sapere.substack.com",
+  "SUBSTACK_PUB_SAPERE_SESSION_TOKEN": "token-2",
+  "SUBSTACK_PUB_SAPERE_USER_ID": "222"
+}
+```
+
+Each triplet is independent — an incomplete one (e.g. missing `_USER_ID`) fails startup with a clear error rather than silently dropping that publication.
+
+With two or more publications configured, every tool gains a **required** `publication` parameter — one of your configured keys (e.g. `kevin-muldoon`, `sapere` above). The calling model must specify one on every call; an unrecognized value is rejected before any Substack API call is made, so a stray write can't land on the wrong publication. **With exactly one publication configured** — the common case, whether via plain `SUBSTACK_*` vars or a single `SUBSTACK_PUB_<KEY>_*` triplet — **no `publication` parameter is added at all**; every tool's schema is unchanged from single-publication mode.
+
+Don't mix the two styles: if any `SUBSTACK_PUB_<KEY>_*` var is set, the plain `SUBSTACK_*` vars are ignored (with a startup warning) rather than treated as an unnamed extra publication.
+
+`SUBSTACK_USER_AGENT` and `SUBSTACK_REQUEST_TIMEOUT_MS` apply to every configured publication — they are not per-publication. The browser-login flow (`substack-mcp-login`) is single-publication only; multiple publications require the env-var scheme above.
+
 ## Token expiration
 
 Substack session tokens expire periodically (typically ~90 days). If you get authentication errors, grab a fresh `connect.sid` cookie from your browser and update the env var (make sure ad blockers are disabled when copying the cookie) — or, if you used the browser login, just re-run `substack-mcp-login` to refresh the stored session.

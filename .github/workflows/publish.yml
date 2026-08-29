@@ -27,6 +27,12 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
+      # Release commits must carry aligned package, lockfile, and registry
+      # metadata. `npm version` synchronizes and stages server.json before the
+      # release commit is created.
+      - name: Verify release metadata
+        run: npm run check:release
+
       - name: Check if package.json version is already published
         id: version
         run: |
@@ -62,21 +68,6 @@ jobs:
       - name: Publish to npm
         if: steps.version.outputs.changed == 'true'
         run: npm publish --provenance --access public
-
-      # server.json is derived from package.json at publish time so the two can
-      # never drift again — the registry stayed pinned at the June 2026 versions
-      # because server.json was hand-maintained and nobody re-published it.
-      - name: Sync server.json version from package.json
-        run: |
-          node -e '
-            const fs = require("fs");
-            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-            const server = JSON.parse(fs.readFileSync("server.json", "utf8"));
-            server.version = pkg.version;
-            for (const p of server.packages || []) p.version = pkg.version;
-            fs.writeFileSync("server.json", JSON.stringify(server, null, 2) + "\n");
-          '
-          node -p "\"server.json is now at \" + require('./server.json').version"
 
       # Checked independently of the npm gate above: npm and the registry can be
       # out of sync on their own, so a workflow_dispatch has to be able to push a

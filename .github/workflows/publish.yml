@@ -33,6 +33,9 @@ jobs:
       - name: Verify release metadata
         run: npm run check:release
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Check if package.json version is already published
         id: version
         run: |
@@ -41,17 +44,14 @@ jobs:
           PUBLISHED_VERSION="$(npm view "$PKG_NAME" version 2>/dev/null || echo none)"
           echo "local=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
           echo "published=$PUBLISHED_VERSION" >> "$GITHUB_OUTPUT"
-          if [ "$LOCAL_VERSION" = "$PUBLISHED_VERSION" ]; then
+          RELEASE_STATE="$(node scripts/check-release-order.mjs "$LOCAL_VERSION" "$PUBLISHED_VERSION")"
+          if [ "$RELEASE_STATE" = "same" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "package.json version ($LOCAL_VERSION) is already published — nothing to do."
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "package.json version ($LOCAL_VERSION) differs from published ($PUBLISHED_VERSION) — publishing."
           fi
-
-      - name: Install dependencies
-        if: steps.version.outputs.changed == 'true'
-        run: npm ci
 
       - name: Build
         if: steps.version.outputs.changed == 'true'

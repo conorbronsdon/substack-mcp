@@ -78,7 +78,7 @@ jobs:
           SERVER_NAME="$(node -p "require('./package.json').mcpName")"
           LOCAL_VERSION="${{ steps.version.outputs.local }}"
           if curl -fsSL "https://registry.modelcontextprotocol.io/v0.1/servers?search=$SERVER_NAME" -o registry.json; then
-            REGISTRY_VERSION="$(SERVER_NAME="$SERVER_NAME" node -p "const r = JSON.parse(require('fs').readFileSync('registry.json', 'utf8')).servers || []; const m = r.find(s => s.server && s.server.name === process.env.SERVER_NAME); m ? m.server.version : 'none'")"
+            REGISTRY_VERSION="$(SERVER_NAME="$SERVER_NAME" node -p "const r = JSON.parse(require('fs').readFileSync('registry.json', 'utf8')).servers || []; const exact = r.filter(s => s.server && s.server.name === process.env.SERVER_NAME); const key = 'io.modelcontextprotocol.registry/official'; const latest = exact.find(s => s._meta && s._meta[key] && s._meta[key].isLatest) || exact.sort((a, b) => ((b._meta && b._meta[key] && b._meta[key].publishedAt) || '').localeCompare((a._meta && a._meta[key] && a._meta[key].publishedAt) || ''))[0]; latest ? latest.server.version : 'none'")"
           else
             REGISTRY_VERSION=unknown
             echo "Registry lookup failed — will attempt the publish and let it decide."

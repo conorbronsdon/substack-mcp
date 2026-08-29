@@ -34,7 +34,9 @@ if (!Array.isArray(server.packages) || server.packages.length === 0) {
 } else {
   server.packages.forEach((entry, index) => {
     requireEqual(`server.json packages[${index}] version`, entry.version, pkg.version);
-    requireEqual(`server.json packages[${index}] identifier`, entry.identifier, pkg.name);
+    if (entry.registryType === 'npm') {
+      requireEqual(`server.json packages[${index}] identifier`, entry.identifier, pkg.name);
+    }
   });
 }
 

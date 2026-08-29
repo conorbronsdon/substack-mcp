@@ -5,24 +5,43 @@ const pkg = readJson('package.json');
 const lock = readJson('package-lock.json');
 const server = readJson('server.json');
 
-const versions = [
-  ['package-lock.json', lock.version],
-  ['package-lock.json root package', lock.packages?.['']?.version],
-  ['server.json', server.version],
-  ...((server.packages ?? []).map((entry, index) => [
-    `server.json packages[${index}]`,
-    entry.version,
-  ])),
-];
-
-const mismatches = versions.filter(([, version]) => version !== pkg.version);
-
-if (mismatches.length > 0) {
-  console.error(`Release metadata must match package.json version ${pkg.version}:`);
-  for (const [source, version] of mismatches) {
-    console.error(`- ${source}: ${version ?? '<missing>'}`);
+const errors = [];
+const requireEqual = (source, actual, expected) => {
+  if (actual !== expected) {
+    errors.push(`${source}: ${actual ?? '<missing>'} (expected ${expected})`);
   }
+};
+
+if (typeof pkg.version !== 'string' || pkg.version.length === 0) {
+  errors.push('package.json version is missing');
+}
+if (typeof pkg.name !== 'string' || pkg.name.length === 0) {
+  errors.push('package.json name is missing');
+}
+if (typeof pkg.mcpName !== 'string' || pkg.mcpName.length === 0) {
+  errors.push('package.json mcpName is missing');
+}
+
+requireEqual('package-lock.json version', lock.version, pkg.version);
+requireEqual('package-lock.json name', lock.name, pkg.name);
+requireEqual('package-lock.json root version', lock.packages?.['']?.version, pkg.version);
+requireEqual('package-lock.json root name', lock.packages?.['']?.name, pkg.name);
+requireEqual('server.json version', server.version, pkg.version);
+requireEqual('server.json name', server.name, pkg.mcpName);
+
+if (!Array.isArray(server.packages) || server.packages.length === 0) {
+  errors.push('server.json packages must contain at least one package');
+} else {
+  server.packages.forEach((entry, index) => {
+    requireEqual(`server.json packages[${index}] version`, entry.version, pkg.version);
+    requireEqual(`server.json packages[${index}] identifier`, entry.identifier, pkg.name);
+  });
+}
+
+if (errors.length > 0) {
+  console.error('Release metadata is inconsistent:');
+  for (const error of errors) console.error(`- ${error}`);
   process.exit(1);
 }
 
-console.log(`Release metadata agrees at ${pkg.version}.`);
+console.log(`Release metadata agrees for ${pkg.name}@${pkg.version}.`);

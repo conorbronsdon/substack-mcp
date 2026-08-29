@@ -9,10 +9,12 @@
   },
   "scripts": {
     "build": "tsc",
+    "check:release": "node scripts/check-release-metadata.mjs",
     "lint": "tsc --noEmit -p tsconfig.lint.json",
     "test": "vitest run",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "npm run check:release && npm run build && npm test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

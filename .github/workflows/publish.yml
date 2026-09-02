@@ -27,6 +27,15 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
+      # Release commits must carry aligned package, lockfile, and registry
+      # metadata. `npm version` synchronizes and stages server.json before the
+      # release commit is created.
+      - name: Verify release metadata
+        run: npm run check:release
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Check if package.json version is already published
         id: version
         run: |
@@ -35,17 +44,14 @@ jobs:
           PUBLISHED_VERSION="$(npm view "$PKG_NAME" version 2>/dev/null || echo none)"
           echo "local=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
           echo "published=$PUBLISHED_VERSION" >> "$GITHUB_OUTPUT"
-          if [ "$LOCAL_VERSION" = "$PUBLISHED_VERSION" ]; then
+          RELEASE_STATE="$(node scripts/check-release-order.mjs "$LOCAL_VERSION" "$PUBLISHED_VERSION")"
+          if [ "$RELEASE_STATE" = "same" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "package.json version ($LOCAL_VERSION) is already published — nothing to do."
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "package.json version ($LOCAL_VERSION) differs from published ($PUBLISHED_VERSION) — publishing."
           fi
-
-      - name: Install dependencies
-        if: steps.version.outputs.changed == 'true'
-        run: npm ci
 
       - name: Build
         if: steps.version.outputs.changed == 'true'
@@ -63,21 +69,6 @@ jobs:
         if: steps.version.outputs.changed == 'true'
         run: npm publish --provenance --access public
 
-      # server.json is derived from package.json at publish time so the two can
-      # never drift again — the registry stayed pinned at the June 2026 versions
-      # because server.json was hand-maintained and nobody re-published it.
-      - name: Sync server.json version from package.json
-        run: |
-          node -e '
-            const fs = require("fs");
-            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-            const server = JSON.parse(fs.readFileSync("server.json", "utf8"));
-            server.version = pkg.version;
-            for (const p of server.packages || []) p.version = pkg.version;
-            fs.writeFileSync("server.json", JSON.stringify(server, null, 2) + "\n");
-          '
-          node -p "\"server.json is now at \" + require('./server.json').version"
-
       # Checked independently of the npm gate above: npm and the registry can be
       # out of sync on their own, so a workflow_dispatch has to be able to push a
       # registry-only catch-up without an npm version bump.
@@ -87,7 +78,7 @@ jobs:
           SERVER_NAME="$(node -p "require('./package.json').mcpName")"
           LOCAL_VERSION="${{ steps.version.outputs.local }}"
           if curl -fsSL "https://registry.modelcontextprotocol.io/v0.1/servers?search=$SERVER_NAME" -o registry.json; then
-            REGISTRY_VERSION="$(SERVER_NAME="$SERVER_NAME" node -p "const r = JSON.parse(require('fs').readFileSync('registry.json', 'utf8')).servers || []; const m = r.find(s => s.server && s.server.name === process.env.SERVER_NAME); m ? m.server.version : 'none'")"
+            REGISTRY_VERSION="$(SERVER_NAME="$SERVER_NAME" node -p "const r = JSON.parse(require('fs').readFileSync('registry.json', 'utf8')).servers || []; const exact = r.filter(s => s.server && s.server.name === process.env.SERVER_NAME); const key = 'io.modelcontextprotocol.registry/official'; const latest = exact.find(s => s._meta && s._meta[key] && s._meta[key].isLatest) || exact.sort((a, b) => ((b._meta && b._meta[key] && b._meta[key].publishedAt) || '').localeCompare((a._meta && a._meta[key] && a._meta[key].publishedAt) || ''))[0]; latest ? latest.server.version : 'none'")"
           else
             REGISTRY_VERSION=unknown
             echo "Registry lookup failed — will attempt the publish and let it decide."

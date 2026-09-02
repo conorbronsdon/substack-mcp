@@ -6,13 +6,15 @@
 #           -e SUBSTACK_USER_ID=... \
 #           substack-mcp
 
-FROM node:22-alpine AS builder
+# Pin the multi-architecture base for reproducible MCP Catalog builds.
+# Dependabot checks the Node 22 / Alpine 3.24 tag weekly for a new digest.
+FROM node:22-alpine3.24@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS builder
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.json ./
 COPY src ./src
 RUN npm ci --ignore-scripts && npm run build
 
-FROM node:22-alpine
+FROM node:22-alpine3.24@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json package-lock.json ./

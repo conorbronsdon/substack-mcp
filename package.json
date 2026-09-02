@@ -9,10 +9,15 @@
   },
   "scripts": {
     "build": "tsc",
+    "check:release": "node scripts/check-release-metadata.mjs",
+    "sync:release": "node scripts/sync-release-metadata.mjs",
     "lint": "tsc --noEmit -p tsconfig.lint.json",
     "test": "vitest run",
+    "test:release": "node --test scripts/check-release-order.controls.mjs",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "npm run check:release && npm run build && npm test",
+    "version": "npm run sync:release && git add package-lock.json server.json"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
@@ -20,6 +25,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "semver": "^7.8.5",
     "tsx": "^4.0.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.0"

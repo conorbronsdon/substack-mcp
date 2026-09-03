@@ -8,10 +8,11 @@
 #     substack-mcp
 # Run (HTTP, for a persistent service behind e.g. `mcp-remote`):
 #   The HTTP listener carries a live Substack session cookie, so publish the
-#   port to loopback. See README "Transports".
+#   port to loopback and set a bearer token. See README "Transports".
 #   docker run -d --restart unless-stopped -p 127.0.0.1:8080:8080 \
 #     -e MCP_TRANSPORT=http \
 #     -e MCP_HTTP_ALLOWED_HOSTS=localhost:8080,127.0.0.1:8080 \
+#     -e MCP_HTTP_TOKEN=... \
 #     -e SUBSTACK_PUBLICATION_URL=https://example.substack.com \
 #     -e SUBSTACK_SESSION_TOKEN=... \
 #     -e SUBSTACK_USER_ID=... \

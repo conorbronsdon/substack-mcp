@@ -98,6 +98,7 @@ export function resolveHttpOptions(port: number, env: NodeJS.ProcessEnv = proces
     allowedHosts: parseList(env.MCP_HTTP_ALLOWED_HOSTS),
     allowedOrigins: parseList(env.MCP_HTTP_ALLOWED_ORIGINS),
     maxBodyBytes,
+    token: env.MCP_HTTP_TOKEN || undefined,
   };
 }
 

@@ -136,6 +136,29 @@ describe("HTTP transport: origin and host validation", () => {
   });
 });
 
+describe("HTTP transport: bearer auth", () => {
+  it("rejects a request with no token when one is configured", async () => {
+    await listen({ token: "FAKE-TEST-TOKEN" });
+    const res = await post();
+    expect(res.status).toBe(401);
+    expect(factory).not.toHaveBeenCalled();
+  });
+
+  it("rejects a wrong token", async () => {
+    await listen({ token: "FAKE-TEST-TOKEN" });
+    const res = await post({ Authorization: "Bearer WRONG" });
+    expect(res.status).toBe(401);
+    expect(factory).not.toHaveBeenCalled();
+  });
+
+  it("accepts the configured token", async () => {
+    await listen({ token: "FAKE-TEST-TOKEN" });
+    const res = await post({ Authorization: "Bearer FAKE-TEST-TOKEN" });
+    expect(res.status).toBe(200);
+    expect(factory).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("HTTP transport: request body limit", () => {
   /** Pads the initialize request out to exactly `bytes` of JSON. */
   function bodyOfExactly(bytes: number): string {

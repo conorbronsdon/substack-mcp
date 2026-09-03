@@ -16,7 +16,7 @@
  * whatever can open a socket to the listener, and every request that gets
  * through carries the operator's Substack session cookie — including the two
  * tools that publish a Note immediately and irreversibly. So the listener
- * fails closed on both axes, all checked *before* `makeServer()` is called
+ * fails closed on three axes, all checked *before* `makeServer()` is called
  * and therefore before any Substack API call can be reached:
  *
  * 1. `Host` — an allowlist, defaulting to the loopback names for the bound
@@ -26,6 +26,10 @@
  *    `Origin` is allowed: non-browser MCP clients do not send one, and a
  *    browser always does on a cross-origin request, so requiring it would
  *    break every real client while blocking nothing.
+ * 3. `Authorization: Bearer` — optional, off unless `token` is configured.
+ *    Host and Origin checks are not authentication: any process on the same
+ *    host can send `Host: 127.0.0.1:8080` and no `Origin` at all. A shared
+ *    secret is the only thing that keeps a co-resident process off the cookie.
  *
  * The SDK's own `enableDnsRebindingProtection` is deliberately not used. It is
  * marked `@deprecated` in favour of external middleware as of SDK 1.27.x, and
@@ -64,6 +68,8 @@ export interface HttpTransportOptions {
   allowedOrigins?: string[];
   /** Body cap in bytes. Defaults to {@link DEFAULT_MAX_BODY_BYTES}. */
   maxBodyBytes?: number;
+  /** Shared secret required as `Authorization: Bearer <token>`. Off when unset. */
+  token?: string;
 }
 
 class PayloadTooLargeError extends Error {}
@@ -119,6 +125,7 @@ function sendJsonRpcError(res: http.ServerResponse, status: number, message: str
 interface RequestPolicy {
   allowedHosts: string[];
   allowedOrigins: string[];
+  token?: string;
 }
 
 /**
@@ -138,6 +145,14 @@ function rejectRequest(
   const origin = req.headers.origin;
   if (origin && !policy.allowedOrigins.includes("*") && !policy.allowedOrigins.includes(origin)) {
     return { status: 403, message: "Forbidden: Origin is not allowed." };
+  }
+
+  if (policy.token) {
+    const auth = req.headers.authorization;
+    const presented = auth?.startsWith("Bearer ") ? auth.slice("Bearer ".length) : undefined;
+    if (presented !== policy.token) {
+      return { status: 401, message: "Unauthorized." };
+    }
   }
 
   return undefined;
@@ -204,6 +219,7 @@ export function startHttpServer(
       policy = {
         allowedHosts: options.allowedHosts ?? defaultAllowedHosts(boundPort),
         allowedOrigins: options.allowedOrigins ?? defaultAllowedOrigins(boundPort),
+        token: options.token,
       };
     }
     return policy;
@@ -249,7 +265,7 @@ export function startHttpServer(
     // this listener will accept without reading the source.
     console.error(
       `HTTP policy: hosts=${resolved.allowedHosts.join(",")} origins=${resolved.allowedOrigins.join(",")} ` +
-        `maxBodyBytes=${maxBodyBytes}`,
+        `maxBodyBytes=${maxBodyBytes} auth=${resolved.token ? "bearer" : "none"}`,
     );
   });
 

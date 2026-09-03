@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { SubstackClient } from "./api/client.js";
 import { createServer } from "./server.js";
 import { resolveCredentials } from "./auth/resolve-credentials.js";
-import { startHttpServer } from "./transport/http.js";
+import { startHttpServer, type HttpTransportOptions } from "./transport/http.js";
 
 /**
  * Wire every way this process can be asked to stop to one clean shutdown.
@@ -63,6 +63,44 @@ function resolveTimeoutMs(raw: string | undefined): number | undefined {
   return parsed;
 }
 
+/** Split a comma-separated allowlist env var; `undefined` when unset/blank. */
+function parseList(raw: string | undefined): string[] | undefined {
+  if (raw === undefined) return undefined;
+  const items = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return items.length > 0 ? items : undefined;
+}
+
+/**
+ * Translate the `MCP_HTTP_*` env vars into a transport policy.
+ *
+ * Unset means the transport's own loopback-only defaults apply — the listener
+ * fails closed, and reaching it under any other name is an explicit act
+ * (`MCP_HTTP_ALLOWED_HOSTS`), not something a default hands out.
+ */
+export function resolveHttpOptions(port: number, env: NodeJS.ProcessEnv = process.env): HttpTransportOptions {
+  const rawMax = env.MCP_HTTP_MAX_BODY_BYTES;
+  let maxBodyBytes: number | undefined;
+  if (rawMax !== undefined && rawMax !== "") {
+    const parsed = Number(rawMax);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      maxBodyBytes = parsed;
+    } else {
+      // Same policy as SUBSTACK_REQUEST_TIMEOUT_MS: garbage warns and falls
+      // back rather than silently removing the limit.
+      console.error(`Warning: ignoring invalid MCP_HTTP_MAX_BODY_BYTES="${rawMax}" — using the default.`);
+    }
+  }
+
+  return {
+    allowedHosts: parseList(env.MCP_HTTP_ALLOWED_HOSTS),
+    allowedOrigins: parseList(env.MCP_HTTP_ALLOWED_ORIGINS),
+    maxBodyBytes,
+  };
+}
+
 async function main() {
   // Env vars take precedence; a stored session (from `substack-mcp-login`)
   // fills any gaps.
@@ -91,7 +129,7 @@ async function main() {
     const host = process.env.MCP_HTTP_HOST ?? "0.0.0.0";
     // Stateless: each request gets its own McpServer, so there's no single
     // instance to close on shutdown — only the underlying http.Server.
-    const httpServer = startHttpServer(() => createServer(client), port, host);
+    const httpServer = startHttpServer(() => createServer(client), port, host, resolveHttpOptions(port));
     installShutdownHandlers(() => new Promise((resolve) => httpServer.close(() => resolve())), false);
   } else {
     const server = createServer(client);

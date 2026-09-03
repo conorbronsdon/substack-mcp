@@ -107,8 +107,14 @@ export function parseRequestPath(target: string | undefined): string | null {
   // origin-form target that starts with two slashes.
   if (target.startsWith("//")) return null;
 
-  const end = target.search(/[?#]/);
-  const path = end === -1 ? target : target.slice(0, end);
+  // A fragment is never part of a request-target (RFC 9110 §7.1) — a client
+  // sending one is not speaking HTTP correctly. Stripping it the way a query
+  // is stripped made `/mcp#fragment` a second spelling of `/mcp`, so it is a
+  // 400 rather than something quietly normalized into a route.
+  if (target.includes("#")) return null;
+
+  const query = target.indexOf("?");
+  const path = query === -1 ? target : target.slice(0, query);
   // Printable ASCII only; no control characters, no raw whitespace.
   if (!/^\/[\x21-\x7e]*$/.test(path)) return null;
   return path;
@@ -243,14 +249,19 @@ async function handleMcpRequest(
     return;
   }
 
-  const server = makeServer();
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-  res.on("close", () => {
-    void transport.close();
-    void server.close();
-  });
-
+  // `makeServer()` and the transport constructor are inside the try. The
+  // factory builds a Substack client, so it can throw on credentials or config
+  // only discovered at request time — and outside the try that became a
+  // rejected promise the router discarded, which meant no response at all and
+  // Node exiting 1 on the unhandled rejection. One request, process gone.
   try {
+    const server = makeServer();
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    res.on("close", () => {
+      void transport.close();
+      void server.close();
+    });
+
     await server.connect(transport);
     await transport.handleRequest(req, res, body);
   } catch (err) {
@@ -258,6 +269,7 @@ async function handleMcpRequest(
     if (!res.headersSent) {
       sendJsonRpcError(res, 500, "Internal server error");
     }
+    req.destroy();
   }
 }
 
@@ -326,7 +338,16 @@ export function startHttpServer(
         return;
       }
 
-      void handleMcpRequest(req, res, makeServer, maxBodyBytes);
+      // Not `void`: the router's try/catch is synchronous and cannot see an
+      // async rejection, so a discarded promise here is an unhandled rejection
+      // and a dead process. This is the last net.
+      handleMcpRequest(req, res, makeServer, maxBodyBytes).catch((err: unknown) => {
+        console.error("Unhandled MCP request error:", err instanceof Error ? err.message : String(err));
+        if (!res.headersSent) {
+          sendJsonRpcError(res, 500, "Internal server error");
+        }
+        req.destroy();
+      });
     } catch (err) {
       console.error("Error routing HTTP request:", err instanceof Error ? err.message : String(err));
       if (!res.headersSent) {

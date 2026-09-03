@@ -140,6 +140,62 @@ describe("HTTP transport: request target parsing", () => {
     expect(res.status).toBe(404);
     expect(factory).not.toHaveBeenCalled();
   });
+
+  it("400s a target carrying a fragment instead of stripping it", async () => {
+    await listen();
+    // A fragment is never part of a request-target (RFC 9110 §7.1). Stripping
+    // it the way a query is stripped made `/mcp#fragment` route to `/mcp`.
+    const res = await rawSend(port(), `POST /mcp#fragment HTTP/1.1`, jsonHeaders(port()), INITIALIZE_BODY);
+    expect(res.status).toBe(400);
+    expect(factory).not.toHaveBeenCalled();
+  });
+
+  it("400s a fragment that follows a query string", async () => {
+    await listen();
+    const res = await rawSend(port(), `POST /mcp?a=1#frag HTTP/1.1`, jsonHeaders(port()), INITIALIZE_BODY);
+    expect(res.status).toBe(400);
+    expect(factory).not.toHaveBeenCalled();
+  });
+});
+
+describe("HTTP transport: a server factory that throws", () => {
+  it("answers 500 and keeps the process serving", async () => {
+    // The factory builds a Substack client, so it can throw on credentials or
+    // config discovered at request time. Outside the try that was a rejected
+    // promise the router discarded with `void`: no response was written and
+    // Node exited 1 on the unhandled rejection. Verified against the built
+    // module before the fix — the process died before printing a status line.
+    let calls = 0;
+    let failing = true;
+    httpServer = startHttpServer(
+      () => {
+        calls += 1;
+        if (failing) throw new Error("factory blew up");
+        return makeServer();
+      },
+      0,
+      "127.0.0.1",
+    );
+    await new Promise<void>((resolve) => httpServer!.once("listening", resolve));
+
+    const res = await fetch(`${baseUrl()}/mcp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      body: INITIALIZE_BODY,
+    });
+    expect(res.status).toBe(500);
+    expect(calls).toBe(1);
+
+    // Same process, same listener: a healthy request still gets served.
+    failing = false;
+    const after = await fetch(`${baseUrl()}/mcp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      body: INITIALIZE_BODY,
+    });
+    expect(after.status).toBe(200);
+    expect(calls).toBe(2);
+  });
 });
 
 describe("HTTP transport: origin and host validation", () => {

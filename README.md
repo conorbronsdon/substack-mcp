@@ -148,6 +148,33 @@ Add to your `.mcp.json`:
 
 Ask your AI assistant: "How many Substack subscribers do I have?"
 
+## Multiple publications
+
+Running more than one publication behind a single server? Set a `SUBSTACK_PUB_<KEY>_*` triplet per publication instead of the plain `SUBSTACK_*` vars. `<KEY>` is any name you choose (letters, digits, underscores) — it becomes the publication's lowercase, hyphenated key, e.g. `KEVIN_MULDOON` → `kevin-muldoon`.
+
+```json
+"env": {
+  "SUBSTACK_PUB_KEVIN_MULDOON_PUBLICATION_URL": "https://kevinmuldoon.substack.com",
+  "SUBSTACK_PUB_KEVIN_MULDOON_SESSION_TOKEN": "token-1",
+  "SUBSTACK_PUB_KEVIN_MULDOON_USER_ID": "111",
+  "SUBSTACK_PUB_SAPERE_PUBLICATION_URL": "https://sapere.substack.com",
+  "SUBSTACK_PUB_SAPERE_SESSION_TOKEN": "token-2",
+  "SUBSTACK_PUB_SAPERE_USER_ID": "222"
+}
+```
+
+Each triplet is independent, and setting *any* `SUBSTACK_PUB_<KEY>_*` variable declares that publication. An incomplete triplet — a missing variable, an empty value, or a whitespace-only value — fails startup with an error naming the key, rather than silently dropping that publication. That matters because a dropped publication is not "one fewer publication": drop the only one and the server falls back to your stored browser-login session; drop one of two and every tool loses its `publication` parameter, so a call meant for the dropped publication routes silently to the surviving one.
+
+Keys are compared case-insensitively, with `_` folded to `-`. Two names that resolve to the same key (`SUBSTACK_PUB_ALPHA_*` and `SUBSTACK_PUB_Alpha_*`) are a startup error too — merging them silently would let one publication's URL pair with another's session token.
+
+`<KEY>` accepts ASCII letters, digits, and underscores; the three suffixes must be uppercase and the whole name must have no stray whitespace. Anything that begins with `SUBSTACK_PUB_` but does not fit that shape — a hyphen in the key, a lowercase suffix, an accented character, a trailing space — is a startup error naming the variable, not a variable that gets quietly ignored. For the same reason as above: an ignored publication is not one fewer publication, it is a silent reroute to a different one.
+
+With two or more publications configured, every tool gains a **required** `publication` parameter — one of your configured keys (e.g. `kevin-muldoon`, `sapere` above). The calling model must specify one on every call; an unrecognized value is rejected before any Substack API call is made, so a stray write can't land on the wrong publication. **With exactly one publication configured** — the common case, whether via plain `SUBSTACK_*` vars or a single `SUBSTACK_PUB_<KEY>_*` triplet — **no `publication` parameter is added at all**; every tool's schema is unchanged from single-publication mode.
+
+Don't mix the two styles: if any `SUBSTACK_PUB_<KEY>_*` var is set, the plain `SUBSTACK_*` vars are ignored (with a startup warning) rather than treated as an unnamed extra publication.
+
+`SUBSTACK_USER_AGENT` and `SUBSTACK_REQUEST_TIMEOUT_MS` apply to every configured publication — they are not per-publication. The browser-login flow (`substack-mcp-login`) is single-publication only; multiple publications require the env-var scheme above.
+
 ## Token expiration
 
 Substack session tokens expire periodically (typically ~90 days). If you get authentication errors, grab a fresh `connect.sid` cookie from your browser and update the env var (make sure ad blockers are disabled when copying the cookie) — or, if you used the browser login, just re-run `substack-mcp-login` to refresh the stored session.

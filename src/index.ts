@@ -2,8 +2,8 @@
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SubstackClient } from "./api/client.js";
-import { createServer } from "./server.js";
-import { resolveCredentials } from "./auth/resolve-credentials.js";
+import { createServer, type PublicationConfig } from "./server.js";
+import { resolvePublications } from "./auth/resolve-publications.js";
 import { startHttpServer, type HttpTransportOptions } from "./transport/http.js";
 
 /**
@@ -104,25 +104,33 @@ export function resolveHttpOptions(port: number, env: NodeJS.ProcessEnv = proces
 
 async function main() {
   // Env vars take precedence; a stored session (from `substack-mcp-login`)
-  // fills any gaps.
-  const creds = resolveCredentials();
-  const { publicationUrl, sessionToken, userId } = creds;
-
-  if (creds.missing.length > 0) {
-    console.error(`Warning: Missing credentials: ${creds.missing.join(", ")}`);
-    console.error(
-      "Set them as SUBSTACK_* env vars, or run `substack-mcp-login` to sign in via browser. See README.md.",
-    );
-  } else if (creds.source !== "env") {
-    console.error(`Using stored credentials (source: ${creds.source}).`);
-  }
-
+  // fills any gaps. See resolve-publications.ts for the multi-publication
+  // SUBSTACK_PUB_<KEY>_* scheme this falls back from.
+  const pubCreds = resolvePublications();
+  const multi = pubCreds.length > 1;
   const userAgent = process.env.SUBSTACK_USER_AGENT;
   const timeoutMs = resolveTimeoutMs(process.env.SUBSTACK_REQUEST_TIMEOUT_MS);
-  // The client constructor rejects a non-numeric user id; fall back to "0" so
-  // startup surfaces the friendly missing-credentials warning above instead of
-  // throwing when nothing is configured yet.
-  const client = new SubstackClient(publicationUrl, sessionToken, userId || "0", userAgent, timeoutMs);
+
+  // Only appended once 2+ publications are configured, so single-publication
+  // log output stays byte-identical to what it was before this existed.
+  const pubSuffix = (label: string): string => (multi ? ` for publication "${label}"` : "");
+
+  const publications: PublicationConfig[] = pubCreds.map((p) => {
+    if (p.missing.length > 0) {
+      console.error(`Warning: Missing credentials${pubSuffix(p.label)}: ${p.missing.join(", ")}`);
+      console.error(
+        "Set them as SUBSTACK_* env vars, or run `substack-mcp-login` to sign in via browser. See README.md.",
+      );
+    } else if (p.source !== "env") {
+      console.error(`Using stored credentials${pubSuffix(p.label)} (source: ${p.source}).`);
+    }
+
+    // The client constructor rejects a non-numeric user id; fall back to "0"
+    // so startup surfaces the friendly missing-credentials warning above
+    // instead of throwing when nothing is configured yet.
+    const client = new SubstackClient(p.publicationUrl, p.sessionToken, p.userId || "0", userAgent, timeoutMs);
+    return { key: p.key, label: p.label, client };
+  });
 
   const transportMode = process.env.MCP_TRANSPORT ?? "stdio";
   if (transportMode === "http") {
@@ -130,10 +138,10 @@ async function main() {
     const host = process.env.MCP_HTTP_HOST ?? "0.0.0.0";
     // Stateless: each request gets its own McpServer, so there's no single
     // instance to close on shutdown — only the underlying http.Server.
-    const httpServer = startHttpServer(() => createServer(client), port, host, resolveHttpOptions(port));
+    const httpServer = startHttpServer(() => createServer(publications), port, host, resolveHttpOptions(port));
     installShutdownHandlers(() => new Promise((resolve) => httpServer.close(() => resolve())), false);
   } else {
-    const server = createServer(client);
+    const server = createServer(publications);
     const transport = new StdioServerTransport();
     // Registered before connect so a signal arriving during startup is still
     // handled; McpServer.close() is safe on a server that never connected.
@@ -148,13 +156,19 @@ async function main() {
   // `initialize` for undici's full connect timeout with no output at all.
   // Tools still error individually on a bad token, which is where the failure
   // is actionable anyway.
-  try {
-    const user = await client.validateAuth();
-    console.error(`Authenticated as user ${user.id}`);
-  } catch (err) {
-    console.error("Warning: Authentication failed. Tools will error until a valid session token is provided.");
-    console.error(err instanceof Error ? err.message : String(err));
-  }
+  await Promise.all(
+    publications.map(async (p) => {
+      try {
+        const user = await p.client.validateAuth();
+        console.error(`Authenticated as user ${user.id}${pubSuffix(p.label)}`);
+      } catch (err) {
+        console.error(
+          `Warning: Authentication failed${pubSuffix(p.label)}. Tools will error until a valid session token is provided.`,
+        );
+        console.error(err instanceof Error ? err.message : String(err));
+      }
+    }),
+  );
 }
 
 main().catch((err) => {

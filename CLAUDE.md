@@ -5,8 +5,10 @@ MCP server for Substack — read posts, manage drafts, create notes. Cannot publ
 ## Architecture
 - `src/index.ts` — MCP server bootstrap and entry point; picks stdio (default) or HTTP transport via `MCP_TRANSPORT`
 - `src/transport/http.ts` — Stateless Streamable HTTP transport (`POST /mcp`, `GET /health`) for persistent/networked deployments
-- `src/server.ts` — Tool registration, request handlers, Zod schema generation
+- `src/server.ts` — Tool registration, request handlers, Zod schema generation; `createServer(publications: PublicationConfig[])` takes one client per configured publication
 - `src/annotations.ts` — Tool side-effect classification (read / draft-write / public-upload / publish) → MCP annotations (hints set explicitly; MCP defaults omitted hints to the unsafe direction)
+- `src/auth/resolve-credentials.ts` — Single-publication env-var + stored-session credential resolution (the original, still-supported contract)
+- `src/auth/resolve-publications.ts` — Multi-publication credential resolution (`SUBSTACK_PUB_<KEY>_*` env vars), falling back to `resolve-credentials.ts` when none are set
 - `src/api/client.ts` — HTTP client for Substack API (session cookie auth)
 - `src/api/types.ts` — TypeScript interfaces for API responses
 - `src/utils/errors.ts` — Error handling utilities
@@ -18,6 +20,7 @@ MCP server for Substack — read posts, manage drafts, create notes. Cannot publ
 - Notes publish immediately via `create_note` / `create_note_with_link` — Substack has no note-draft state, so there is no preview step
 - Auth sends both `connect.sid` and `substack.sid` cookies set to the same session token (custom domains use `connect.sid`, substack.com uses `substack.sid`)
 - Markdown must be converted to ProseMirror format for Substack's editor
+- With 2+ publications configured (`SUBSTACK_PUB_<KEY>_*`), every tool gains a *required* `publication` enum parameter — no default, no guessing. With exactly one publication configured, no `publication` parameter is added at all (schema-identical to single-publication mode)
 
 ## Development
 ```bash

@@ -5,7 +5,9 @@ import { SubstackClient } from "../api/client.js";
 import { startHttpServer, type HttpTransportOptions } from "../transport/http.js";
 
 function makeServer() {
-  return createServer(new SubstackClient("https://example.substack.com", "tok", "1"));
+  return createServer([
+    { key: "default", label: "example", client: new SubstackClient("https://example.substack.com", "tok", "1") },
+  ]);
 }
 
 let httpServer: ReturnType<typeof startHttpServer> | undefined;

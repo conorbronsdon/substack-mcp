@@ -3,7 +3,8 @@
 MCP server for Substack — read posts, manage drafts, create notes. Cannot publish or delete posts by design; notes (short-form) publish immediately since Substack has no note-draft state.
 
 ## Architecture
-- `src/index.ts` — MCP server bootstrap and entry point
+- `src/index.ts` — MCP server bootstrap and entry point; picks stdio (default) or HTTP transport via `MCP_TRANSPORT`
+- `src/transport/http.ts` — Stateless Streamable HTTP transport (`POST /mcp`, `GET /health`) for persistent/networked deployments
 - `src/server.ts` — Tool registration, request handlers, Zod schema generation; `createServer(publications: PublicationConfig[])` takes one client per configured publication
 - `src/annotations.ts` — Tool side-effect classification (read / draft-write / public-upload / publish) → MCP annotations (hints set explicitly; MCP defaults omitted hints to the unsafe direction)
 - `src/auth/resolve-credentials.ts` — Single-publication env-var + stored-session credential resolution (the original, still-supported contract)

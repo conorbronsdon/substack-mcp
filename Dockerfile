@@ -1,10 +1,22 @@
-# substack-mcp — stdio MCP server for Substack
+# substack-mcp — MCP server for Substack (stdio by default, HTTP optional)
 # Build:  docker build -t substack-mcp .
-# Run:    docker run -i --rm \
-#           -e SUBSTACK_PUBLICATION_URL=https://example.substack.com \
-#           -e SUBSTACK_SESSION_TOKEN=... \
-#           -e SUBSTACK_USER_ID=... \
-#           substack-mcp
+# Run (stdio, the default — spawned per session by the MCP client):
+#   docker run -i --rm \
+#     -e SUBSTACK_PUBLICATION_URL=https://example.substack.com \
+#     -e SUBSTACK_SESSION_TOKEN=... \
+#     -e SUBSTACK_USER_ID=... \
+#     substack-mcp
+# Run (HTTP, for a persistent service behind e.g. `mcp-remote`):
+#   The HTTP listener carries a live Substack session cookie, so publish the
+#   port to loopback and set a bearer token. See README "Transports".
+#   docker run -d --restart unless-stopped -p 127.0.0.1:8080:8080 \
+#     -e MCP_TRANSPORT=http \
+#     -e MCP_HTTP_ALLOWED_HOSTS=localhost:8080,127.0.0.1:8080 \
+#     -e MCP_HTTP_TOKEN=... \
+#     -e SUBSTACK_PUBLICATION_URL=https://example.substack.com \
+#     -e SUBSTACK_SESSION_TOKEN=... \
+#     -e SUBSTACK_USER_ID=... \
+#     substack-mcp
 
 # Pin the multi-architecture base for reproducible MCP Catalog builds.
 # Dependabot checks the Node 22 / Alpine 3.24 tag weekly for a new digest.
@@ -35,4 +47,5 @@ COPY --from=builder /app/dist ./dist
 # a stored session is not portable into a container — use the env vars here.
 
 USER node
+EXPOSE 8080
 CMD ["node", "dist/index.js"]

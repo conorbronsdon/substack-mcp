@@ -152,8 +152,103 @@ describe("resolvePublications: an empty named publication must not disappear", (
       SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "",
       // SUBSTACK_PUB_SAPERE_USER_ID absent entirely
     } as NodeJS.ProcessEnv;
-    expect(() => resolvePublications(env, () => null)).toThrow(/_SESSION_TOKEN \(empty\)/);
-    expect(() => resolvePublications(env, () => null)).toThrow(/_USER_ID(?! \(empty\))/);
+    // Asserted as the whole message on purpose. The previous version of this
+    // test used /_USER_ID(?! \(empty\))/, which could never fail: the
+    // unconditional tail "…and _USER_ID with a non-empty value" satisfies the
+    // negative lookahead no matter what the per-key detail says.
+    expect(() => resolvePublications(env, () => null)).toThrow(
+      "Incomplete SUBSTACK_PUB_<KEY>_* configuration for: " +
+        "sapere (_SESSION_TOKEN (empty), _USER_ID). " +
+        "Each publication needs all three of _PUBLICATION_URL, _SESSION_TOKEN, and _USER_ID with a non-empty value.",
+    );
+  });
+});
+
+/**
+ * The same lesson as the empty-value bug, one gate earlier: a name that
+ * announces itself as a publication variable but does not match the grammar is
+ * still intent, and dropping it silently changes the configuration rather than
+ * reducing it.
+ */
+describe("resolvePublications: names that do not match the grammar", () => {
+  const validA = {
+    SUBSTACK_PUB_A_PUBLICATION_URL: "https://a.substack.com",
+    SUBSTACK_PUB_A_SESSION_TOKEN: "FAKE-A",
+    SUBSTACK_PUB_A_USER_ID: "1",
+  };
+
+  const malformedGroups: Array<[string, NodeJS.ProcessEnv, RegExp]> = [
+    [
+      "a hyphen in the key",
+      {
+        "SUBSTACK_PUB_B-PUB_PUBLICATION_URL": "https://b.substack.com",
+        "SUBSTACK_PUB_B-PUB_SESSION_TOKEN": "FAKE-B",
+        "SUBSTACK_PUB_B-PUB_USER_ID": "2",
+      } as NodeJS.ProcessEnv,
+      /B-PUB_PUBLICATION_URL/,
+    ],
+    [
+      "trailing whitespace in the name",
+      {
+        "SUBSTACK_PUB_B_PUBLICATION_URL ": "https://b.substack.com",
+        "SUBSTACK_PUB_B_SESSION_TOKEN ": "FAKE-B",
+        "SUBSTACK_PUB_B_USER_ID ": "2",
+      } as NodeJS.ProcessEnv,
+      /SUBSTACK_PUB_B_USER_ID /,
+    ],
+    [
+      "a lowercase suffix",
+      {
+        SUBSTACK_PUB_B_publication_url: "https://b.substack.com",
+        SUBSTACK_PUB_B_session_token: "FAKE-B",
+        SUBSTACK_PUB_B_user_id: "2",
+      } as NodeJS.ProcessEnv,
+      /SUBSTACK_PUB_B_publication_url/,
+    ],
+    [
+      "a non-ASCII key",
+      {
+        "SUBSTACK_PUB_CAFÉ_PUBLICATION_URL": "https://c.substack.com",
+        "SUBSTACK_PUB_CAFÉ_SESSION_TOKEN": "FAKE-C",
+        "SUBSTACK_PUB_CAFÉ_USER_ID": "3",
+      } as NodeJS.ProcessEnv,
+      /CAFÉ_SESSION_TOKEN/,
+    ],
+  ];
+
+  for (const [label, malformed, named] of malformedGroups) {
+    it(`throws naming the variable, beside a valid publication — ${label}`, () => {
+      const loader = vi.fn(() => stored);
+      // Without this, the malformed group vanishes, one publication remains,
+      // single-publication mode is selected, and a call meant for it lands on A.
+      expect(() => resolvePublications({ ...validA, ...malformed }, loader)).toThrow(named);
+      expect(loader).not.toHaveBeenCalled();
+    });
+
+    it(`throws rather than falling back to a stored session — ${label} alone`, () => {
+      const loader = vi.fn(() => stored);
+      expect(() => resolvePublications({ ...malformed }, loader)).toThrow(named);
+      expect(loader).not.toHaveBeenCalled();
+    });
+  }
+
+  it("control: well-formed names beside each other still resolve", () => {
+    const env = {
+      ...validA,
+      SUBSTACK_PUB_B_PUB_PUBLICATION_URL: "https://b.substack.com",
+      SUBSTACK_PUB_B_PUB_SESSION_TOKEN: "FAKE-B",
+      SUBSTACK_PUB_B_PUB_USER_ID: "2",
+    } as NodeJS.ProcessEnv;
+    expect(resolvePublications(env, () => null).map((p) => p.key).sort()).toEqual(["a", "b-pub"]);
+  });
+
+  it("control: the legacy SUBSTACK_PUBLICATION_URL is not mistaken for a malformed prefixed name", () => {
+    const env = {
+      SUBSTACK_PUBLICATION_URL: "https://legacy.substack.com",
+      SUBSTACK_SESSION_TOKEN: "FAKE-LEGACY",
+      SUBSTACK_USER_ID: "1",
+    } as NodeJS.ProcessEnv;
+    expect(resolvePublications(env, () => null)[0].key).toBe("default");
   });
 });
 

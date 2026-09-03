@@ -61,6 +61,16 @@ type Field = "publicationUrl" | "sessionToken" | "userId";
 
 const PREFIXED_VAR_RE = /^SUBSTACK_PUB_([A-Za-z0-9_]+)_(PUBLICATION_URL|SESSION_TOKEN|USER_ID)$/;
 
+/**
+ * "This name is trying to be a publication variable."
+ *
+ * Leading whitespace is tolerated and the prefix matched case-insensitively so
+ * that a typo is *caught* rather than skipped. The trailing underscore is what
+ * keeps the legacy `SUBSTACK_PUBLICATION_URL` out — `SUBSTACK_PUBL…` does not
+ * start with `SUBSTACK_PUB_`.
+ */
+const PUB_PREFIX_RE = /^\s*SUBSTACK_PUB_/i;
+
 /** One publication under construction: its fields, plus every raw `<KEY>` that mapped to it. */
 interface Group {
   fields: Partial<Record<Field, string>>;
@@ -98,10 +108,21 @@ export function resolvePublications(
   loader: () => StoredSession | null = loadSession,
 ): PublicationCredentials[] {
   const groups = new Map<string, Group>();
+  const malformed: string[] = [];
 
   for (const envName of Object.keys(env)) {
     const match = PREFIXED_VAR_RE.exec(envName);
-    if (!match) continue;
+    if (!match) {
+      // A name that announces itself as a publication variable but does not
+      // match the grammar is intent too, and silently skipping it is the same
+      // failure as skipping an empty value: `SUBSTACK_PUB_B-PUB_*` (a hyphen
+      // in the key) used to vanish entirely, so a valid A plus a complete
+      // hyphenated B resolved to A alone, in single-publication mode, and a
+      // call meant for B landed on A. A lone malformed group fell all the way
+      // back to the stored browser-login session.
+      if (PUB_PREFIX_RE.test(envName)) malformed.push(envName);
+      continue;
+    }
     const [, rawKey, suffix] = match;
     const slug = slugify(rawKey);
     // The name creates the group; the value is judged afterwards. See the
@@ -110,6 +131,17 @@ export function resolvePublications(
     group.rawKeys.add(rawKey);
     group.fields[FIELD_BY_SUFFIX[suffix]] = env[envName] ?? "";
     groups.set(slug, group);
+  }
+
+  // Before the fallback, so a process configured only with malformed names can
+  // never reach `resolveCredentials()` and its stored-session path.
+  if (malformed.length > 0) {
+    throw new Error(
+      `Unrecognized SUBSTACK_PUB_<KEY>_* variable name(s): ${malformed.map((n) => JSON.stringify(n)).join(", ")}. ` +
+        "Each must be exactly SUBSTACK_PUB_<KEY>_PUBLICATION_URL, _SESSION_TOKEN, or _USER_ID, " +
+        "where <KEY> is ASCII letters, digits, and underscores only — no hyphens, no surrounding whitespace, " +
+        "and the suffix uppercase.",
+    );
   }
 
   if (groups.size === 0) {

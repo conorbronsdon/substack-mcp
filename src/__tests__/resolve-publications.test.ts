@@ -98,3 +98,87 @@ describe("resolvePublications", () => {
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(/legacy/i));
   });
 });
+
+/**
+ * A named publication's variable *name* is what declares intent, so an empty
+ * value has to be an error. If empty values are skipped instead, the group
+ * disappears — and a disappeared group is not "no configuration", it is a
+ * different, more dangerous configuration. Both cases below were reachable at
+ * eaa84bb.
+ */
+describe("resolvePublications: an empty named publication must not disappear", () => {
+  it("does not fall back to a stored session when a named publication is present but empty", () => {
+    const loader = vi.fn(() => stored);
+    const env = {
+      SUBSTACK_PUB_SAPERE_PUBLICATION_URL: "",
+      SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "",
+      SUBSTACK_PUB_SAPERE_USER_ID: "",
+    } as NodeJS.ProcessEnv;
+
+    expect(() => resolvePublications(env, loader)).toThrow(/sapere/i);
+    expect(loader).not.toHaveBeenCalled();
+  });
+
+  it("does not collapse to single-publication routing when one valid triplet sits beside an all-empty one", () => {
+    const loader = vi.fn(() => stored);
+    const env = {
+      SUBSTACK_PUB_SAPERE_PUBLICATION_URL: "https://sapere.substack.com",
+      SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "tok-2",
+      SUBSTACK_PUB_SAPERE_USER_ID: "222",
+      SUBSTACK_PUB_OTHER_PUBLICATION_URL: "",
+      SUBSTACK_PUB_OTHER_SESSION_TOKEN: "",
+      SUBSTACK_PUB_OTHER_USER_ID: "",
+    } as NodeJS.ProcessEnv;
+
+    // Must throw naming `other` — not return the single valid publication,
+    // which would drop the `publication` parameter from every tool and route
+    // a call meant for `other` silently to `sapere`.
+    expect(() => resolvePublications(env, loader)).toThrow(/other/i);
+    expect(loader).not.toHaveBeenCalled();
+  });
+
+  it("reports a whitespace-only value the same way as an empty one", () => {
+    const env = {
+      SUBSTACK_PUB_SAPERE_PUBLICATION_URL: "https://sapere.substack.com",
+      SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "   ",
+      SUBSTACK_PUB_SAPERE_USER_ID: "222",
+    } as NodeJS.ProcessEnv;
+    expect(() => resolvePublications(env, () => null)).toThrow(/sapere.*SESSION_TOKEN/is);
+  });
+
+  it("distinguishes an absent variable from an empty one in the error", () => {
+    const env = {
+      SUBSTACK_PUB_SAPERE_PUBLICATION_URL: "https://sapere.substack.com",
+      SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "",
+      // SUBSTACK_PUB_SAPERE_USER_ID absent entirely
+    } as NodeJS.ProcessEnv;
+    expect(() => resolvePublications(env, () => null)).toThrow(/_SESSION_TOKEN \(empty\)/);
+    expect(() => resolvePublications(env, () => null)).toThrow(/_USER_ID(?! \(empty\))/);
+  });
+});
+
+describe("resolvePublications: key collisions", () => {
+  it("rejects two distinct env names that slugify to the same key", () => {
+    // Distinct variables on any POSIX host; one slug. Last-writer-wins would
+    // merge them, and can pair one publication's URL with the other's cookie.
+    const env = {
+      SUBSTACK_PUB_ALPHA_PUBLICATION_URL: "https://alpha.substack.com",
+      SUBSTACK_PUB_ALPHA_SESSION_TOKEN: "tok-alpha",
+      SUBSTACK_PUB_ALPHA_USER_ID: "1",
+      SUBSTACK_PUB_Alpha_PUBLICATION_URL: "https://beta.substack.com",
+      SUBSTACK_PUB_Alpha_SESSION_TOKEN: "tok-beta",
+      SUBSTACK_PUB_Alpha_USER_ID: "2",
+    } as NodeJS.ProcessEnv;
+    expect(() => resolvePublications(env, () => null)).toThrow(/same publication key/i);
+    expect(() => resolvePublications(env, () => null)).toThrow(/ALPHA, Alpha/);
+  });
+
+  it("does not fire on a single key used across all three of its variables", () => {
+    const env = {
+      SUBSTACK_PUB_ALPHA_PUBLICATION_URL: "https://alpha.substack.com",
+      SUBSTACK_PUB_ALPHA_SESSION_TOKEN: "tok-alpha",
+      SUBSTACK_PUB_ALPHA_USER_ID: "1",
+    } as NodeJS.ProcessEnv;
+    expect(resolvePublications(env, () => null).map((p) => p.key)).toEqual(["alpha"]);
+  });
+});

@@ -215,6 +215,8 @@ Over stdio the trust boundary is your user account. Over HTTP it is whatever can
 
 Every one of these is checked before the request is handed to an MCP server, so a rejected request never reaches the Substack API.
 
+Only origin-form request targets are served (`POST /mcp`, `GET /health`). An absolute-form target (`POST http://elsewhere/mcp`), a scheme-relative one (`POST //elsewhere/mcp`), or a malformed one all get `400` — none of them are routed, and none can take the process down.
+
 **Reaching the server under any name other than loopback requires setting `MCP_HTTP_ALLOWED_HOSTS` yourself.** That is the DNS-rebinding defence: without it a page in your browser can resolve an attacker-controlled name to `127.0.0.1` and drive this server as you.
 
 **Host and Origin checks are not authentication.** They stop a browser being used as a confused deputy; they do nothing about a process running on the same host, which can set any `Host` it likes and send no `Origin` at all. On a machine where anything else runs — another MCP server, a dev container, a shared box — set `MCP_HTTP_TOKEN`. Publish the port to `127.0.0.1` rather than every interface (`-p 127.0.0.1:8080:8080`), and put the service behind a VPN or private network as you would any other credentialed internal service.

@@ -41,6 +41,7 @@
  * cannot buffer the process to death before the SDK ever validates it.
  */
 import http from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
@@ -74,6 +75,44 @@ export interface HttpTransportOptions {
 
 class PayloadTooLargeError extends Error {}
 class BadJsonError extends Error {}
+
+/**
+ * Extract the path from an HTTP request target, or `null` if the target is not
+ * one this server accepts.
+ *
+ * Deliberately not `new URL(req.url, "http://localhost")`. That parser is the
+ * wrong tool three times over, and all three were live defects:
+ *
+ * - It throws on a malformed target (`GET http://[::1`). Thrown from inside the
+ *   `http.createServer` callback that is an uncaught exception, and one
+ *   unauthenticated request took the whole process down with exit code 1 —
+ *   before any Host, Origin, or token check ran.
+ * - It accepts absolute-form targets, so `POST http://attacker.example/mcp`
+ *   resolved to pathname `/mcp` and was routed and served.
+ * - It treats a leading `//` as scheme-relative, so `POST //attacker.example/mcp`
+ *   also resolved to `/mcp`.
+ *
+ * An MCP client only ever needs origin-form (`/mcp`, `/health`), so that is all
+ * this accepts: a target starting with a single `/`, made of printable ASCII,
+ * with any query or fragment cut off. Nothing is percent-decoded — the two
+ * routes are compared as exact literals, so `/%6dcp` is a 404 rather than a
+ * second spelling of `/mcp`.
+ */
+export function parseRequestPath(target: string | undefined): string | null {
+  if (target === undefined || target.length === 0) return null;
+  // Origin-form only: rejects absolute-form (`http://...`), authority-form
+  // (`host:port`, as CONNECT sends), and the asterisk-form `*`.
+  if (!target.startsWith("/")) return null;
+  // `//host/path` is scheme-relative to a URL parser. There is no legitimate
+  // origin-form target that starts with two slashes.
+  if (target.startsWith("//")) return null;
+
+  const end = target.search(/[?#]/);
+  const path = end === -1 ? target : target.slice(0, end);
+  // Printable ASCII only; no control characters, no raw whitespace.
+  if (!/^\/[\x21-\x7e]*$/.test(path)) return null;
+  return path;
+}
 
 /** Loopback `Host` values a client can legitimately use to reach `port`. */
 export function defaultAllowedHosts(port: number): string[] {
@@ -136,26 +175,48 @@ function rejectRequest(
   req: http.IncomingMessage,
   policy: RequestPolicy,
 ): { status: number; message: string } | undefined {
-  const host = req.headers.host;
+  // Host names are case-insensitive (RFC 9110 §4.2.3) and the port is digits,
+  // so folding the whole value is equivalent and `Host: LOCALHOST:8080` stops
+  // being a spurious 403.
+  const host = req.headers.host?.toLowerCase();
   if (!policy.allowedHosts.includes("*") && (!host || !policy.allowedHosts.includes(host))) {
     return { status: 403, message: "Forbidden: Host header is not allowed." };
   }
 
-  // An absent Origin is allowed on purpose — see the module comment.
+  // Presence, not truthiness. An *absent* Origin is allowed on purpose (see the
+  // module comment); an Origin that is present and empty is a value the
+  // allowlist has to accept, exactly like `Origin: null`.
   const origin = req.headers.origin;
-  if (origin && !policy.allowedOrigins.includes("*") && !policy.allowedOrigins.includes(origin)) {
+  if (
+    origin !== undefined &&
+    !policy.allowedOrigins.includes("*") &&
+    !policy.allowedOrigins.includes(origin)
+  ) {
     return { status: 403, message: "Forbidden: Origin is not allowed." };
   }
 
-  if (policy.token) {
-    const auth = req.headers.authorization;
-    const presented = auth?.startsWith("Bearer ") ? auth.slice("Bearer ".length) : undefined;
-    if (presented !== policy.token) {
-      return { status: 401, message: "Unauthorized." };
-    }
+  if (policy.token && !bearerMatches(req.headers.authorization, policy.token)) {
+    return { status: 401, message: "Unauthorized." };
   }
 
   return undefined;
+}
+
+/**
+ * Compare `Authorization: Bearer <token>` against the configured secret.
+ *
+ * The auth scheme is case-insensitive and separated from the credential by one
+ * or more spaces (RFC 9110 §11.1), so `bearer S` and `Bearer   S` are both
+ * well-formed and were both being rejected. The comparison itself is
+ * constant-time in the token body; only its length is observable.
+ */
+function bearerMatches(header: string | undefined, expected: string): boolean {
+  const match = /^bearer +(.*)$/is.exec(header ?? "");
+  if (!match) return false;
+  const presented = Buffer.from(match[1], "utf8");
+  const secret = Buffer.from(expected, "utf8");
+  if (presented.length !== secret.length) return false;
+  return timingSafeEqual(presented, secret);
 }
 
 async function handleMcpRequest(
@@ -217,7 +278,10 @@ export function startHttpServer(
       const address = httpServer.address();
       const boundPort = address && typeof address === "object" ? address.port : port;
       policy = {
-        allowedHosts: options.allowedHosts ?? defaultAllowedHosts(boundPort),
+        // Folded to match the lowercased request Host. Origins are left as
+        // given: the scheme and host are case-insensitive but the rest of an
+        // origin is not, and an origin is compared whole.
+        allowedHosts: (options.allowedHosts ?? defaultAllowedHosts(boundPort)).map((h) => h.toLowerCase()),
         allowedOrigins: options.allowedOrigins ?? defaultAllowedOrigins(boundPort),
         token: options.token,
       };
@@ -226,34 +290,50 @@ export function startHttpServer(
   };
 
   const httpServer = http.createServer((req, res) => {
-    const url = new URL(req.url ?? "/", "http://localhost");
+    // Nothing thrown while routing may escape: an uncaught exception in this
+    // callback terminates the process, which turns any parsing bug into a
+    // one-request denial of service.
+    try {
+      const path = parseRequestPath(req.url);
+      if (path === null) {
+        sendJsonRpcError(res, 400, "Bad request target. Use an origin-form path such as POST /mcp.");
+        req.destroy();
+        return;
+      }
 
-    // Unauthenticated by design: a container healthcheck runs before any
-    // credential is available, and this reveals nothing but liveness.
-    if (url.pathname === "/health") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "ok" }));
-      return;
+      // Unauthenticated by design: a container healthcheck runs before any
+      // credential is available, and this reveals nothing but liveness.
+      if (path === "/health") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ok" }));
+        return;
+      }
+
+      if (path !== "/mcp") {
+        res.writeHead(404).end();
+        return;
+      }
+
+      if (req.method !== "POST") {
+        sendJsonRpcError(res, 405, "Method not allowed. Use POST /mcp.");
+        return;
+      }
+
+      const rejection = rejectRequest(req, requestPolicy());
+      if (rejection) {
+        sendJsonRpcError(res, rejection.status, rejection.message);
+        req.destroy();
+        return;
+      }
+
+      void handleMcpRequest(req, res, makeServer, maxBodyBytes);
+    } catch (err) {
+      console.error("Error routing HTTP request:", err instanceof Error ? err.message : String(err));
+      if (!res.headersSent) {
+        sendJsonRpcError(res, 500, "Internal server error");
+      }
+      res.end();
     }
-
-    if (url.pathname !== "/mcp") {
-      res.writeHead(404).end();
-      return;
-    }
-
-    if (req.method !== "POST") {
-      sendJsonRpcError(res, 405, "Method not allowed. Use POST /mcp.");
-      return;
-    }
-
-    const rejection = rejectRequest(req, requestPolicy());
-    if (rejection) {
-      sendJsonRpcError(res, rejection.status, rejection.message);
-      req.destroy();
-      return;
-    }
-
-    void handleMcpRequest(req, res, makeServer, maxBodyBytes);
   });
 
   httpServer.listen(port, host, () => {

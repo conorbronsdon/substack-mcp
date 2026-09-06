@@ -13,6 +13,7 @@ import {
   SubstackScheduledPost,
 } from "./types.js";
 import { mapHttpStatusToError, extractErrorDetail, TimeoutError, isAbortError } from "../utils/errors.js";
+import { SubscriberService } from "./subscribers.js";
 
 /**
  * Per-request deadline applied to every outbound fetch.
@@ -68,6 +69,8 @@ export function parseMagnitude(raw: string): number | null {
 }
 
 export class SubstackClient {
+  readonly subscribers = new SubscriberService((path, options) =>
+    this.request(`${this.publicationUrl}${path}`, options));
   private publicationUrl: string;
   private cookie: string;
   private userId: number;

@@ -21,6 +21,8 @@ const registered = (
 
 const READ_TOOLS: ToolName[] = [
   "get_subscriber_count",
+  "list_subscribers",
+  "get_subscriber",
   "list_published_posts",
   "list_drafts",
   "get_post",
@@ -34,6 +36,7 @@ const READ_TOOLS: ToolName[] = [
 const DRAFT_WRITE_TOOLS: ToolName[] = ["create_draft", "update_draft"];
 
 const PUBLIC_UPLOAD_TOOLS: ToolName[] = ["upload_image"];
+const SUBSCRIBER_WRITE_TOOLS: ToolName[] = ["add_free_subscriber"];
 
 const PUBLISH_TOOLS: ToolName[] = ["create_note", "create_note_with_link"];
 
@@ -127,6 +130,7 @@ describe("tool annotation classifications", () => {
     // unsafe default of true. Reads omit it (not meaningful for a read).
     for (const name of [
       ...DRAFT_WRITE_TOOLS,
+      ...SUBSCRIBER_WRITE_TOOLS,
       ...PUBLIC_UPLOAD_TOOLS,
       ...PUBLISH_TOOLS,
     ]) {
@@ -146,6 +150,7 @@ describe("tool annotation classifications", () => {
     const grouped = [
       ...READ_TOOLS,
       ...DRAFT_WRITE_TOOLS,
+      ...SUBSCRIBER_WRITE_TOOLS,
       ...PUBLIC_UPLOAD_TOOLS,
       ...PUBLISH_TOOLS,
     ];

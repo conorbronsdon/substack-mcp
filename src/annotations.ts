@@ -3,14 +3,14 @@
  *
  * Mirrors the gws-mcp-server pattern: every tool declares exactly one
  * side-effect class in an exhaustive registry, and `buildAnnotations` maps
- * that class to MCP annotation hints so clients can reason about side
+ * that class to MCP side-effect hints so clients can reason about side
  * effects and render accurate consent UI. A completeness test asserts the
  * registry matches the set of tools actually registered on the server, so
  * new tools cannot ship unclassified.
  *
  * IMPORTANT — MCP hints default to the UNSAFE direction. Per the spec
  * (schema 2025-06-18), an omitted `destructiveHint` defaults to `true` and an
- * omitted `openWorldHint` defaults to `true`. So we set EVERY relevant hint
+ * omitted `openWorldHint` defaults to `true`. So we set readOnlyHint, destructiveHint, and openWorldHint
  * explicitly on writes; leaving one off would make a reversible private draft
  * edit read to a conformant client as destructive and open-world. Annotations
  * are also untrusted hints — the authoritative consent surface is the tool
@@ -19,7 +19,8 @@
  *
  * `openWorldHint` convention used here: `true` means the tool's output enters
  * an open world of external entities — a public Substack Note, or a
- * publicly-fetchable CDN image URL. Private draft writes stay in your account
+ * publicly-fetchable CDN image URL, or a change to newsletter recipients.
+ * Private draft writes stay in your account
  * and are `false`.
  */
 
@@ -38,6 +39,8 @@ export type ToolKind =
    * URL, though the asset is not attributed or added to your feed.
    */
   | "public-upload"
+  /** Changes who receives future newsletter emails. */
+  | "subscriber-write"
   /**
    * Write with IMMEDIATE PUBLIC effect: Substack Notes publish the moment
    * the tool runs. Notes have no draft state on Substack, and this server
@@ -56,6 +59,9 @@ export type ToolKind =
 export const TOOL_KINDS = {
   // Reads
   get_subscriber_count: "read",
+  list_subscribers: "read",
+  get_subscriber: "read",
+  add_free_subscriber: "subscriber-write",
   list_published_posts: "read",
   list_drafts: "read",
   get_post: "read",
@@ -79,13 +85,14 @@ export type ToolName = keyof typeof TOOL_KINDS;
 /** MCP tool annotations derived from a tool's side-effect class. */
 export interface ToolAnnotationHints {
   readOnlyHint: boolean;
+  idempotentHint?: boolean;
   destructiveHint?: boolean;
   openWorldHint?: boolean;
 }
 
 /**
- * Map a tool's declared kind into MCP `annotations`, setting every relevant
- * hint EXPLICITLY (never relying on MCP's unsafe-by-default omission).
+ * Map a tool's declared kind into MCP `annotations`, setting the read/destructive/open-world
+ * hints EXPLICITLY (never relying on MCP's unsafe-by-default omission).
  *
  * - Reads: `readOnlyHint: true` (destructive/open-world hints are not
  *   meaningful for a read).
@@ -110,6 +117,8 @@ export function buildAnnotations(name: ToolName): ToolAnnotationHints {
         destructiveHint: false,
         openWorldHint: true,
       };
+    case "subscriber-write":
+      return { readOnlyHint: false, destructiveHint: false, openWorldHint: true, idempotentHint: false };
     case "publish":
       return {
         readOnlyHint: false,

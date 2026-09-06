@@ -62,6 +62,30 @@ export function createServer(publications: PublicationConfig[]): McpServer {
 
   // --- Read tools ---
 
+  server.registerTool("list_subscribers", {
+    description: "Read a page of private subscriber email addresses and subscription IDs. Dashboard data may lag recent changes. Use get_subscriber for exact membership checks.",
+    inputSchema: { offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(50).default(10), ...publicationField() },
+    annotations: buildAnnotations("list_subscribers"),
+  }, async ({ offset, limit, publication }: { offset: number; limit: number; publication?: string }) => ({
+    content: [{ type: "text", text: JSON.stringify(await clientFor(publication).subscribers.list(offset, limit)) }],
+  }));
+
+  server.registerTool("get_subscriber", {
+    description: "Look up a subscriber by exact email address. A listed free subscriber is a member even without paid access. Absence does not prove the address is eligible: Substack may suppress previous unsubscribes, and dashboard data can lag. Read-only; use to reconcile uncertain adds.",
+    inputSchema: { email: z.string().trim().email().max(254), ...publicationField() },
+    annotations: buildAnnotations("get_subscriber"),
+  }, async ({ email, publication }: { email: string; publication?: string }) => ({
+    content: [{ type: "text", text: JSON.stringify(await clientFor(publication).subscribers.get(email)) }],
+  }));
+
+  server.registerTool("add_free_subscriber", {
+    description: "Add one explicitly opted-in reader to this publication's free newsletter. Changes email distribution: future newsletter emails may be delivered. Requires verified newsletter consent; never infer consent from a meeting alone. Dry-run by default; set dry_run=false to write. Never sends a welcome email, grants paid access, or overrides suppression. Existing members are skipped. An unverified result MUST be reconciled using get_subscriber, not automatically retried. Automated callers must persist an attempt ledger BEFORE invoking this tool; in-memory duplicate protection does not survive restarts or separate HTTP sessions.",
+    inputSchema: { email: z.string().trim().email().max(254), consent_confirmed: z.literal(true), dry_run: z.boolean().default(true), ...publicationField() },
+    annotations: buildAnnotations("add_free_subscriber"),
+  }, async ({ email, consent_confirmed, dry_run, publication }: { email: string; consent_confirmed: true; dry_run: boolean; publication?: string }) => ({
+    content: [{ type: "text", text: JSON.stringify(await clientFor(publication).subscribers.add(email, consent_confirmed, dry_run)) }],
+  }));
+
   server.registerTool(
     "get_subscriber_count",
     {

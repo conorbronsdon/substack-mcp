@@ -34,6 +34,8 @@ Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/
 | Tool | Description |
 |------|-------------|
 | `get_subscriber_count` | Get your publication's current subscriber count |
+| `list_subscribers` | Read a bounded page of private subscriber records |
+| `get_subscriber` | Look up membership by exact email; reconcile pending additions |
 | `list_published_posts` | List published posts with pagination |
 | `list_drafts` | List draft posts |
 | `get_post` | Get full content of a published post by ID |
@@ -59,6 +61,37 @@ Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/
 | `create_note_with_link` | Publish a Note with a link card attachment (**publishes immediately**) |
 
 Notes have no draft state on Substack, so there is no draft-first option for these two tools.
+
+### Subscriber management
+
+`add_free_subscriber` adds one consenting reader to the free newsletter. It is
+a distribution change: that reader may receive future newsletter emails. It
+does not send a welcome email, grant paid access, or override Substack's
+suppression of previously unsubscribed addresses. Its MCP annotations identify
+it as an external write (`readOnlyHint: false`, `openWorldHint: true`).
+
+```json
+{"email":"reader@example.org","consent_confirmed":true,"dry_run":true}
+```
+
+Dry-run is the default. After checking actual newsletter consent, set
+`dry_run: false` to execute. Multi-publication configurations also require the
+`publication` selector, just like every other tool.
+
+Results distinguish `existing`, `dry_run`, `verified`, `blocked`, and
+`unverified`. An empty API acknowledgement is **not** proof of addition.
+`verified` means an exact membership lookup succeeded after the request; it
+does not prove that this request originally created the membership. Dashboard
+data can lag. A missing reader may also have previously unsubscribed.
+
+For `unverified`, recheck with `get_subscriber`; never automatically repeat the
+add. For `blocked`, review in Substack without bypassing suppression. Automated
+callers must persist an attempt ledger **before** sending each live request.
+The client's in-memory duplicate guard does not survive restarts or separate
+HTTP sessions. Keep subscriber identities and consent evidence out of shared
+repositories, prompts to public services, and routine logs.
+
+Implementation and live verification notes: [subscriber API](docs/subscribers.md).
 
 ### Intentionally excluded
 

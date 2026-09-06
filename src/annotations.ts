@@ -38,6 +38,8 @@ export type ToolKind =
    * URL, though the asset is not attributed or added to your feed.
    */
   | "public-upload"
+  /** Changes who receives future newsletter emails. */
+  | "subscriber-write"
   /**
    * Write with IMMEDIATE PUBLIC effect: Substack Notes publish the moment
    * the tool runs. Notes have no draft state on Substack, and this server
@@ -56,6 +58,9 @@ export type ToolKind =
 export const TOOL_KINDS = {
   // Reads
   get_subscriber_count: "read",
+  list_subscribers: "read",
+  get_subscriber: "read",
+  add_free_subscriber: "subscriber-write",
   list_published_posts: "read",
   list_drafts: "read",
   get_post: "read",
@@ -105,6 +110,7 @@ export function buildAnnotations(name: ToolName): ToolAnnotationHints {
         openWorldHint: false,
       };
     case "public-upload":
+    case "subscriber-write":
       return {
         readOnlyHint: false,
         destructiveHint: false,

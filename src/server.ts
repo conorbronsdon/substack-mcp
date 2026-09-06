@@ -6,6 +6,7 @@ import {
   ANALYTICS_SCAN_DEPTH,
 } from "./api/client.js";
 import { buildAnnotations } from "./annotations.js";
+import { consentEvidenceSchema, type ConsentEvidence } from "./api/subscribers.js";
 import { markdownToProseMirror, markdownToProseMirrorContent } from "./utils/markdown-to-prosemirror.js";
 import { fileToDataUri } from "./utils/image.js";
 
@@ -80,10 +81,10 @@ export function createServer(publications: PublicationConfig[]): McpServer {
 
   server.registerTool("add_free_subscriber", {
     description: "Add one explicitly opted-in reader to this publication's free newsletter. Changes email distribution: future newsletter emails may be delivered. Requires verified newsletter consent; never infer consent from a meeting alone. Dry-run by default; set dry_run=false to write. Never sends a welcome email, grants paid access, or overrides suppression. Existing members are skipped. An unverified result MUST be reconciled using get_subscriber, not automatically retried. Automated callers must persist an attempt ledger BEFORE invoking this tool; in-memory duplicate protection does not survive restarts or separate HTTP sessions.",
-    inputSchema: { email: z.string().trim().email().max(254), consent_confirmed: z.literal(true), dry_run: z.boolean().default(true), ...publicationField() },
+    inputSchema: { email: z.string().trim().email().max(254), consent_confirmed: z.literal(true), consent_evidence: consentEvidenceSchema.optional().describe("Required for a live add: the source reference and timestamp of this email address's explicit newsletter opt-in. Retain the underlying evidence privately; this field records caller attestation, not independent proof."), dry_run: z.boolean().default(true), ...publicationField() },
     annotations: buildAnnotations("add_free_subscriber"),
-  }, async ({ email, consent_confirmed, dry_run, publication }: { email: string; consent_confirmed: true; dry_run: boolean; publication?: string }) => ({
-    content: [{ type: "text", text: JSON.stringify(await clientFor(publication).subscribers.add(email, consent_confirmed, dry_run)) }],
+  }, async ({ email, consent_confirmed, consent_evidence, dry_run, publication }: { email: string; consent_confirmed: true; consent_evidence?: ConsentEvidence; dry_run: boolean; publication?: string }) => ({
+    content: [{ type: "text", text: JSON.stringify({ ...await clientFor(publication).subscribers.add(email, consent_confirmed, dry_run, consent_evidence), publication: multi ? publication : pubKeys[0], consent_evidence }) }],
   }));
 
   server.registerTool(

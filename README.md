@@ -71,11 +71,14 @@ suppression of previously unsubscribed addresses. Its MCP annotations identify
 it as an external write (`readOnlyHint: false`, `openWorldHint: true`).
 
 ```json
-{"email":"reader@example.org","consent_confirmed":true,"dry_run":true}
+{"email":"reader@example.org","consent_confirmed":true,"consent_evidence":{"source":"booking:message-id","recorded_at":"2026-09-01T00:00:00Z"},"dry_run":true}
 ```
 
 Dry-run is the default. After checking actual newsletter consent, set
-`dry_run: false` to execute. Multi-publication configurations also require the
+`dry_run: false` to execute. Live adds require the source reference and timestamp
+in `consent_evidence`; this attestation is echoed with the publication key for
+auditing and does not replace checking the underlying consent record.
+Multi-publication configurations also require the
 `publication` selector, just like every other tool.
 
 Results distinguish `existing`, `dry_run`, `verified`, `blocked`, and
@@ -91,7 +94,7 @@ add. For `blocked`, review in Substack without bypassing suppression. Automated
 callers must persist an attempt ledger **before** sending each live request.
 The client's in-memory duplicate guard does not survive restarts or separate
 HTTP sessions. Keep subscriber identities and consent evidence out of shared
-repositories, prompts to public services, and routine logs.
+repositories, prompts to unapproved public services, and routine logs.
 
 Implementation and live verification notes: [subscriber API](docs/subscribers.md).
 

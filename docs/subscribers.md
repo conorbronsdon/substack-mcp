@@ -13,6 +13,10 @@ over a thousand subscribers returned filtered `count: 1` for a listed address
 and `count: 0` for an absent one. Both paths were exercised through the built
 MCP tools. Pages are bounded to 50 records and default to 10.
 
+Case behavior was also checked live: a mixed-case stored address matched both
+its original spelling and a lower-case query, and an upper-case query matched
+another existing member. The exact filter is case-insensitive in these checks.
+
 The response includes `subscribers`, `count`, and a potentially stale
 `lastSync`. Membership is established by an exact row with a subscription ID.
 The field `is_subscribed` represents paid-content access, **not** free newsletter
@@ -48,6 +52,11 @@ address by itself does not. For calendar integrations, bind the answer to the
 `Booked by` email, use the latest answer per address, and exclude negative,
 ambiguous, or already-subscribed answers. A later booking No blocks a new add;
 it is not an instruction to remove an existing subscriber.
+
+Live adds require `consent_evidence` containing a nonempty `source` reference
+and an ISO `recorded_at` timestamp. The tool echoes this attestation and the
+publication key for caller audit logs; it cannot independently authenticate a
+caller's evidence. Retain the underlying record privately.
 
 Persist an attempt before calling a live add, keyed by publication and email.
 Unknown outcomes require read-only reconciliation, including after a process

@@ -2,6 +2,11 @@ import { z } from "zod";
 import { SubstackAPIError } from "../utils/errors.js";
 
 const emailSchema = z.string().trim().email().max(254).transform(s => s.toLowerCase());
+export const consentEvidenceSchema = z.object({
+  source: z.string().trim().min(1).max(500),
+  recorded_at: z.string().datetime({ offset: true }),
+});
+export type ConsentEvidence = z.infer<typeof consentEvidenceSchema>;
 const rowSchema = z.object({
   user_email_address: emailSchema,
   subscription_id: z.number().int().positive(),
@@ -64,10 +69,11 @@ export class SubscriberService {
     };
   }
 
-  async add(email: string, consentConfirmed: boolean, dryRun = true): Promise<SubscriberResult> {
+  async add(email: string, consentConfirmed: boolean, dryRun = true, evidence?: ConsentEvidence): Promise<SubscriberResult> {
     const normalized = emailSchema.parse(email);
     if (consentConfirmed !== true) throw new Error("Explicit newsletter opt-in is required.");
     if (typeof dryRun !== "boolean") throw new Error("dryRun must be a boolean.");
+    if (!dryRun) consentEvidenceSchema.parse(evidence);
     if (this.busy.has(normalized)) return { status: "busy", email: normalized, note: "Another operation is in progress for this email. This call performed no write; wait for that operation to finish." };
     this.busy.add(normalized);
     try {
@@ -89,7 +95,7 @@ export class SubscriberService {
         if (error instanceof SubstackAPIError && error.statusCode === 400) {
           this.attempted.delete(normalized);
           this.blocked.add(normalized);
-          return { status: "blocked", email: normalized, note: "Substack rejected the address. It may be invalid or previously unsubscribed. Do not bypass suppression or automatically retry." };
+          return { status: "blocked", email: normalized, note: "Substack rejected the request (HTTP 400). The address may be invalid or suppressed, or the request format may have changed. Review without bypassing suppression or automatically retrying." };
         }
         if (error instanceof SubstackAPIError && [401, 403, 429].includes(error.statusCode)) {
           this.attempted.delete(normalized);

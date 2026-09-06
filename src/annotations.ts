@@ -3,14 +3,14 @@
  *
  * Mirrors the gws-mcp-server pattern: every tool declares exactly one
  * side-effect class in an exhaustive registry, and `buildAnnotations` maps
- * that class to MCP annotation hints so clients can reason about side
+ * that class to MCP side-effect hints so clients can reason about side
  * effects and render accurate consent UI. A completeness test asserts the
  * registry matches the set of tools actually registered on the server, so
  * new tools cannot ship unclassified.
  *
  * IMPORTANT — MCP hints default to the UNSAFE direction. Per the spec
  * (schema 2025-06-18), an omitted `destructiveHint` defaults to `true` and an
- * omitted `openWorldHint` defaults to `true`. So we set EVERY relevant hint
+ * omitted `openWorldHint` defaults to `true`. So we set readOnlyHint, destructiveHint, and openWorldHint
  * explicitly on writes; leaving one off would make a reversible private draft
  * edit read to a conformant client as destructive and open-world. Annotations
  * are also untrusted hints — the authoritative consent surface is the tool
@@ -91,8 +91,8 @@ export interface ToolAnnotationHints {
 }
 
 /**
- * Map a tool's declared kind into MCP `annotations`, setting every relevant
- * hint EXPLICITLY (never relying on MCP's unsafe-by-default omission).
+ * Map a tool's declared kind into MCP `annotations`, setting the read/destructive/open-world
+ * hints EXPLICITLY (never relying on MCP's unsafe-by-default omission).
  *
  * - Reads: `readOnlyHint: true` (destructive/open-world hints are not
  *   meaningful for a read).

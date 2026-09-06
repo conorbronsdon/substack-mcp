@@ -98,6 +98,11 @@ repositories, prompts to unapproved public services, and routine logs.
 
 Implementation and live verification notes: [subscriber API](docs/subscribers.md).
 
+For Google Calendar booking opt-ins, the [calendar sync helper](docs/calendar-sync.md)
+provides a bounded Gmail scan, latest-answer selection, a private durable attempt
+ledger, and read-only reconciliation after uncertain writes. Scheduling is an
+explicit local setup step; installing the MCP does not start a background job.
+
 ### Intentionally excluded
 
 - **Publish posts** — Publishing long-form posts should be a deliberate human action (Notes are the documented exception above)

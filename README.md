@@ -66,7 +66,8 @@ Notes have no draft state on Substack, so there is no draft-first option for the
 
 `add_free_subscriber` adds one consenting reader to the free newsletter. It is
 a distribution change: that reader may receive future newsletter emails. It
-does not send a welcome email, grant paid access, or override Substack's
+can request a welcome email with `send_welcome_email: true` (off by default).
+It never grants paid access or overrides Substack's
 suppression of previously unsubscribed addresses. Its MCP annotations identify
 it as an external write (`readOnlyHint: false`, `openWorldHint: true`).
 
@@ -371,3 +372,5 @@ Built and maintained by [Conor Bronsdon](https://github.com/conorbronsdon) for t
 ## License
 
 MIT
+
+For an always-on scheduler with durable cloud state and weekly email reports, see [Cloud Calendar sync](docs/cloud-calendar-sync.md).

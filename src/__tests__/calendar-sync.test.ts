@@ -41,7 +41,7 @@ describe("durable MCP workflow", () => {
       expect(args).toEqual({email,consent_confirmed:true,dry_run:false,consent_evidence:{source:"gmail:m1",recorded_at:new Date(1780000000000).toISOString()}});
       return {email,status:"verified"};
     });
-    const counts=await processContacts(s,call,()=>snapshots.push(structuredClone(s)),true);
+    const counts=await processContacts(s,call,()=>{snapshots.push(structuredClone(s));},true);
     expect(counts.verified).toBe(1);expect(counts.submitted).toBe(1);
     expect(snapshots.at(-1)?.attempts[contactKey(email)].status).toBe("verified");
   });
@@ -85,4 +85,20 @@ describe("durable MCP workflow", () => {
     await processContacts(s,call,vi.fn(),true);await processContacts(s,call,vi.fn(),true);
     expect(s.attempts[contactKey(email)].status).toBe("unverified");expect(call.mock.calls.filter(c=>c[0]==="add_free_subscriber")).toHaveLength(1);
   });
+});
+
+it("awaits remote durability before adding with the welcome option", async () => {
+  const s=state(); ingest(s,contact());
+  let persisted=false;
+  const persist=async()=>{await new Promise(resolve=>setTimeout(resolve,10));persisted=true;};
+  const call=vi.fn(async(name:string,args:Record<string,unknown>)=>{
+    if(name==="get_subscriber")return {subscriber:null};
+    expect(persisted).toBe(true);
+    expect(args.send_welcome_email).toBe(true);
+    expect(s.attempts[contactKey(email)].welcome_email_requested).toBe(true);
+    return {email,status:"verified"};
+  });
+  const result=await processContacts(s,call,persist,true,5,true);
+  expect(result.verified).toBe(1);
+  expect(call).toHaveBeenCalledTimes(2);
 });

@@ -15,3 +15,8 @@ client_secret*.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Local Workers state, generated types, and secret files
+.wrangler/
+.dev.vars*
+cloud/worker-configuration.d.ts

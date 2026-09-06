@@ -22,7 +22,8 @@ Keep config, state, locks, and output logs outside any shared repository:
   "gws_command": "/path/to/gws",
   "days": 180,
   "max_messages": 200,
-  "max_adds": 5
+  "max_adds": 5,
+  "send_welcome_email": false
 }
 ```
 

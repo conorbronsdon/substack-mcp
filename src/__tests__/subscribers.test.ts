@@ -35,6 +35,21 @@ describe("subscriber management", () => {
     expect(request.mock.calls[1]).toEqual(["/api/v1/subscriber/add", { method: "POST", body: JSON.stringify({ email, subscription: false, sendEmail: false }) }]);
   });
 
+  it("requests a welcome email only when explicitly enabled", async () => {
+    const request = vi.fn().mockResolvedValueOnce(empty).mockResolvedValueOnce({}).mockResolvedValueOnce(found);
+    const result = await new SubscriberService(request).add(email, true, false, evidence, true);
+    expect(JSON.parse(request.mock.calls[1][1].body)).toEqual({ email, subscription: false, sendEmail: true });
+    expect(result.note).toContain("delivery is not independently verified");
+  });
+  it("does not send welcome mail to an existing member or during dry run", async () => {
+    for (const [response, dryRun] of [[found, false], [empty, true]] as const) {
+      const request = vi.fn().mockResolvedValue(response);
+      await new SubscriberService(request).add(email, true, dryRun, evidence, true);
+      expect(request).toHaveBeenCalledTimes(1);
+      expect(request.mock.calls[0][0]).toBe("/api/v1/subscriber-stats");
+    }
+  });
+
   it("does not treat an empty acknowledgement as success or repeat an uncertain write", async () => {
     const request = vi.fn().mockResolvedValue(empty);
     request.mockResolvedValueOnce(empty).mockResolvedValueOnce({});

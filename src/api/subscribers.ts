@@ -69,9 +69,10 @@ export class SubscriberService {
     };
   }
 
-  async add(email: string, consentConfirmed: boolean, dryRun = true, evidence?: ConsentEvidence): Promise<SubscriberResult> {
+  async add(email: string, consentConfirmed: boolean, dryRun = true, evidence?: ConsentEvidence, sendWelcomeEmail = false): Promise<SubscriberResult> {
     const normalized = emailSchema.parse(email);
     if (consentConfirmed !== true) throw new Error("Explicit newsletter opt-in is required.");
+    if (typeof sendWelcomeEmail !== "boolean") throw new Error("sendWelcomeEmail must be a boolean.");
     if (typeof dryRun !== "boolean") throw new Error("dryRun must be a boolean.");
     if (!dryRun) consentEvidenceSchema.parse(evidence);
     if (this.busy.has(normalized)) return { status: "busy", email: normalized, note: "Another operation is in progress for this email. This call performed no write; wait for that operation to finish." };
@@ -85,7 +86,7 @@ export class SubscriberService {
       this.attempted.add(normalized);
       try {
         const reply = await this.request("/api/v1/subscriber/add", {
-          method: "POST", body: JSON.stringify({ email: normalized, subscription: false, sendEmail: false }),
+          method: "POST", body: JSON.stringify({ email: normalized, subscription: false, sendEmail: sendWelcomeEmail }),
         });
         // {} is normal. It is an acknowledgement, not proof of membership.
         if (!reply || typeof reply !== "object" || Array.isArray(reply) || "error" in reply || "errors" in reply) {
@@ -105,7 +106,7 @@ export class SubscriberService {
       }
       try {
         const after = await this.get(normalized);
-        if (after.subscriber) return { status: "verified", email: normalized, subscriber: after.subscriber, note: "Membership verified after the request. No welcome email requested." };
+        if (after.subscriber) return { status: "verified", email: normalized, subscriber: after.subscriber, note: sendWelcomeEmail ? "Membership verified. Welcome email requested; delivery is not independently verified." : "Membership verified after the request. No welcome email requested." };
       } catch { /* The write may have succeeded despite failed verification. */ }
       return { status: "unverified", email: normalized, note: "Request accepted but membership is not yet verified. Dashboard data may lag. Recheck with get_subscriber; do not automatically retry the add." };
     } finally { this.busy.delete(normalized); }

@@ -1,7 +1,7 @@
 {
   "name": "@conorbronsdon/substack-mcp",
   "version": "0.6.2",
-  "description": "MCP server for Substack — read posts, manage drafts, publish Notes. Long-form posts are draft-only by design (no publish, no delete); Notes publish immediately.",
+  "description": "MCP server for Substack â€” read posts, manage drafts, publish Notes. Long-form posts are draft-only by design (no publish, no delete); Notes publish immediately.",
   "type": "module",
   "bin": {
     "substack-mcp": "./dist/index.js",
@@ -12,23 +12,28 @@
     "check:release": "node scripts/check-release-metadata.mjs",
     "sync:release": "node scripts/sync-release-metadata.mjs",
     "lint": "tsc --noEmit -p tsconfig.lint.json",
-    "test": "vitest run",
+    "test": "vitest run src/__tests__",
     "test:release": "node --test scripts/check-release-order.controls.mjs",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "prepublishOnly": "npm run check:release && npm run build && npm test",
-    "version": "npm run sync:release && git add package-lock.json server.json"
+    "version": "npm run sync:release && git add package-lock.json server.json",
+    "lint:cloud": "wrangler types --config cloud/wrangler.jsonc cloud/worker-configuration.d.ts && tsc -p cloud/tsconfig.json && tsc -p cloud/test/tsconfig.json",
+    "build:cloud": "wrangler deploy --config cloud/wrangler.jsonc --dry-run",
+    "test:cloud": "vitest run --config cloud/vitest.config.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.1.4",
     "@types/node": "^22.0.0",
     "semver": "^7.8.5",
     "tsx": "^4.0.0",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.0",
+    "wrangler": "^4.129.0"
   },
   "engines": {
     "node": ">=18.0.0"

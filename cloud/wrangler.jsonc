@@ -1,0 +1,50 @@
+{
+  "name": "substack-calendar-sync",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-06",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SYNC",
+        "class_name": "CalendarSync"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "CalendarSync"
+      ]
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "5 * * * *",
+      "20 * * * *"
+    ]
+  },
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true
+    }
+  },
+  "vars": {
+    "ORGANIZER_EMAIL": "host@example.org",
+    "PUBLICATION_URL": "https://example.substack.com",
+    "REPORT_TIMEZONE": "America/Los_Angeles",
+    "SEND_WELCOME_EMAIL": "true"
+  },
+  "secrets": {
+    "required": [
+      "ADMIN_TOKEN",
+      "GOOGLE_CREDENTIALS",
+      "SUBSTACK_SESSION_TOKEN",
+      "SUBSTACK_USER_ID"
+    ]
+  }
+}

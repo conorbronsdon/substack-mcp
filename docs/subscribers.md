@@ -30,6 +30,11 @@ membership, and is intentionally omitted from tool output.
 {"email":"reader@example.org","subscription":false,"sendEmail":false}
 ```
 
+`send_welcome_email` defaults to false in the MCP tool. Set it to true to send
+`sendEmail: true` for a new live addition. Existing members and dry runs never
+request an email. Membership verification does not establish email delivery; an
+uncertain request must not be repeated merely to resend the welcome email.
+
 The field names are shown in the publisher's [working request screenshots](https://substack.com/@huryn/note/c-181571328).
 The [subscriber-query implementation](https://github.com/marcomoauro/substack-mcp/blob/main/src/api/substack/SubscriberQuery.js)
 documents the exact filter encoding and paid-access field semantics.

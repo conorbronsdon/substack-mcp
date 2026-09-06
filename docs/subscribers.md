@@ -8,7 +8,10 @@ existing session-cookie client. These are unofficial endpoints and can change.
 `POST /api/v1/subscriber-stats` accepts `{filters, limit, offset}`. Exact email
 lookup uses `filters.user_email_address_string_is`; a top-level search is not
 equivalent. The MCP checks returned addresses and counts, failing closed if a
-filter appears ignored. Pages are bounded to 50 records and default to 10.
+filter appears ignored. Live exact-email queries against a publication with
+over a thousand subscribers returned filtered `count: 1` for a listed address
+and `count: 0` for an absent one. Both paths were exercised through the built
+MCP tools. Pages are bounded to 50 records and default to 10.
 
 The response includes `subscribers`, `count`, and a potentially stale
 `lastSync`. Membership is established by an exact row with a subscription ID.

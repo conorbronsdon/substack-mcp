@@ -15,7 +15,7 @@ const pageSchema = z.object({
 
 export type Subscriber = z.infer<typeof rowSchema>;
 export interface SubscriberResult {
-  status: "existing" | "verified" | "dry_run" | "blocked" | "unverified";
+  status: "existing" | "verified" | "dry_run" | "blocked" | "unverified" | "busy" | "retryable";
   email: string;
   subscriber?: Subscriber;
   note: string;
@@ -30,6 +30,7 @@ export class SubscriberService {
   // Prevent a second write after an unknown outcome during this client lifetime.
   // Durable callers must also persist their own attempt ledger before calling.
   private attempted = new Set<string>();
+  private blocked = new Set<string>();
   private busy = new Set<string>();
   constructor(private request: Request) {}
 
@@ -67,11 +68,12 @@ export class SubscriberService {
     const normalized = emailSchema.parse(email);
     if (consentConfirmed !== true) throw new Error("Explicit newsletter opt-in is required.");
     if (typeof dryRun !== "boolean") throw new Error("dryRun must be a boolean.");
-    if (this.busy.has(normalized)) return { status: "unverified", email: normalized, note: "Another operation is in progress for this email. Reconcile before retrying." };
+    if (this.busy.has(normalized)) return { status: "busy", email: normalized, note: "Another operation is in progress for this email. This call performed no write; wait for that operation to finish." };
     this.busy.add(normalized);
     try {
       const before = await this.get(normalized);
       if (before.subscriber) return { status: "existing", email: normalized, subscriber: before.subscriber, note: "Already listed; no write performed." };
+      if (this.blocked.has(normalized)) return { status: "blocked", email: normalized, note: "Substack previously rejected this address. No write performed; review without bypassing suppression." };
       if (this.attempted.has(normalized)) return { status: "unverified", email: normalized, note: "A previous write has an unknown outcome. No second write performed. Reconcile through Substack before retrying." };
       if (dryRun) return { status: "dry_run", email: normalized, note: "Not currently listed. A live add may still be blocked by Substack suppression. No write performed." };
       this.attempted.add(normalized);
@@ -85,7 +87,13 @@ export class SubscriberService {
         }
       } catch (error) {
         if (error instanceof SubstackAPIError && error.statusCode === 400) {
+          this.attempted.delete(normalized);
+          this.blocked.add(normalized);
           return { status: "blocked", email: normalized, note: "Substack rejected the address. It may be invalid or previously unsubscribed. Do not bypass suppression or automatically retry." };
+        }
+        if (error instanceof SubstackAPIError && [401, 403, 429].includes(error.statusCode)) {
+          this.attempted.delete(normalized);
+          return { status: "retryable", email: normalized, note: "Substack refused the request due to authentication or rate limiting. Resolve authentication or back off before an explicit retry; no retry was performed." };
         }
         return { status: "unverified", email: normalized, note: "The add request failed or timed out; its outcome is unknown. Reconcile membership before retrying." };
       }

@@ -3,7 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { SubscriberService } from "../api/subscribers.js";
 import { SubstackClient } from "../api/client.js";
-import { ValidationError } from "../utils/errors.js";
+import { ValidationError, SubstackAPIError } from "../utils/errors.js";
 import { createServer } from "../server.js";
 
 const email = "reader@example.org";
@@ -94,7 +94,7 @@ describe("subscriber management", () => {
     const request = vi.fn().mockImplementationOnce(() => new Promise(resolve => { release = resolve; })).mockResolvedValue(empty);
     const service = new SubscriberService(request);
     const first = service.add(email, true);
-    expect((await service.add(email, true, false)).status).toBe("unverified");
+    expect((await service.add(email, true, false)).status).toBe("busy");
     expect((await service.add("other@example.org", true)).status).toBe("dry_run");
     release(empty);
     await first;
@@ -108,6 +108,30 @@ describe("subscriber management", () => {
     await service.list(50, 10);
     expect(request).toHaveBeenCalledTimes(1);
     expect(JSON.parse(request.mock.calls[0][1].body)).toEqual({ filters: { order_by_desc_nulls_last: "subscription_created_at" }, offset: 50, limit: 10 });
+  });
+
+  it.each([401, 403, 429])("allows an explicit retry after a known %i rejection", async code => {
+    const request = vi.fn().mockResolvedValueOnce(empty).mockRejectedValueOnce(new SubstackAPIError(code, "rejected", "/add")).mockResolvedValueOnce(empty).mockResolvedValueOnce({}).mockResolvedValueOnce(found);
+    const service = new SubscriberService(request);
+    expect((await service.add(email, true, false)).status).toBe("retryable");
+    expect((await service.add(email, true, false)).status).toBe("verified");
+    expect(request.mock.calls.filter(c => c[0].endsWith("/add"))).toHaveLength(2);
+  });
+
+  it("keeps blocked terminal without misreporting it as an unknown write", async () => {
+    const request = vi.fn().mockResolvedValueOnce(empty).mockRejectedValueOnce(new ValidationError("/add", "No valid emails")).mockResolvedValue(empty);
+    const service = new SubscriberService(request);
+    expect((await service.add(email, true, false)).status).toBe("blocked");
+    expect((await service.add(email, true, false)).status).toBe("blocked");
+    expect(request.mock.calls.filter(c => c[0].endsWith("/add"))).toHaveLength(1);
+  });
+
+  it("does not assume a 500 proves the write was rolled back", async () => {
+    const request = vi.fn().mockResolvedValueOnce(empty).mockRejectedValueOnce(new SubstackAPIError(500, "server failed", "/add")).mockResolvedValue(empty);
+    const service = new SubscriberService(request);
+    expect((await service.add(email, true, false)).status).toBe("unverified");
+    await service.add(email, true, false);
+    expect(request.mock.calls.filter(c => c[0].endsWith("/add"))).toHaveLength(1);
   });
 });
 

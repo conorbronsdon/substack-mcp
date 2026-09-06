@@ -79,7 +79,9 @@ Dry-run is the default. After checking actual newsletter consent, set
 `publication` selector, just like every other tool.
 
 Results distinguish `existing`, `dry_run`, `verified`, `blocked`, and
-`unverified`. An empty API acknowledgement is **not** proof of addition.
+`unverified`, `busy`, and `retryable`. `busy` performs no write; wait for the
+other operation. `retryable` means authentication or rate limiting refused the
+request; resolve that condition before explicitly retrying. An empty API acknowledgement is **not** proof of addition.
 `verified` means an exact membership lookup succeeded after the request; it
 does not prove that this request originally created the membership. Dashboard
 data can lag. A missing reader may also have previously unsubscribed.

@@ -19,7 +19,8 @@
  *
  * `openWorldHint` convention used here: `true` means the tool's output enters
  * an open world of external entities — a public Substack Note, or a
- * publicly-fetchable CDN image URL. Private draft writes stay in your account
+ * publicly-fetchable CDN image URL, or a change to newsletter recipients.
+ * Private draft writes stay in your account
  * and are `false`.
  */
 
@@ -84,6 +85,7 @@ export type ToolName = keyof typeof TOOL_KINDS;
 /** MCP tool annotations derived from a tool's side-effect class. */
 export interface ToolAnnotationHints {
   readOnlyHint: boolean;
+  idempotentHint?: boolean;
   destructiveHint?: boolean;
   openWorldHint?: boolean;
 }
@@ -110,12 +112,13 @@ export function buildAnnotations(name: ToolName): ToolAnnotationHints {
         openWorldHint: false,
       };
     case "public-upload":
-    case "subscriber-write":
       return {
         readOnlyHint: false,
         destructiveHint: false,
         openWorldHint: true,
       };
+    case "subscriber-write":
+      return { readOnlyHint: false, destructiveHint: false, openWorldHint: true, idempotentHint: false };
     case "publish":
       return {
         readOnlyHint: false,

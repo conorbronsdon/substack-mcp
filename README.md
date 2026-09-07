@@ -88,7 +88,13 @@ containing only digits, and an unquoted cookie value without whitespace or
 cookie separators. Invalid configuration stops server startup before requests.
 Percent-encoded cookie values are preserved exactly. Configuration checks do
 not prove that the supplied host belongs to Substack or that credentials work.
-By default it checks configuration without network requests. `--check-auth`
+
+Upgrading: missing or malformed credentials now stop startup instead of
+starting tools that fail later. Correct all configured publications; invalid
+entries are never silently dropped. `doctor` and `--help` still run without a
+working session. Use `substack-mcp-login` to set up a first session.
+
+By default, `doctor` checks configuration without network requests. `--check-auth`
 adds one draft-list GET per valid publication, with a five-second request
 deadline and redirects disabled. Use an HTTPS publication origin (no path,
 query, credentials, or custom port); a redirect or custom-domain block may

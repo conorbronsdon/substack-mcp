@@ -62,7 +62,7 @@ try {
   });
   const cli = resolve(installed, installedPkg.bin['substack-mcp']);
   assert.match(execFileSync(process.execPath, [cli, '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /Usage: substack-mcp/);
-  const doctorEnv = { ...env, SUBSTACK_PUBLICATION_URL: 'https://example.substack.com', SUBSTACK_USER_ID: '1' };
+  const doctorEnv = { ...env, SUBSTACK_PUBLICATION_URL: 'https://example.invalid', SUBSTACK_USER_ID: '1' };
   const diagnosis = JSON.parse(execFileSync(process.execPath, [cli, 'doctor', '--json'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
   assert.equal(diagnosis.ok, true);
   assert.equal(diagnosis.mode, 'configuration_only');
@@ -75,8 +75,24 @@ try {
   ]) {
     assert.throws(() => execFileSync(process.execPath, [cli, ...args], { env: commandEnv, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === status);
   }
-  // Startup now validates the same credentials as doctor. The handshake only
-  // lists tools: it makes no publication requests with this synthetic config.
+  for (const overrides of [
+    { SUBSTACK_PUBLICATION_URL: '', SUBSTACK_SESSION_TOKEN: '', SUBSTACK_USER_ID: '' },
+    { SUBSTACK_PUBLICATION_URL: 'https://example.invalid/path' },
+    { SUBSTACK_USER_ID: '1partial' },
+    { SUBSTACK_SESSION_TOKEN: `${testSessionToken}; other=value` },
+    { SUBSTACK_PUB_A_PUBLICATION_URL: 'https://example.invalid', SUBSTACK_PUB_A_SESSION_TOKEN: testSessionToken, SUBSTACK_PUB_A_USER_ID: '1',
+      SUBSTACK_PUB_B_PUBLICATION_URL: 'https://example.invalid', SUBSTACK_PUB_B_SESSION_TOKEN: testSessionToken, SUBSTACK_PUB_B_USER_ID: '0' },
+  ]) {
+    assert.throws(() => execFileSync(process.execPath, [cli, 'serve'], { env: { ...doctorEnv, ...overrides }, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => {
+      assert.equal(error.status, 1);
+      assert.match(error.stderr, /Invalid (publication URL|SUBSTACK_USER_ID|session token)/);
+      assert.ok(!error.stderr.includes(testSessionToken), 'Startup must not print session tokens');
+      assert.ok(!error.stderr.includes('server running'), 'Invalid configuration must fail before connection');
+      return true;
+    });
+  }
+  // Startup validates the same config as doctor. Its background auth read may
+  // attempt the reserved .invalid host, bounded by the synthetic 100ms deadline.
   transport = new StdioClientTransport({ command: process.execPath, args: [resolve(installed, installedPkg.bin['substack-mcp'])], env: doctorEnv, stderr: 'pipe' });
   const client = new Client({ name: 'package-smoke', version: '1.0.0' });
   await client.connect(transport, { timeout: 10_000 });

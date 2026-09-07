@@ -125,10 +125,9 @@ async function main() {
       console.error(`Using stored credentials${pubSuffix(p.label)} (source: ${p.source}).`);
     }
 
-    // The client constructor rejects a non-numeric user id; fall back to "0"
-    // so startup surfaces the friendly missing-credentials warning above
-    // instead of throwing when nothing is configured yet.
-    const client = new SubstackClient(p.publicationUrl, p.sessionToken, p.userId || "0", userAgent, timeoutMs);
+    // Fail before connecting if any publication is invalid. Dropping one would
+    // change the publication selector and could route a write to the wrong host.
+    const client = new SubstackClient(p.publicationUrl, p.sessionToken, p.userId, userAgent, timeoutMs);
     return { key: p.key, label: p.label, client };
   });
 

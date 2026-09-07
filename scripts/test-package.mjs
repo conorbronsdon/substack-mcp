@@ -23,6 +23,7 @@ const expectedTools = [
   'get_subscriber', 'get_subscriber_count', 'list_drafts', 'list_published_posts',
   'list_scheduled_posts', 'list_subscribers', 'update_draft', 'upload_image',
   'search_posts', 'preflight_draft',
+  'get_publication',
 ].sort();
 
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',

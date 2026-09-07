@@ -12,6 +12,7 @@ import { markdownToProseMirror, markdownToProseMirrorContent } from "./utils/mar
 import { fileToDataUri } from "./utils/image.js";
 import { searchInput } from "./api/search.js";
 import { preflightDraft } from "./utils/draft-preflight.js";
+import { publicationOutput } from "./api/publication.js";
 
 export interface PublicationConfig {
   /** Tool-facing `publication` enum value, e.g. "kevin-muldoon". */
@@ -65,6 +66,16 @@ export function createServer(publications: PublicationConfig[]): McpServer {
   // additive; the Note tools publish public content immediately.
 
   // --- Read tools ---
+
+  server.registerTool("get_publication", {
+    description: "Read projected identity and selected settings for this publication. Verifies the returned publication host; does not verify your account identity or admin role. Missing API fields are named explicitly. No changes are made.",
+    inputSchema: { ...publicationField() },
+    outputSchema: publicationOutput.shape,
+    annotations: buildAnnotations("get_publication"),
+  }, async ({ publication }: { publication?: string }) => {
+    const result = publicationOutput.parse({ ...await clientFor(publication).getPublication(), publication: publication ?? pubKeys[0] });
+    return { structuredContent: result, content: [{ type: "text", text: JSON.stringify(result) }] };
+  });
 
   server.registerTool("search_posts", {
     description: "Search this publication's published, draft, or scheduled archive using Substack's server-side query. One page per call, at most 50 results; use next_offset to continue. Matching/indexing is controlled by Substack, not a guaranteed full-text scan. Returns metadata only; get_post/get_draft fetch full content.",

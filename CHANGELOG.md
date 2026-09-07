@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases before
 `0.6.0` are recorded in the [GitHub Releases](https://github.com/conorbronsdon/substack-mcp/releases)
 and the git tag history (`v0.1.0`–`v0.5.0`).
 
+## [Unreleased]
+
+### Added
+- `get_publication`: projected publication metadata with host matching, explicit missing fields, structured MCP output and a text fallback. Does not infer account identity or permissions. Endpoint mapping is source-referenced; live contract validation remains pending for 0.9.
+
 ## [0.8.0] - 2026-09-07
 
 ### Added

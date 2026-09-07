@@ -15,6 +15,7 @@ import {
 import { mapHttpStatusToError, extractErrorDetail, TimeoutError, isAbortError } from "../utils/errors.js";
 import { SubscriberService } from "./subscribers.js";
 import { searchPosts } from "./search.js";
+import { getPublication } from "./publication.js";
 
 /**
  * Per-request deadline applied to every outbound fetch.
@@ -167,6 +168,12 @@ export class SubstackClient {
 
   searchPosts(input: Parameters<typeof searchPosts>[0]) {
     return searchPosts(input, path => this.request(`${this.publicationUrl}${path}`));
+  }
+
+  getPublication() {
+    return getPublication(this.publicationUrl, path => this.request(`${this.publicationUrl}${path}`, {
+      headers: { Referer: `${this.publicationUrl}/publish/settings` },
+    }));
   }
 
   /**

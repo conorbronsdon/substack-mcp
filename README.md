@@ -37,6 +37,7 @@ Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/
 | `list_subscribers` | Read a bounded page of private subscriber records |
 | `get_subscriber` | Look up membership by exact email; reconcile pending additions |
 | `list_published_posts` | List published posts with pagination |
+| `get_publication` | Read projected publication identity/settings, verify the configured host, and report missing fields; does not verify account identity or role |
 | `search_posts` | Search a publication archive by query and status; bounded pages with continuation metadata |
 | `preflight_draft` | Read-only checks for title, audience, body structure, images, and paywalls |
 | `list_drafts` | List draft posts |

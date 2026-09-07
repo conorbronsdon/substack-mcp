@@ -14,6 +14,7 @@ import {
 } from "./types.js";
 import { mapHttpStatusToError, extractErrorDetail, TimeoutError, isAbortError } from "../utils/errors.js";
 import { SubscriberService } from "./subscribers.js";
+import { searchPosts } from "./search.js";
 
 /**
  * Per-request deadline applied to every outbound fetch.
@@ -162,6 +163,10 @@ export class SubstackClient {
     // If we get here without a 401/403, auth is valid
     const byline = drafts[0]?.draft_bylines?.[0];
     return { id: byline?.id ?? this.userId, name: "authenticated" };
+  }
+
+  searchPosts(input: Parameters<typeof searchPosts>[0]) {
+    return searchPosts(input, path => this.request(`${this.publicationUrl}${path}`));
   }
 
   /**

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -21,6 +22,7 @@ const expectedTools = [
   'get_draft', 'get_post', 'get_post_analytics', 'get_post_comments', 'get_sections',
   'get_subscriber', 'get_subscriber_count', 'list_drafts', 'list_published_posts',
   'list_scheduled_posts', 'list_subscribers', 'update_draft', 'upload_image',
+  'search_posts', 'preflight_draft',
 ].sort();
 
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
@@ -49,12 +51,28 @@ try {
   // A deliberately tiny environment excludes actual credentials and multi-publication config.
   const env = Object.fromEntries(Object.entries(process.env).filter(([key, value]) =>
     /^(PATH|SYSTEMROOT|WINDIR|TEMP|TMP)$/i.test(key) && value !== undefined));
+  const testSessionToken = randomUUID();
   Object.assign(env, {
     SUBSTACK_MCP_HOME: join(scratch, 'empty-session'),
     SUBSTACK_PUBLICATION_URL: 'http://127.0.0.1:1',
-    SUBSTACK_USER_ID: '0', SUBSTACK_SESSION_TOKEN: 'package-test',
+    SUBSTACK_USER_ID: '0', SUBSTACK_SESSION_TOKEN: testSessionToken,
     SUBSTACK_REQUEST_TIMEOUT_MS: '100', MCP_TRANSPORT: 'stdio',
   });
+  const cli = resolve(installed, installedPkg.bin['substack-mcp']);
+  assert.match(execFileSync(process.execPath, [cli, '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /Usage: substack-mcp/);
+  const doctorEnv = { ...env, SUBSTACK_PUBLICATION_URL: 'https://example.substack.com', SUBSTACK_USER_ID: '1' };
+  const diagnosis = JSON.parse(execFileSync(process.execPath, [cli, 'doctor', '--json'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
+  assert.equal(diagnosis.ok, true);
+  assert.equal(diagnosis.mode, 'configuration_only');
+  assert.equal(diagnosis.publications[0].authentication, 'not_checked');
+  assert.ok(!JSON.stringify(diagnosis).includes(testSessionToken), 'Doctor must not print session tokens');
+  for (const [args, commandEnv, status] of [
+    [['doctor', '--json'], env, 1],
+    [['doctor', '--unknown'], doctorEnv, 2],
+    [['unknown'], doctorEnv, 2],
+  ]) {
+    assert.throws(() => execFileSync(process.execPath, [cli, ...args], { env: commandEnv, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === status);
+  }
   transport = new StdioClientTransport({ command: process.execPath, args: [resolve(installed, installedPkg.bin['substack-mcp'])], env, stderr: 'pipe' });
   const client = new Client({ name: 'package-smoke', version: '1.0.0' });
   await client.connect(transport, { timeout: 10_000 });

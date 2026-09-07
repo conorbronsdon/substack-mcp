@@ -6,6 +6,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases before
 `0.6.0` are recorded in the [GitHub Releases](https://github.com/conorbronsdon/substack-mcp/releases)
 and the git tag history (`v0.1.0`–`v0.5.0`).
 
+## [0.8.0] - 2026-09-07
+
+### Added
+- `search_posts`: bounded server-side archive queries for published, draft and scheduled posts, projected metadata, explicit continuation and unknown-total handling.
+- `preflight_draft`: read-only title, audience, body, image and paywall checks with structure limits and explicit coverage limitations.
+- `substack-mcp doctor [--json] [--check-auth]`: offline configuration checks, optional bounded authenticated reads, credential-safe results and stable exit codes. Auth checks disable redirects and do not claim user identity binding.
+- Explicit `serve` alias and server `--help`; bare MCP startup and the browser-login binary remain compatible.
+- Regression coverage for publication isolation, malformed responses, secret redaction, preflight limits and installed CLI behavior. The MCP catalog now contains 19 tools.
+
 ## [0.7.0] - 2026-09-07
 
 ### Added

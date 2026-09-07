@@ -68,20 +68,38 @@ function redactDetail(detail: string, options: RequestInit): string {
   return detail;
 }
 
-/** One request, no redirects or retries. Deadline includes headers and body. */
+/** One deadline through headers/body. JSON calls never follow redirects or retry. */
 async function request(url: string, options: RequestInit, timeoutMs: number, format: "json" | "text", maxBytes: number): Promise<unknown> {
   const expiresAt = performance.now() + timeoutMs;
   const deadline = AbortSignal.timeout(Math.max(1, Math.min(2_147_483_647, Math.floor(timeoutMs))));
   const signal = options.signal ? AbortSignal.any([deadline, options.signal]) : deadline;
   try {
     signal.throwIfAborted();
-    const pending = fetch(url, { ...options, redirect: "manual", signal });
-    // A substituted fetch may return after cancellation; discard its late body.
-    void pending.then(response => { if (signal.aborted) discard(response); }, () => {});
-    const response = await abortable(pending, signal);
-    if (response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400)) {
-      discard(response);
-      throw new ResponseError(url, "redirect_rejected");
+    let currentUrl = url, redirects = 0;
+    let response: Response;
+    while (true) {
+      signal.throwIfAborted();
+      if (performance.now() >= expiresAt) throw new TimeoutError(url, timeoutMs);
+      const pending = fetch(currentUrl, { ...options, redirect: "manual", signal });
+      // A substituted fetch may return after cancellation; discard its late body.
+      void pending.then(response => { if (signal.aborted) discard(response); }, () => {});
+      response = await abortable(pending, signal);
+      if (signal.aborted || performance.now() >= expiresAt) {
+        discard(response); signal.throwIfAborted(); throw new TimeoutError(url, timeoutMs);
+      }
+      const redirect = [301, 302, 303, 307, 308].includes(response.status);
+      if (response.type === "opaqueredirect" || redirect) {
+        discard(response);
+        const location = response.headers.get("location");
+        if (format !== "text" || !location || redirects >= 3) throw new ResponseError(url, "redirect_rejected");
+        let target: URL;
+        try { target = new URL(location, currentUrl); }
+        catch { throw new ResponseError(url, "redirect_rejected"); }
+        if (target.protocol !== "https:" || target.username || target.password || target.port) throw new ResponseError(url, "redirect_rejected");
+        currentUrl = target.href; redirects++;
+        continue;
+      }
+      break;
     }
     if ([401, 403, 429].includes(response.status)) {
       discard(response);
@@ -115,6 +133,11 @@ export function requestJson<T>(url: string, options: RequestInit = {}, timeoutMs
   return request(url, options, timeoutMs, "json", maxBytes) as Promise<T>;
 }
 
-export function requestText(url: string, options: RequestInit = {}, timeoutMs = 30_000): Promise<string> {
-  return request(url, options, timeoutMs, "text", MAX_HTML_BYTES) as Promise<string>;
+/** Public page GET only; never forward credentials or arbitrary caller headers. */
+export async function requestText(url: string, options: RequestInit = {}, timeoutMs = 30_000): Promise<string> {
+  const headers = new Headers(options.headers);
+  if ((options.method && options.method !== "GET") || options.body || [...headers.keys()].some(name => !["user-agent", "accept"].includes(name))) {
+    throw new Error("Public page reads accept only GET, User-Agent and Accept; credentials are not allowed.");
+  }
+  return request(url, { headers, method: "GET", credentials: "omit", signal: options.signal }, timeoutMs, "text", MAX_HTML_BYTES) as Promise<string>;
 }

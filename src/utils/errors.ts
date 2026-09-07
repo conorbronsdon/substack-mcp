@@ -155,7 +155,7 @@ export class ResponseError extends SubstackAPIError {
       response_too_large: "Response exceeds the byte limit; no partial result was returned.",
       unexpected_html: "Expected JSON but received HTML, possibly a sign-in or blocking page.",
       malformed_json: "Response is not valid JSON; no result can be verified.",
-      redirect_rejected: "Redirect rejected. Configure the publication origin that serves API requests directly; no redirect was followed.",
+      redirect_rejected: "Redirect rejected by the request policy. Configure the publication origin that serves the requested endpoint directly.",
       request_cancelled: "Request cancelled before completion.",
     };
     super(502, messages[code], endpoint); // Synthetic status for a client-side failure.

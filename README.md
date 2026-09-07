@@ -109,7 +109,9 @@ by default, five seconds for `doctor --check-auth`). Streamed response limits
 are 10 MiB for API JSON, 1 MiB for doctor, 2 MiB for the public-page count
 fallback, and 64 KiB for error bodies. Limits apply to bytes delivered by fetch,
 including decompressed bytes. Oversized responses fail without partial results.
-The public count fallback returns unavailable when its read fails.
+The public count fallback permits at most three HTTPS redirects within the same
+deadline. It sends no cookies or authorization and rejects destinations with
+URL credentials or custom ports. It returns unavailable when its read fails.
 
 Doctor distinguishes `unexpected_html`, `malformed_json`, `response_too_large`,
 `redirect_rejected`, `timeout`, `rate_limited`, and `unauthorized_or_blocked`.

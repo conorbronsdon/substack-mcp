@@ -144,6 +144,52 @@ describe("response classification", () => {
   });
 });
 
+describe("public page redirect policy", () => {
+  it("follows HTTPS redirects as cookie-free GETs with one shared deadline", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("", { status: 301, headers: { location: "https://newsletter.example.org/" } }))
+      .mockResolvedValueOnce(new Response('{"freeSubscriberCount":"1,000"}'));
+    vi.stubGlobal("fetch", fetchMock);
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    expect(await requestText(url, { headers: { "User-Agent": "sample" } }, 1000)).toContain('"1,000"');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe("https://newsletter.example.org/");
+    for (const [, options] of fetchMock.mock.calls) {
+      expect(options).toMatchObject({ method: "GET", credentials: "omit", redirect: "manual" });
+      expect([...new Headers(options.headers)]).toEqual([["user-agent", "sample"]]);
+    }
+    expect(fetchMock.mock.calls[0][1].signal).toBe(fetchMock.mock.calls[1][1].signal);
+    expect(timeout).toHaveBeenCalledExactlyOnceWith(1000);
+  });
+  it("retains the public subscriber-count fallback after an HTTPS canonical redirect", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('{}'))
+      .mockResolvedValueOnce(new Response("", { status: 302, headers: { location: "https://newsletter.example.org/" } }))
+      .mockResolvedValueOnce(new Response('{"freeSubscriberCount":"1,000"}'));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await new SubstackClient("https://example.substack.com", "synthetic", "1").getSubscriberCount()).toMatchObject({ count: 1000, precision: "approximate" });
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).has("Cookie")).toBe(true);
+    for (const [, options] of fetchMock.mock.calls.slice(1)) expect(new Headers(options.headers).has("Cookie")).toBe(false);
+  });
+  it.each(["http://example.org/", "https://user:password@example.org/", "https://example.org:8443/", "https://["])("rejects an unsafe redirect without visiting it: %s", async location => {
+    const fetchMock = vi.fn(async () => new Response("", { status: 302, headers: { location } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(requestText(url)).rejects.toMatchObject({ code: "redirect_rejected" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("caps redirect loops at three hops", async () => {
+    const fetchMock = vi.fn(async () => new Response("", { status: 301, headers: { location: "/again" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(requestText(url)).rejects.toMatchObject({ code: "redirect_rejected" });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+  it.each([{ headers: { Cookie: "secret" } }, { headers: { Authorization: "secret" } }, { headers: { "X-API-Key": "secret" } }, { method: "POST", body: "sample" }])("rejects authenticated or writing public-page calls before fetching", async options => {
+    const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+    await expect(requestText(url, options as RequestInit)).rejects.toThrow("credentials are not allowed");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("real fetch contract", () => {
   it("never follows same-origin or cross-origin redirects or replays a POST", async () => {
     let hits = 0;

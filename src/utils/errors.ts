@@ -1,8 +1,12 @@
+export type ResponseBodyIssue = "response_too_large" | "timeout" | "request_cancelled" | "body_read_failed";
 export class SubstackAPIError extends Error {
+  responseBodyIssue?: ResponseBodyIssue;
   constructor(
     public statusCode: number,
     message: string,
     public endpoint: string,
+    public retryAfter?: string,
+    public statusSource: "http" | "client" = "http",
   ) {
     super(`Substack API error (${statusCode}) at ${endpoint}: ${message}`);
     this.name = "SubstackAPIError";
@@ -10,16 +14,16 @@ export class SubstackAPIError extends Error {
 }
 
 export class AuthenticationError extends SubstackAPIError {
-  constructor(endpoint: string) {
-    super(401, "Session token is invalid or expired. Get a fresh token from browser DevTools > Application > Cookies > connect.sid (or substack.sid on substack.com)", endpoint);
+  constructor(endpoint: string, status = 401) {
+    super(status, "Session token is invalid or expired. Get a fresh token from browser DevTools > Application > Cookies > connect.sid (or substack.sid on substack.com)", endpoint);
     this.name = "AuthenticationError";
   }
 }
 
 /** HTTP 429 — too many requests against the Substack API. */
 export class RateLimitError extends SubstackAPIError {
-  constructor(endpoint: string, detail: string, public retryAfter?: string) {
-    super(429, "Rate limited by Substack: " + detail + ". Slow down requests and try again shortly." + (retryAfter ? ` Retry-After: ${retryAfter}.` : ""), endpoint);
+  constructor(endpoint: string, detail: string, retryAfter?: string) {
+    super(429, "Rate limited by Substack: " + detail + ". Slow down requests and try again shortly." + (retryAfter ? ` Retry-After: ${retryAfter}.` : ""), endpoint, retryAfter);
     this.name = "RateLimitError";
   }
 }
@@ -42,8 +46,8 @@ export class NotFoundError extends SubstackAPIError {
 
 /** HTTP 5xx — failure on Substack's side. */
 export class ServerError extends SubstackAPIError {
-  constructor(endpoint: string, detail: string) {
-    super(500, "Server error: " + detail + ". Substack may be having issues — try again later.", endpoint);
+  constructor(endpoint: string, detail: string, status = 500, retryAfter?: string) {
+    super(status, "Server error: " + detail + ". Substack may be having issues — try again later." + (retryAfter ? ` Retry-After: ${retryAfter}.` : ""), endpoint, retryAfter);
     this.name = "ServerError";
   }
 }
@@ -65,6 +69,8 @@ export class TimeoutError extends SubstackAPIError {
         "or behind a proxy that drops packets instead of refusing the connection. " +
         "Set SUBSTACK_REQUEST_TIMEOUT_MS to raise the limit if the publication is just slow.",
       endpoint,
+      undefined,
+      "client",
     );
     this.name = "TimeoutError";
   }
@@ -93,19 +99,23 @@ export function isAbortError(err: unknown): boolean {
 /**
  * Maps an HTTP status code + error detail string to the appropriate typed
  * error. 401/403 route to AuthenticationError with `detail` intentionally
- * discarded — AuthenticationError's constructor takes only `endpoint` so its
+ * discarded — AuthenticationError's constructor keeps static guidance so its
  * message stays the exact hardcoded cookie-refresh guidance the existing
  * tests assert on verbatim; threading `detail` through would either change
  * that message or require duplicating it. Falls back to the base
  * `SubstackAPIError` for status codes outside the mapped classes.
  */
-export function mapHttpStatusToError(status: number, detail: string, endpoint: string, retryAfter?: string): SubstackAPIError {
-  if (status === 401 || status === 403) return new AuthenticationError(endpoint);
-  if (status === 429) return new RateLimitError(endpoint, detail, retryAfter);
-  if (status === 400) return new ValidationError(endpoint, detail);
-  if (status === 404) return new NotFoundError(endpoint, detail);
-  if (status >= 500) return new ServerError(endpoint, detail);
-  return new SubstackAPIError(status, detail, endpoint);
+export function mapHttpStatusToError(status: number, detail: string, endpoint: string, retryAfter?: string, bodyIssue?: ResponseBodyIssue): SubstackAPIError {
+  let error: SubstackAPIError;
+  if (status === 401 || status === 403) error = new AuthenticationError(endpoint, status);
+  else if (status === 429) error = new RateLimitError(endpoint, detail, retryAfter);
+  else if (status === 400) error = new ValidationError(endpoint, detail);
+  else if (status === 404) error = new NotFoundError(endpoint, detail);
+  else if (status >= 500) error = new ServerError(endpoint, detail, status, retryAfter);
+  else error = new SubstackAPIError(status, detail, endpoint);
+  error.retryAfter = retryAfter;
+  error.responseBodyIssue = bodyIssue;
+  return error;
 }
 
 /**
@@ -158,7 +168,7 @@ export class ResponseError extends SubstackAPIError {
       redirect_rejected: "Redirect rejected by the request policy. Configure the publication origin that serves the requested endpoint directly.",
       request_cancelled: "Request cancelled before completion.",
     };
-    super(502, messages[code], endpoint); // Synthetic status for a client-side failure.
+    super(502, messages[code], endpoint, undefined, "client");
     this.name = "ResponseError";
   }
 }

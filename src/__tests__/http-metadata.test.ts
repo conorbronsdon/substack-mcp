@@ -79,6 +79,41 @@ describe("HTTP failure metadata", () => {
     expect(error.message).not.toContain("private cleanup reason");
   });
 
+  it.each([200, 503])("retains first cancellation if the deadline fires during HTTP %s cleanup", async status => {
+    const caller = new AbortController(), deadline = new AbortController();
+    vi.spyOn(AbortSignal, "timeout").mockReturnValue(deadline.signal);
+    let bodyRead!: () => void;
+    const ready = new Promise<void>(resolve => { bodyRead = resolve; });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({
+      pull() { bodyRead(); },
+      cancel() { deadline.abort(new DOMException("expired", "TimeoutError")); },
+    }, { highWaterMark: 0 }), { status })));
+    const operation = requestJson(url, { signal: caller.signal }).catch(error => error);
+    await ready;
+    caller.abort(new Error("private caller reason"));
+    const error = await operation as SubstackAPIError;
+    expect(error).toMatchObject(status === 200
+      ? { statusSource: "client", code: "request_cancelled" }
+      : { statusCode: 503, statusSource: "http", responseBodyIssue: "request_cancelled" });
+    expect(deadline.signal.aborted).toBe(true);
+    expect(error.message).not.toContain("private caller reason");
+  });
+
+  it("retains deadline-first classification if cancellation follows during cleanup", async () => {
+    const caller = new AbortController(), deadline = new AbortController();
+    vi.spyOn(AbortSignal, "timeout").mockReturnValue(deadline.signal);
+    let bodyRead!: () => void;
+    const ready = new Promise<void>(resolve => { bodyRead = resolve; });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({
+      pull() { bodyRead(); }, cancel() { caller.abort(); },
+    }, { highWaterMark: 0 }), { status: 503 })));
+    const operation = requestJson(url, { signal: caller.signal }).catch(error => error);
+    await ready;
+    deadline.abort(new DOMException("expired", "TimeoutError"));
+    expect(await operation).toMatchObject({ statusCode: 503, statusSource: "http", responseBodyIssue: "timeout" });
+    expect(caller.signal.aborted).toBe(true);
+  });
+
   it.each([
     new SubstackAPIError(503, "private reason", "private endpoint"),
     new ResponseError("private endpoint", "response_too_large"),

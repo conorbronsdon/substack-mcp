@@ -76,6 +76,8 @@ async function request(url: string, options: RequestInit, timeoutMs: number, for
   const expiresAt = performance.now() + timeoutMs;
   const deadline = AbortSignal.timeout(timeoutMs);
   const signal = options.signal ? AbortSignal.any([deadline, options.signal]) : deadline;
+  // AbortSignal.any preserves the first reason even if both sources later abort.
+  const callerCancelled = () => options.signal?.aborted && signal.reason === options.signal.reason;
   try {
     signal.throwIfAborted();
     let currentUrl = url, redirects = 0;
@@ -117,7 +119,7 @@ async function request(url: string, options: RequestInit, timeoutMs: number, for
       } catch (error) {
         // A known HTTP failure takes precedence over an unread diagnostic body.
         bodyIssue = error !== signal.reason && error instanceof ResponseError && error.code === "response_too_large" ? "response_too_large"
-          : options.signal?.aborted && !deadline.aborted ? "request_cancelled"
+          : callerCancelled() ? "request_cancelled"
           : deadline.aborted || isAbortError(error) ? "timeout" : "body_read_failed";
         detail = `HTTP error received; diagnostic body unavailable (${bodyIssue}); details were discarded`;
       }
@@ -140,7 +142,7 @@ async function request(url: string, options: RequestInit, timeoutMs: number, for
     // Preserve locally classified errors across cancellation during cleanup.
     // Caller-supplied abort reasons still receive static, credential-safe text.
     if (error instanceof SubstackAPIError && error !== signal.reason) throw error;
-    if (options.signal?.aborted && !deadline.aborted) throw new ResponseError(url, "request_cancelled");
+    if (callerCancelled()) throw new ResponseError(url, "request_cancelled");
     if (deadline.aborted || isAbortError(error)) throw new TimeoutError(url, timeoutMs);
     throw error;
   }

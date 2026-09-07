@@ -6,6 +6,15 @@ on:
     paths:
       - package.json
   workflow_dispatch:
+    inputs:
+      reconciled_commit:
+        description: 'Only for missing npm gitHead: independently verified original commit SHA'
+        required: false
+        type: string
+      reconciled_integrity:
+        description: 'Only for missing npm gitHead: independently verified exact npm sha512 integrity'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -23,6 +32,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_MANIFEST: ${{ runner.temp }}/release-server.json
+      RECONCILED_RELEASE_COMMIT: ${{ inputs.reconciled_commit }}
+      RECONCILED_NPM_INTEGRITY: ${{ inputs.reconciled_integrity }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

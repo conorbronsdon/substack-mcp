@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { decideRelease, inspectRelease, lookupJson, releaseManifest, verifyStage, releaseErrorMessage } from './release-state.mjs';
+import { decideRelease, inspectRelease, lookupJson, releaseManifest, verifyStage, releaseErrorMessage, verifyWithPolling } from './release-state.mjs';
 
 const pkg = { name: '@conorbronsdon/substack-mcp', mcpName: 'io.github.conorbronsdon/substack-mcp', version: '0.9.0' };
 const sha = 'a'.repeat(40), newerSha = 'b'.repeat(40);
@@ -158,4 +158,44 @@ test('verification stages reject partial publication and changed release targets
   assert.throws(() => verifyStage({ ...complete, registry: true }, 'verify-registry', sha), /Registry publication/);
   assert.throws(() => verifyStage({ ...complete, github: true }, 'verify', sha), /GitHub release/);
   assert.throws(() => verifyStage(complete, 'unknown', sha), /Unknown/);
+});
+
+test('missing npm gitHead has an explicit integrity-bound manual recovery path', () => {
+  const missing = state(); delete missing.npm.gitHead;
+  const options = { reconciledCommit: sha, reconciledIntegrity: missing.npm.dist.integrity };
+  assert.equal(decideRelease(pkg, newerSha, missing, options).target, sha);
+  assert.throws(() => decideRelease(pkg, newerSha, missing), /manual reconciliation/);
+  assert.throws(() => decideRelease(pkg, newerSha, missing, { ...options, reconciledIntegrity: 'sha512-b3RoZXI=' }), /integrity does not match/);
+  assert.throws(() => decideRelease(pkg, newerSha, missing, { ...options, reconciledCommit: 'main' }), /both commit\/integrity/);
+  assert.throws(() => decideRelease(pkg, newerSha, missing, { reconciledCommit: sha }), /both commit\/integrity/);
+  assert.throws(() => decideRelease(pkg, newerSha, state(), options), /without valid gitHead/);
+  assert.throws(() => decideRelease(pkg, newerSha, { ...missing, npm: null, latest: null }, options), /existing npm version/);
+  assert.throws(() => decideRelease(pkg, newerSha, missing, { ...options, reconciledCommit: newerSha }), /tag points/);
+});
+
+test('verification tolerates propagation with bounded read-only polling', async () => {
+  const complete = decideRelease(pkg, sha, state()), waits = [];
+  let reads = 0;
+  assert.deepEqual(await verifyWithPolling(async () => {
+    reads++;
+    return reads < 3 ? { ...complete, npm: true } : complete;
+  }, 'verify-npm', sha, async ms => waits.push(ms)), complete);
+  assert.equal(reads, 3); assert.deepEqual(waits, [1000, 3000]);
+  reads = 0;
+  await assert.rejects(verifyWithPolling(async () => { reads++; return { ...complete, registry: true }; }, 'verify-registry', sha, async () => {}), /not yet verified/);
+  assert.equal(reads, 3);
+  reads = 0;
+  await assert.rejects(verifyWithPolling(async () => { reads++; return complete; }, 'verify', newerSha, async () => assert.fail('must not retry target mismatch')), /target changed/);
+  assert.equal(reads, 1);
+});
+
+test('only verification polls transient lookups, never auth failures or the initial plan', async () => {
+  for (const [command, status, expectedReads] of [['plan', 503, 1], ['verify', 503, 3], ['verify', 429, 3], ['verify', 403, 1]]) {
+    let reads = 0;
+    await assert.rejects(verifyWithPolling(async () => {
+      reads++;
+      return lookupJson('https://example.invalid', { fetchImpl: async () => new Response('', { status }) });
+    }, command, sha, async () => {}), /Release lookup failed/);
+    assert.equal(reads, expectedReads);
+  }
 });

@@ -138,7 +138,7 @@ describe("doctor", () => {
     vi.stubGlobal("fetch", fetchMock);
     const report = await doctor(true, () => [credential]);
     expect(report).toMatchObject({ ok: true, publications: [{ authentication: "authenticated_read_succeeded", user_identity: "not_verified" }] });
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ redirect: "error", signal: expect.any(AbortSignal) });
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ redirect: "manual", signal: expect.any(AbortSignal) });
   });
   it.each([401, 403, 429, 500])("reports HTTP %s without echoing server content", async status => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("private-error-secret", { status })));

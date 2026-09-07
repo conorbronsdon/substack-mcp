@@ -1,5 +1,6 @@
 import { resolvePublications } from "./auth/resolve-publications.js";
-import { isAbortError } from "./utils/errors.js";
+import { AuthenticationError, RateLimitError, ResponseError, SubstackAPIError, TimeoutError } from "./utils/errors.js";
+import { requestJson } from "./api/request.js";
 import { publicationOrigin, validateCredentials } from "./auth/validate-credentials.js";
 
 export async function doctor(checkAuth = false, resolve = resolvePublications) {
@@ -17,20 +18,19 @@ export async function doctor(checkAuth = false, resolve = resolvePublications) {
     let authentication = "not_checked";
     if (checkAuth && valid && validated) {
       try {
-        // No redirects: never forward the session cookie to a redirected host.
-        const response = await fetch(`${origin}/api/v1/post_management/drafts?offset=0&limit=1&order_by=draft_updated_at&order_direction=desc`, {
+        const body = await requestJson<unknown>(`${origin}/api/v1/post_management/drafts?offset=0&limit=1&order_by=draft_updated_at&order_direction=desc`, {
           headers: { Cookie: validated.cookie, Accept: "application/json",
             "User-Agent": "Mozilla/5.0", Referer: `${origin}/publish/home` },
-          redirect: "error", signal: AbortSignal.timeout(5000),
-        });
-        if (response.status === 401 || response.status === 403) authentication = "unauthorized_or_blocked";
-        else if (response.status === 429) authentication = "rate_limited";
-        else if (!response.ok) authentication = "upstream_error";
-        else {
-          const body: unknown = await response.json();
-          authentication = body && typeof body === "object" && "posts" in body && Array.isArray(body.posts) ? "authenticated_read_succeeded" : "unexpected_response";
-        }
-      } catch (error) { authentication = isAbortError(error) ? "timeout" : "network_or_response_error"; }
+        }, 5000, 1024 * 1024);
+        authentication = body && typeof body === "object" && "posts" in body && Array.isArray(body.posts) ? "authenticated_read_succeeded" : "unexpected_response";
+      } catch (error) {
+        authentication = error instanceof AuthenticationError ? "unauthorized_or_blocked"
+          : error instanceof RateLimitError ? "rate_limited"
+          : error instanceof TimeoutError ? "timeout"
+          : error instanceof ResponseError ? error.code
+          : error instanceof SubstackAPIError ? "upstream_error"
+          : "network_or_response_error";
+      }
     }
     reports.push({ publication: p.key, origin, credential_source: p.source,
       configuration: valid ? "valid" : "invalid", missing: p.missing, authentication,

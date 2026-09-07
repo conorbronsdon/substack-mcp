@@ -18,8 +18,8 @@ export class AuthenticationError extends SubstackAPIError {
 
 /** HTTP 429 — too many requests against the Substack API. */
 export class RateLimitError extends SubstackAPIError {
-  constructor(endpoint: string, detail: string) {
-    super(429, "Rate limited by Substack: " + detail + ". Slow down requests and try again shortly.", endpoint);
+  constructor(endpoint: string, detail: string, public retryAfter?: string) {
+    super(429, "Rate limited by Substack: " + detail + ". Slow down requests and try again shortly." + (retryAfter ? ` Retry-After: ${retryAfter}.` : ""), endpoint);
     this.name = "RateLimitError";
   }
 }
@@ -49,9 +49,9 @@ export class ServerError extends SubstackAPIError {
 }
 
 /**
- * The client's own request deadline fired before any response arrived.
+ * The client's deadline fired before the full response was received.
  *
- * There is no real status here — Substack never answered — so 408 is synthetic,
+ * There is no real status here — 408 is synthetic,
  * chosen only so this fits the `SubstackAPIError` shape every tool handler
  * already renders. Without it, an aborted fetch surfaces as a bare
  * `DOMException: The operation was aborted due to timeout`, which says nothing
@@ -61,7 +61,7 @@ export class TimeoutError extends SubstackAPIError {
   constructor(endpoint: string, timeoutMs: number) {
     super(
       408,
-      `Request timed out after ${timeoutMs}ms with no response. The host may be unreachable, ` +
+      `Request timed out after ${timeoutMs}ms before the full response was received. The host may be unreachable, ` +
         "or behind a proxy that drops packets instead of refusing the connection. " +
         "Set SUBSTACK_REQUEST_TIMEOUT_MS to raise the limit if the publication is just slow.",
       endpoint,
@@ -99,9 +99,9 @@ export function isAbortError(err: unknown): boolean {
  * that message or require duplicating it. Falls back to the base
  * `SubstackAPIError` for status codes outside the mapped classes.
  */
-export function mapHttpStatusToError(status: number, detail: string, endpoint: string): SubstackAPIError {
+export function mapHttpStatusToError(status: number, detail: string, endpoint: string, retryAfter?: string): SubstackAPIError {
   if (status === 401 || status === 403) return new AuthenticationError(endpoint);
-  if (status === 429) return new RateLimitError(endpoint, detail);
+  if (status === 429) return new RateLimitError(endpoint, detail, retryAfter);
   if (status === 400) return new ValidationError(endpoint, detail);
   if (status === 404) return new NotFoundError(endpoint, detail);
   if (status >= 500) return new ServerError(endpoint, detail);
@@ -117,22 +117,23 @@ export function mapHttpStatusToError(status: number, detail: string, endpoint: s
  * tries JSON first, then falls back to the raw text (trimmed and capped so
  * a multi-KB Cloudflare HTML blob doesn't become the entire error message).
  */
-export function extractErrorDetail(responseData: string, fallback: string): string {
+export function extractErrorDetail(responseData: string, fallback: string, redact = (value: string) => value): string {
   const MAX_LENGTH = 500;
+  const cap = (value: string) => { const safe = redact(value); return safe.length > MAX_LENGTH ? safe.slice(0, MAX_LENGTH) + "..." : safe; };
 
   try {
     const parsed = JSON.parse(responseData);
     if (parsed && typeof parsed === "object") {
       if (typeof parsed.error === "string" && parsed.error.length > 0) {
-        return parsed.error;
+        return cap(parsed.error);
       }
       if (typeof parsed.message === "string" && parsed.message.length > 0) {
-        return parsed.message;
+        return cap(parsed.message);
       }
       if (Array.isArray(parsed.errors) && parsed.errors.length > 0) {
-        return parsed.errors
+        return cap(parsed.errors
           .map((e: unknown) => (typeof e === "string" ? e : JSON.stringify(e)))
-          .join("; ");
+          .join("; "));
       }
     }
   } catch {
@@ -141,8 +142,23 @@ export function extractErrorDetail(responseData: string, fallback: string): stri
 
   const trimmed = responseData.trim();
   if (trimmed.length > 0) {
-    return trimmed.length > MAX_LENGTH ? trimmed.slice(0, MAX_LENGTH) + "..." : trimmed;
+    return cap(trimmed);
   }
 
-  return fallback;
+  return cap(fallback);
+}
+
+export type ResponseErrorCode = "response_too_large" | "unexpected_html" | "malformed_json" | "redirect_rejected" | "request_cancelled";
+export class ResponseError extends SubstackAPIError {
+  constructor(endpoint: string, public code: ResponseErrorCode) {
+    const messages: Record<ResponseErrorCode, string> = {
+      response_too_large: "Response exceeds the byte limit; no partial result was returned.",
+      unexpected_html: "Expected JSON but received HTML, possibly a sign-in or blocking page.",
+      malformed_json: "Response is not valid JSON; no result can be verified.",
+      redirect_rejected: "Redirect rejected by the request policy. Configure the publication origin that serves the requested endpoint directly.",
+      request_cancelled: "Request cancelled before completion.",
+    };
+    super(502, messages[code], endpoint); // Synthetic status for a client-side failure.
+    this.name = "ResponseError";
+  }
 }

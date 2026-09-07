@@ -157,7 +157,7 @@ describe("subscriber management", () => {
 describe("subscriber tools over MCP", () => {
   afterEach(() => vi.unstubAllGlobals());
   it("routes to the selected publication and rejects missing consent/publication without requests", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => empty });
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify(empty)));
     vi.stubGlobal("fetch", fetchMock);
     const server = createServer(["one", "two"].map(key => ({ key, label: key, client: new SubstackClient(`https://${key}.substack.com`, "token", "1") })));
     const client = new Client({ name: "test", version: "1" });
@@ -175,7 +175,7 @@ describe("subscriber tools over MCP", () => {
       const missingEvidence = await client.callTool({ name: "add_free_subscriber", arguments: { email, consent_confirmed: true, dry_run: false, publication: "two" } });
       expect(missingEvidence.isError).toBe(true);
       expect(fetchMock).toHaveBeenCalledTimes(1);
-      fetchMock.mockResolvedValue({ ok: true, json: async () => found });
+      fetchMock.mockImplementation(async () => new Response(JSON.stringify(found)));
       const audited = await client.callTool({ name: "add_free_subscriber", arguments: { email, consent_confirmed: true, consent_evidence: evidence, dry_run: false, publication: "one" } });
       expect(JSON.parse((audited.content as Array<{text: string}>)[0].text)).toMatchObject({ status: "existing", publication: "one", consent_evidence: evidence });
       const tools = (await client.listTools()).tools;

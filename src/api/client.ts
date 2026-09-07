@@ -12,7 +12,7 @@ import {
   SubstackSection,
   SubstackScheduledPost,
 } from "./types.js";
-import { mapHttpStatusToError, extractErrorDetail, TimeoutError, isAbortError } from "../utils/errors.js";
+import { requestJson, requestText } from "./request.js";
 import { SubscriberService } from "./subscribers.js";
 import { searchPosts } from "./search.js";
 import { getPublication } from "./publication.js";
@@ -133,28 +133,7 @@ export class SubstackClient {
       headers["Content-Type"] = "application/json";
     }
 
-    // The signal is set last so it can't be overridden by `options`: every
-    // request through this method is bounded, no exceptions.
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        ...options,
-        headers,
-        redirect: "follow",
-        signal: AbortSignal.timeout(this.timeoutMs),
-      });
-    } catch (err) {
-      if (isAbortError(err)) throw new TimeoutError(url, this.timeoutMs);
-      throw err;
-    }
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => "unknown error");
-      const detail = extractErrorDetail(body, "unknown error");
-      throw mapHttpStatusToError(response.status, detail, url);
-    }
-
-    return response.json() as Promise<T>;
+    return requestJson<T>(url, { ...options, headers }, this.timeoutMs);
   }
 
   async validateAuth(): Promise<{ id: number; name: string }> {
@@ -246,13 +225,9 @@ export class SubstackClient {
   private async getRoundedSubscriberCount(): Promise<number | null> {
     let html: string;
     try {
-      const res = await fetch(`${this.publicationUrl}/`, {
+      html = await requestText(`${this.publicationUrl}/`, {
         headers: { "User-Agent": this.userAgent },
-        redirect: "follow",
-        signal: AbortSignal.timeout(this.timeoutMs),
-      });
-      if (!res.ok) return null;
-      html = await res.text();
+      }, this.timeoutMs);
     } catch {
       return null;
     }

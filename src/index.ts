@@ -125,11 +125,14 @@ async function main() {
       console.error(`Using stored credentials${pubSuffix(p.label)} (source: ${p.source}).`);
     }
 
-    // The client constructor rejects a non-numeric user id; fall back to "0"
-    // so startup surfaces the friendly missing-credentials warning above
-    // instead of throwing when nothing is configured yet.
-    const client = new SubstackClient(p.publicationUrl, p.sessionToken, p.userId || "0", userAgent, timeoutMs);
-    return { key: p.key, label: p.label, client };
+    // Fail before connecting if any publication is invalid. Dropping one would
+    // change the publication selector and could route a write to the wrong host.
+    try {
+      const client = new SubstackClient(p.publicationUrl, p.sessionToken, p.userId, userAgent, timeoutMs);
+      return { key: p.key, label: p.label, client };
+    } catch (error) {
+      throw new Error(`Invalid configuration for publication "${p.key}": ${error instanceof Error ? error.message : "Credential validation failed."} Run substack-mcp doctor --json to inspect each publication; run substack-mcp-login to set up a session.`);
+    }
   });
 
   const transportMode = process.env.MCP_TRANSPORT ?? "stdio";
@@ -190,6 +193,6 @@ async function run() {
 }
 
 run().catch((err) => {
-  console.error("Fatal error:", err);
+  console.error("Fatal error:", err instanceof Error ? err.message : String(err));
   process.exit(1);
 });

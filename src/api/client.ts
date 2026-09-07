@@ -17,6 +17,7 @@ import { SubscriberService } from "./subscribers.js";
 import { searchPosts } from "./search.js";
 import { getPublication } from "./publication.js";
 import { listPublicationTags, getPostTags } from "./tags.js";
+import { validateCredentials } from "../auth/validate-credentials.js";
 
 /**
  * Per-request deadline applied to every outbound fetch.
@@ -87,10 +88,10 @@ export class SubstackClient {
     userAgent?: string,
     timeoutMs?: number,
   ) {
-    this.publicationUrl = publicationUrl.replace(/\/$/, "");
-    // Substack uses connect.sid on custom domains, substack.sid on substack.com
-    this.cookie = `connect.sid=${sessionToken}; substack.sid=${sessionToken};`;
-    this.userId = parseInt(userId, 10);
+    const validated = validateCredentials(publicationUrl, sessionToken, userId);
+    this.publicationUrl = validated.origin;
+    this.cookie = validated.cookie;
+    this.userId = validated.userId;
     // Substack sits behind Cloudflare, which rejects non-browser User-Agents
     // (the default Node/undici UA, "node", etc.) with HTTP 403 "error code:
     // 1010" on some publications — notably custom domains. Default to a browser
@@ -107,9 +108,6 @@ export class SubstackClient {
         ? timeoutMs
         : DEFAULT_REQUEST_TIMEOUT_MS;
 
-    if (isNaN(this.userId)) {
-      throw new Error(`Invalid SUBSTACK_USER_ID: "${userId}" — must be a number`);
-    }
   }
 
   private async request<T>(

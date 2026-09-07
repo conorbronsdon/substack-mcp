@@ -1,5 +1,6 @@
 import { resolvePublications } from "./auth/resolve-publications.js";
 import { isAbortError } from "./utils/errors.js";
+import { publicationOrigin, validateCredentials } from "./auth/validate-credentials.js";
 
 export async function doctor(checkAuth = false, resolve = resolvePublications) {
   let publications: ReturnType<typeof resolvePublications>;
@@ -7,18 +8,18 @@ export async function doctor(checkAuth = false, resolve = resolvePublications) {
   catch { return { ok: false, code: "invalid_configuration", publications: [], guidance: "Check named publication triplets and duplicate publication keys. No credential values are printed." }; }
   const reports = [];
   for (const p of publications) {
-    let origin: string | null = null;
+    const origin = publicationOrigin(p.publicationUrl);
+    let validated: ReturnType<typeof validateCredentials> | null = null;
     try {
-      const url = new URL(p.publicationUrl);
-      if (url.protocol === "https:" && !url.username && !url.password && url.pathname === "/" && !url.search && !url.hash && !url.port) origin = url.origin;
-    } catch { /* Report a static code, never the supplied URL. */ }
-    const valid = !!origin && p.missing.length === 0 && /^\d+$/.test(p.userId) && Number.isSafeInteger(Number(p.userId)) && Number(p.userId) > 0 && /^[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]+$/.test(p.sessionToken);
+      validated = validateCredentials(p.publicationUrl, p.sessionToken, p.userId);
+    } catch { /* Report static codes, never supplied credential values. */ }
+    const valid = validated !== null && p.missing.length === 0;
     let authentication = "not_checked";
-    if (checkAuth && valid) {
+    if (checkAuth && valid && validated) {
       try {
         // No redirects: never forward the session cookie to a redirected host.
         const response = await fetch(`${origin}/api/v1/post_management/drafts?offset=0&limit=1&order_by=draft_updated_at&order_direction=desc`, {
-          headers: { Cookie: `connect.sid=${p.sessionToken}; substack.sid=${p.sessionToken}`, Accept: "application/json",
+          headers: { Cookie: validated.cookie, Accept: "application/json",
             "User-Agent": "Mozilla/5.0", Referer: `${origin}/publish/home` },
           redirect: "error", signal: AbortSignal.timeout(5000),
         });

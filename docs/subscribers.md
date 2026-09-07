@@ -36,8 +36,6 @@ request an email. Membership verification does not establish email delivery; an
 uncertain request must not be repeated merely to resend the welcome email.
 
 The field names are shown in the publisher's [working request screenshots](https://substack.com/@huryn/note/c-181571328).
-The [subscriber-query implementation](https://github.com/marcomoauro/substack-mcp/blob/main/src/api/substack/SubscriberQuery.js)
-documents the exact filter encoding and paid-access field semantics.
 
 A real opted-in address absent from the membership query received HTTP 400:
 `No valid emails found. This could be because an email previously unsubscribed.`

@@ -23,6 +23,8 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 - Registry metadata now marks the session token as secret and includes a project URL and configuration placeholders.
 
 ### Fixed
+- Codex plugin version and pinned launcher now synchronize with releases and are checked for drift.
+- CI covers Windows and Linux on Node 22/24 with read-only permissions and bounded jobs; publication runs are serialized.
 - MCP initialization reads the version from package.json instead of reporting a stale hard-coded version.
 - Release metadata agreement and monotonic release ordering are checked before publication. (#37, #39, #40)
 

@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@conorbronsdon/substack-mcp@0.6.2"
+        "@conorbronsdon/substack-mcp@0.7.0"
       ],
       "env": {
         "MCP_TRANSPORT": "stdio"

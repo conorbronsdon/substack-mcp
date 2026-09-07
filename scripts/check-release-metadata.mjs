@@ -4,6 +4,8 @@ const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
 const pkg = readJson('package.json');
 const lock = readJson('package-lock.json');
 const server = readJson('server.json');
+const plugin = readJson('.codex-plugin/plugin.json');
+const mcp = readJson('.mcp.json');
 
 const errors = [];
 const requireEqual = (source, actual, expected) => {
@@ -22,12 +24,19 @@ if (typeof pkg.mcpName !== 'string' || pkg.mcpName.length === 0) {
   errors.push('package.json mcpName is missing');
 }
 
+if (typeof server.description !== 'string' || server.description.length < 1 || server.description.length > 100) {
+  errors.push('server.json description must contain 1-100 characters (MCP Registry schema)');
+}
+
 requireEqual('package-lock.json version', lock.version, pkg.version);
 requireEqual('package-lock.json name', lock.name, pkg.name);
 requireEqual('package-lock.json root version', lock.packages?.['']?.version, pkg.version);
 requireEqual('package-lock.json root name', lock.packages?.['']?.name, pkg.name);
 requireEqual('server.json version', server.version, pkg.version);
 requireEqual('server.json name', server.name, pkg.mcpName);
+requireEqual('.codex-plugin/plugin.json version', plugin.version, pkg.version);
+requireEqual('.mcp.json launcher', JSON.stringify(mcp.mcpServers?.substack?.args),
+  JSON.stringify(['-y', `${pkg.name}@${pkg.version}`]));
 
 if (!Array.isArray(server.packages) || server.packages.length === 0) {
   errors.push('server.json packages must contain at least one package');

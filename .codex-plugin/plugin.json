@@ -1,6 +1,6 @@
 {
   "name": "substack-mcp",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "Read Substack content and manage long-form drafts; Notes publish immediately.",
   "author": {
     "name": "Conor Bronsdon",

@@ -1,0 +1,36 @@
+name: Bug report
+description: Report a reproducible problem with the Substack MCP server
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      placeholder: "0.7.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS, Node.js version, and MCP client
+      placeholder: "Windows 11, Node 22, Claude Desktop"
+    validations:
+      required: true
+  - type: input
+    id: tool
+    attributes:
+      label: Tool or command and transport
+      placeholder: "list_drafts over stdio"
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction, expected result, actual result
+      description: Include redacted inputs and errors. Use fictional publication and subscriber data.
+    validations:
+      required: true
+  - type: checkboxes
+    id: redaction
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed cookies, tokens, subscriber addresses, private drafts, and other private data.
+          required: true

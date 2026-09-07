@@ -2,17 +2,17 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.conorbronsdon/substack-mcp",
   "title": "Substack MCP Server",
-  "description": "Substack MCP server: posts are draft-only by design; short-form Notes publish immediately.",
+  "description": "Substack drafts, Notes, analytics and consented subscribers. Long-form posts stay draft-only.",
   "repository": {
     "url": "https://github.com/conorbronsdon/substack-mcp",
     "source": "github"
   },
-  "version": "0.6.2",
+  "version": "0.7.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@conorbronsdon/substack-mcp",
-      "version": "0.6.2",
+      "version": "0.7.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
@@ -21,19 +21,23 @@
         {
           "name": "SUBSTACK_PUBLICATION_URL",
           "description": "Your Substack publication URL (e.g., https://yourblog.substack.com)",
-          "isRequired": true
+          "isRequired": true,
+          "placeholder": "https://yourblog.substack.com"
         },
         {
           "name": "SUBSTACK_SESSION_TOKEN",
           "description": "connect.sid cookie value from your Substack session",
-          "isRequired": true
+          "isRequired": true,
+          "isSecret": true
         },
         {
           "name": "SUBSTACK_USER_ID",
           "description": "Your Substack user ID",
-          "isRequired": true
+          "isRequired": true,
+          "placeholder": "12345"
         }
       ]
     }
-  ]
+  ],
+  "websiteUrl": "https://github.com/conorbronsdon/substack-mcp#readme"
 }

@@ -1,3 +1,4 @@
+import packageMetadata from "../package.json" with { type: "json" };
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
@@ -25,7 +26,7 @@ export function createServer(publications: PublicationConfig[]): McpServer {
 
   const server = new McpServer({
     name: "substack-mcp",
-    version: "0.6.1",
+    version: packageMetadata.version,
   });
 
   const multi = publications.length > 1;

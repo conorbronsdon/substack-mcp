@@ -36,12 +36,15 @@ export async function searchPosts(
   if (parsed.data.posts.length > limit) throw new Error("Archive search exceeded the requested page size.");
   const { posts } = parsed.data;
   const total = parsed.data.total ?? null;
+  // This call can detect duplicates within its page, not across changing snapshots.
   if (new Set(posts.map(post => post.id)).size !== posts.length) {
     throw new Error("Inconsistent archive search page: duplicate post IDs. Retry the query; the archive may have changed.");
   }
   if (posts.length > 0 && total !== null && offset + posts.length > total) {
     throw new Error("Inconsistent archive search page: returned rows exceed the reported total. Retry the query; the archive may have changed.");
   }
+  // A short nonempty page can still advance; an empty page before total cannot.
+  // `limit` is an upper bound, not a guarantee that upstream fills each page.
   if (posts.length === 0 && total !== null && offset < total) {
     throw new Error("Inconsistent archive search page: no rows before the reported total. Retry the query; the archive may have changed.");
   }

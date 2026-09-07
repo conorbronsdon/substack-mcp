@@ -20,6 +20,8 @@ const registered = (
 )._registeredTools;
 
 const READ_TOOLS: ToolName[] = [
+  "search_posts",
+  "preflight_draft",
   "get_subscriber_count",
   "list_subscribers",
   "get_subscriber",

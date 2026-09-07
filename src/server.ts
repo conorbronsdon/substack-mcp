@@ -10,6 +10,8 @@ import { buildAnnotations } from "./annotations.js";
 import { consentEvidenceSchema, type ConsentEvidence } from "./api/subscribers.js";
 import { markdownToProseMirror, markdownToProseMirrorContent } from "./utils/markdown-to-prosemirror.js";
 import { fileToDataUri } from "./utils/image.js";
+import { searchInput } from "./api/search.js";
+import { preflightDraft } from "./utils/draft-preflight.js";
 
 export interface PublicationConfig {
   /** Tool-facing `publication` enum value, e.g. "kevin-muldoon". */
@@ -63,6 +65,22 @@ export function createServer(publications: PublicationConfig[]): McpServer {
   // additive; the Note tools publish public content immediately.
 
   // --- Read tools ---
+
+  server.registerTool("search_posts", {
+    description: "Search this publication's published, draft, or scheduled archive using Substack's server-side query. One page per call, at most 50 results; use next_offset to continue. Matching/indexing is controlled by Substack, not a guaranteed full-text scan. Returns metadata only; get_post/get_draft fetch full content.",
+    inputSchema: { ...searchInput.shape, ...publicationField() },
+    annotations: buildAnnotations("search_posts"),
+  }, async ({ publication, ...input }: z.output<typeof searchInput> & { publication?: string }) => ({
+    content: [{ type: "text", text: JSON.stringify({ ...await clientFor(publication).searchPosts(input), publication: publication ?? pubKeys[0] }) }],
+  }));
+
+  server.registerTool("preflight_draft", {
+    description: "Read a draft and check title, audience, body structure, images and paywalls. Static review aid only: never modifies or publishes; does not guarantee rendering, link availability or publish readiness. Review the findings in Substack.",
+    inputSchema: { draft_id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER), ...publicationField() },
+    annotations: buildAnnotations("preflight_draft"),
+  }, async ({ draft_id, publication }: { draft_id: number; publication?: string }) => ({
+    content: [{ type: "text", text: JSON.stringify({ ...preflightDraft(await clientFor(publication).getDraft(draft_id), draft_id), publication: publication ?? pubKeys[0] }) }],
+  }));
 
   server.registerTool("list_subscribers", {
     description: "Read a page of private subscriber email addresses and subscription IDs. Dashboard data may lag recent changes. Use get_subscriber for exact membership checks.",

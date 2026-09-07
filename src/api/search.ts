@@ -8,7 +8,7 @@ export const searchInput = z.object({
 });
 
 const row = z.object({
-  id: z.number().int().positive(),
+  id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   title: z.string().nullable().optional(),
   draft_title: z.string().nullable().optional(),
   subtitle: z.string().nullable().optional(),
@@ -20,7 +20,7 @@ const row = z.object({
   draft_updated_at: z.string().nullable().optional(),
   canonical_url: z.string().nullable().optional(),
 });
-const page = z.object({ posts: z.array(row), total: z.number().int().nonnegative().nullish() });
+const page = z.object({ posts: z.array(row), total: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullish() });
 
 /** One upstream query, never an implicit full-archive crawl. */
 export async function searchPosts(
@@ -36,6 +36,12 @@ export async function searchPosts(
   if (parsed.data.posts.length > limit) throw new Error("Archive search exceeded the requested page size.");
   const { posts } = parsed.data;
   const total = parsed.data.total ?? null;
+  if (new Set(posts.map(post => post.id)).size !== posts.length) {
+    throw new Error("Inconsistent archive search page: duplicate post IDs. Retry the query; the archive may have changed.");
+  }
+  if (posts.length > 0 && total !== null && offset + posts.length > total) {
+    throw new Error("Inconsistent archive search page: returned rows exceed the reported total. Retry the query; the archive may have changed.");
+  }
   if (posts.length === 0 && total !== null && offset < total) {
     throw new Error("Inconsistent archive search page: no rows before the reported total. Retry the query; the archive may have changed.");
   }

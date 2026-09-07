@@ -41,6 +41,19 @@ describe("archive search", () => {
   it("rejects an empty page before the reported total instead of returning a contradictory cursor", async () => {
     await expect(searchPosts({ query: "x", offset: 2 }, async () => ({ posts: [], total: 10 }))).rejects.toThrow(/Inconsistent/);
   });
+  it.each([
+    { offset: 0, posts: [{ id: 1 }], total: 0 },
+    { offset: 2, posts: [{ id: 1 }, { id: 2 }], total: 3 },
+    { offset: 0, posts: [{ id: 1 }, { id: 1 }], total: 2 },
+    { offset: 0, posts: [{ id: Number.MAX_SAFE_INTEGER + 1 }], total: 1 },
+    { offset: 0, posts: [], total: Number.MAX_SAFE_INTEGER + 1 },
+  ])("rejects inconsistent totals, duplicate rows and unsafe integers", async ({ offset, ...response }) => {
+    await expect(searchPosts({ query: "x", offset }, async () => response)).rejects.toThrow(/archive search/i);
+  });
+  it("accepts an exact final page and an empty page beyond a now-smaller archive", async () => {
+    expect(await searchPosts({ query: "x", offset: 2 }, async () => ({ posts: [{ id: 3 }], total: 3 }))).toMatchObject({ has_more: false, next_offset: null, returned: 1 });
+    expect(await searchPosts({ query: "x", offset: 5 }, async () => ({ posts: [], total: 3 }))).toMatchObject({ has_more: false, next_offset: null, returned: 0 });
+  });
 });
 
 describe("draft preflight", () => {

@@ -8,6 +8,9 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+### Fixed
+- Archive search rejects duplicate post IDs, unsafe numeric IDs/totals and nonempty pages that exceed the reported total, while preserving valid final and empty out-of-range pages.
+
 ### Added
 - `list_publication_tags` and `get_post_tags`: publication-bound tag reads, hidden-tag handling, unresolved IDs and bounded local snapshot pagination. These tools never assign or remove tags.
 - `get_publication`: projected publication metadata with normalized host matching, explicit absent fields, structured MCP output and a text fallback. Does not infer account identity or permissions. A read-only live check passed on one custom-domain publication; broader 0.9 contract validation remains pending.

@@ -109,6 +109,9 @@ by default, five seconds for `doctor --check-auth`). Streamed response limits
 are 10 MiB for API JSON, 1 MiB for doctor, 2 MiB for the public-page count
 fallback, and 64 KiB for error bodies. Limits apply to bytes delivered by fetch,
 including decompressed bytes. Oversized responses fail without partial results.
+JSON parsing is synchronous and bounded by input bytes, so it cannot be
+interrupted mid-parse; a complete parsed result is retained if parsing finishes
+after the I/O deadline.
 The public count fallback permits at most three HTTPS redirects within the same
 deadline. It sends no cookies or authorization and rejects destinations with
 URL credentials or custom ports. It returns unavailable when its read fails.

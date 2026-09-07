@@ -9,6 +9,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Changed
+- Authenticated API requests no longer follow redirects. Configure a direct HTTPS API origin; public subscriber-count pages retain up to three cookie-free HTTPS redirect hops.
 - Missing or malformed credentials now stop server startup before transport connection. All configured publications must be valid; none are silently dropped. Use `doctor` for diagnostics and `substack-mcp-login` for first-time setup. This replaces the previous missing-credential warning followed by unusable tools.
 
 ### Fixed

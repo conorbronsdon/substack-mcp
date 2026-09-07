@@ -22,6 +22,18 @@ function streaming(chunks: Uint8Array[], headers: HeadersInit = {}) {
 }
 
 describe("bounded response bodies", () => {
+  it("retains a complete result when bounded synchronous parsing crosses the I/O deadline", async () => {
+    let clock = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => clock);
+    const parse = JSON.parse;
+    vi.spyOn(JSON, "parse").mockImplementation(text => {
+      const value = parse(text);
+      if (text === '{"complete":true}') clock = 1000;
+      return value;
+    });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response('{"complete":true}')));
+    expect(await requestJson(url, {}, 50)).toEqual({ complete: true });
+  });
   it("counts bytes across UTF-8 chunk boundaries and accepts the exact limit", async () => {
     const bytes = encode('"é"');
     expect(bytes.length).toBe(4);
@@ -191,6 +203,18 @@ describe("public page redirect policy", () => {
 });
 
 describe("real fetch contract", () => {
+  it("Node manual redirects expose the real status and Location header", async () => {
+    const server = createHttpServer((_req, res) => { res.writeHead(301, { Location: "https://example.invalid/" }); res.end(); });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const { port } = server.address() as { port: number };
+      const response = await fetch(`http://127.0.0.1:${port}`, { redirect: "manual" });
+      expect(response.status).toBe(301);
+      expect(response.type).not.toBe("opaqueredirect");
+      expect(response.headers.get("location")).toBe("https://example.invalid/");
+      await response.body?.cancel();
+    } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
+  });
   it("never follows same-origin or cross-origin redirects or replays a POST", async () => {
     let hits = 0;
     const received: string[] = [];

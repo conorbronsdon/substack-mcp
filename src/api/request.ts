@@ -36,6 +36,7 @@ export async function readBounded(response: Response, maxBytes: number, signal: 
       if (performance.now() >= expiresAt) throw new DOMException("Response deadline exceeded", "TimeoutError");
       const { done, value } = await abortable(reader.read(), signal);
       signal.throwIfAborted();
+      if (performance.now() >= expiresAt) throw new DOMException("Response deadline exceeded", "TimeoutError");
       if (done) { complete = true; return text + decoder.decode(); }
       bytes += value.byteLength;
       if (bytes > maxBytes) throw new ResponseError(endpoint, "response_too_large");
@@ -114,13 +115,13 @@ async function request(url: string, options: RequestInit, timeoutMs: number, for
       throw new ResponseError(url, "unexpected_html");
     }
     const text = await readBounded(response, maxBytes, signal, url, expiresAt);
-    if (performance.now() >= expiresAt) throw new TimeoutError(url, timeoutMs);
     if (format === "text") return text;
     if (text.trimStart().startsWith("<")) throw new ResponseError(url, "unexpected_html");
     let value: unknown;
     try { value = JSON.parse(text); }
     catch { throw new ResponseError(url, "malformed_json"); }
-    if (performance.now() >= expiresAt) throw new TimeoutError(url, timeoutMs);
+    // Parsing is synchronous and byte-bounded, not preemptible. Preserve the
+    // known complete result rather than manufacture an uncertain write outcome.
     return value;
   } catch (error) {
     if (options.signal?.aborted && !deadline.aborted) throw new ResponseError(url, "request_cancelled");

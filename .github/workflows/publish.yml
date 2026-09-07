@@ -31,7 +31,6 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_MANIFEST: ${{ runner.temp }}/release-server.json
       RECONCILED_RELEASE_COMMIT: ${{ inputs.reconciled_commit }}
       RECONCILED_NPM_INTEGRITY: ${{ inputs.reconciled_integrity }}
     steps:
@@ -60,6 +59,9 @@ jobs:
 
       - name: Check release ordering controls
         run: npm run test:release
+
+      - name: Set release manifest path
+        run: echo "RELEASE_MANIFEST=$RUNNER_TEMP/release-server.json" >> "$GITHUB_ENV"
 
       - name: Inspect all release destinations before publication
         id: plan

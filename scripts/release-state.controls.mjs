@@ -142,6 +142,8 @@ test('workflow separates recovery gates and verifies each publication', () => {
   assert.ok(workflow.includes("if: steps.registry.outputs.github == 'true'"));
   assert.ok(workflow.includes('mcp-publisher publish "$RELEASE_MANIFEST"'));
   assert.ok(workflow.includes('fetch-depth: 0'));
+  assert.ok(!workflow.slice(workflow.indexOf('    env:'), workflow.indexOf('    steps:')).includes('runner.'));
+  assert.ok(workflow.includes('RELEASE_MANIFEST=$RUNNER_TEMP/release-server.json'));
   assert.ok(!workflow.includes('|| echo none'));
   assert.ok(!workflow.includes('REGISTRY_VERSION=unknown'));
 });

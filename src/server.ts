@@ -69,7 +69,7 @@ export function createServer(publications: PublicationConfig[]): McpServer {
   // --- Read tools ---
 
   server.registerTool("list_publication_tags", {
-    description: "Read this publication's tag definitions. Includes hidden tags by default. Returns at most 100 rows; offset/limit paginate a fresh upstream array locally, so results can change between calls. Validates publication identity and rejects malformed or oversized responses. Never creates or assigns tags.",
+    description: "Read this publication's tag definitions. Includes hidden tags by default. Returns 25 rows by default, at most 100. Each call makes two reads (publication context and the full tag array), then paginates locally; results can change between calls. Validates publication identity and rejects malformed or oversized responses. Never creates or assigns tags.",
     inputSchema: { ...listTagsInput.shape, ...publicationField() },
     outputSchema: listTagsOutput.shape,
     annotations: buildAnnotations("list_publication_tags"),
@@ -79,7 +79,7 @@ export function createServer(publications: PublicationConfig[]): McpServer {
   });
 
   server.registerTool("get_post_tags", {
-    description: "Read tag associations for a post or draft, resolving names from this publication's tag definitions. Includes hidden tags and preserves unresolved IDs. At most 100 rows per call with local snapshot pagination. Empty associations do not verify post existence. Separate reads are not an atomic snapshot. Never assigns or removes tags.",
+    description: "Read tag associations by post ID, resolving names from this publication's tag definitions. Includes hidden tags and preserves unresolved IDs. Returns 25 rows by default, at most 100, with local snapshot pagination. Each call makes up to three reads, including the full association and definition arrays; they are not an atomic snapshot. Empty associations do not verify post existence. Nonempty draft associations are not yet live-verified. Never assigns or removes tags.",
     inputSchema: { ...postTagsInput.shape, ...publicationField() },
     outputSchema: postTagsOutput.shape,
     annotations: buildAnnotations("get_post_tags"),

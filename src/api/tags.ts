@@ -18,14 +18,16 @@ const pageFields = {
   offset: z.number().int().nonnegative(), limit: z.number().int().min(1).max(100),
   total: z.number().int().nonnegative(), returned: z.number().int().nonnegative(),
   has_more: z.boolean(), next_offset: z.number().int().nonnegative().nullable(),
-  pagination: z.literal("Local pagination of a fresh upstream array; results may change between calls."),
+  pagination: z.literal("local_snapshot"),
+  pagination_note: z.string(),
 };
 export const listTagsOutput = z.object({ ...pageFields, include_hidden: z.boolean(), tags: z.array(tag).max(100) });
 export const postTagsOutput = z.object({
   ...pageFields, post_id: positiveId,
   post_identity: z.enum(["association_rows_match_requested_id", "not_verified_empty_associations"]),
   tags: z.array(z.object({ tag_id: tagId, resolved: z.boolean(), tag: tag.nullable() })).max(100),
-  resolution_scope: z.literal("Association and publication-tag reads are separate snapshots; unresolved IDs are retained."),
+  resolution_scope: z.literal("separate_snapshots"),
+  resolution_note: z.string(),
 });
 
 type Read = (path: string) => Promise<unknown>;
@@ -54,7 +56,8 @@ function page<T>(rows: T[], offset: number, limit: number) {
   const has_more = offset + tags.length < rows.length;
   return { offset, limit, total: rows.length, returned: tags.length, has_more,
     next_offset: has_more ? offset + tags.length : null,
-    pagination: "Local pagination of a fresh upstream array; results may change between calls." as const, tags };
+    pagination: "local_snapshot" as const,
+    pagination_note: "Local pagination of a fresh upstream array; results may change between calls.", tags };
 }
 
 export async function listPublicationTags(input: z.input<typeof listTagsInput>, context: Context, read: Read) {
@@ -83,6 +86,7 @@ export async function getPostTags(input: z.input<typeof postTagsInput>, context:
   const rows = associations.map(row => ({ tag_id: row.post_tag_id, resolved: byId.has(row.post_tag_id), tag: byId.get(row.post_tag_id) ?? null }));
   return { publication_id, post_id,
     post_identity: associations.length ? "association_rows_match_requested_id" as const : "not_verified_empty_associations" as const,
-    resolution_scope: "Association and publication-tag reads are separate snapshots; unresolved IDs are retained." as const,
+    resolution_scope: "separate_snapshots" as const,
+    resolution_note: "Association and publication-tag reads are separate snapshots; unresolved IDs are retained.",
     ...page(rows, offset, limit) };
 }

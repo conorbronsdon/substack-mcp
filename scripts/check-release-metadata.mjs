@@ -22,6 +22,10 @@ if (typeof pkg.mcpName !== 'string' || pkg.mcpName.length === 0) {
   errors.push('package.json mcpName is missing');
 }
 
+if (typeof server.description !== 'string' || server.description.length < 1 || server.description.length > 100) {
+  errors.push('server.json description must contain 1-100 characters (MCP Registry schema)');
+}
+
 requireEqual('package-lock.json version', lock.version, pkg.version);
 requireEqual('package-lock.json name', lock.name, pkg.name);
 requireEqual('package-lock.json root version', lock.packages?.['']?.version, pkg.version);

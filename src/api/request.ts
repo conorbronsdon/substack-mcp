@@ -1,0 +1,120 @@
+import { extractErrorDetail, isAbortError, mapHttpStatusToError, ResponseError, TimeoutError } from "../utils/errors.js";
+
+export const MAX_JSON_BYTES = 10 * 1024 * 1024;
+export const MAX_HTML_BYTES = 2 * 1024 * 1024;
+export const MAX_ERROR_BYTES = 64 * 1024;
+
+/** Race operations against cancellation, including body reads and custom fetches. */
+async function abortable<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  let onAbort: () => void = () => {};
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => reject(signal.reason);
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  });
+  try { return await Promise.race([operation, aborted]); }
+  finally { signal.removeEventListener("abort", onAbort); }
+}
+
+function discard(response: Response) { void response.body?.cancel().catch(() => {}); }
+
+/** Count decoded transport bytes as they arrive, not just Content-Length. */
+export async function readBounded(response: Response, maxBytes: number, signal: AbortSignal, endpoint: string, expiresAt = Infinity): Promise<string> {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error("Invalid response byte limit.");
+  const length = response.headers.get("content-length");
+  if (length && /^\d+$/.test(length) && Number(length) > maxBytes) {
+    discard(response);
+    throw new ResponseError(endpoint, "response_too_large");
+  }
+  if (!response.body) { signal.throwIfAborted(); return ""; }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0, text = "", complete = false;
+  try {
+    while (true) {
+      signal.throwIfAborted();
+      if (performance.now() >= expiresAt) throw new DOMException("Response deadline exceeded", "TimeoutError");
+      const { done, value } = await abortable(reader.read(), signal);
+      signal.throwIfAborted();
+      if (done) { complete = true; return text + decoder.decode(); }
+      bytes += value.byteLength;
+      if (bytes > maxBytes) throw new ResponseError(endpoint, "response_too_large");
+      text += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    // Cancellation itself can be slow: never wait for it to enforce a deadline.
+    if (!complete) void reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
+
+function retryAfter(response: Response): string | undefined {
+  const raw = response.headers.get("retry-after");
+  if (!raw || raw.length > 64) return undefined;
+  if (/^\d{1,10}$/.test(raw)) return raw;
+  if (/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(raw) && Number.isFinite(Date.parse(raw))) return raw;
+  return undefined;
+}
+
+function redactDetail(detail: string, options: RequestInit): string {
+  const cookie = new Headers(options.headers).get("cookie");
+  if (!cookie) return detail;
+  for (const part of cookie.split(";")) {
+    const value = part.slice(part.indexOf("=") + 1).trim();
+    if (!value) continue;
+    detail = detail.replaceAll(value, "[redacted]");
+    try { detail = detail.replaceAll(decodeURIComponent(value), "[redacted]"); } catch { /* Preserve opaque cookie values. */ }
+  }
+  return detail;
+}
+
+/** One request, no redirects or retries. Deadline includes headers and body. */
+async function request(url: string, options: RequestInit, timeoutMs: number, format: "json" | "text", maxBytes: number): Promise<unknown> {
+  const expiresAt = performance.now() + timeoutMs;
+  const deadline = AbortSignal.timeout(Math.max(1, Math.min(2_147_483_647, Math.floor(timeoutMs))));
+  const signal = options.signal ? AbortSignal.any([deadline, options.signal]) : deadline;
+  try {
+    signal.throwIfAborted();
+    const pending = fetch(url, { ...options, redirect: "manual", signal });
+    // A substituted fetch may return after cancellation; discard its late body.
+    void pending.then(response => { if (signal.aborted) discard(response); }, () => {});
+    const response = await abortable(pending, signal);
+    if (response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400)) {
+      discard(response);
+      throw new ResponseError(url, "redirect_rejected");
+    }
+    if ([401, 403, 429].includes(response.status)) {
+      discard(response);
+      throw mapHttpStatusToError(response.status, "Too many requests", url, retryAfter(response));
+    }
+    if (!response.ok) {
+      const text = await readBounded(response, MAX_ERROR_BYTES, signal, url, expiresAt);
+      throw mapHttpStatusToError(response.status, extractErrorDetail(text, "unknown error", detail => redactDetail(detail, options)), url);
+    }
+    if (format === "json" && /(?:text\/html|application\/xhtml\+xml)/i.test(response.headers.get("content-type") ?? "")) {
+      discard(response);
+      throw new ResponseError(url, "unexpected_html");
+    }
+    const text = await readBounded(response, maxBytes, signal, url, expiresAt);
+    if (performance.now() >= expiresAt) throw new TimeoutError(url, timeoutMs);
+    if (format === "text") return text;
+    if (text.trimStart().startsWith("<")) throw new ResponseError(url, "unexpected_html");
+    let value: unknown;
+    try { value = JSON.parse(text); }
+    catch { throw new ResponseError(url, "malformed_json"); }
+    if (performance.now() >= expiresAt) throw new TimeoutError(url, timeoutMs);
+    return value;
+  } catch (error) {
+    if (options.signal?.aborted && !deadline.aborted) throw new ResponseError(url, "request_cancelled");
+    if (deadline.aborted || isAbortError(error)) throw new TimeoutError(url, timeoutMs);
+    throw error;
+  }
+}
+
+export function requestJson<T>(url: string, options: RequestInit = {}, timeoutMs = 30_000, maxBytes = MAX_JSON_BYTES): Promise<T> {
+  return request(url, options, timeoutMs, "json", maxBytes) as Promise<T>;
+}
+
+export function requestText(url: string, options: RequestInit = {}, timeoutMs = 30_000): Promise<string> {
+  return request(url, options, timeoutMs, "text", MAX_HTML_BYTES) as Promise<string>;
+}

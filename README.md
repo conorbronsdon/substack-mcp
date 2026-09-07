@@ -99,6 +99,27 @@ adds one draft-list GET per valid publication, with a five-second request
 deadline and redirects disabled. Use an HTTPS publication origin (no path,
 query, credentials, or custom port); a redirect or custom-domain block may
 require switching to the publication's canonical `name.substack.com` origin.
+All API requests reject redirects, including same-origin redirects, without
+following the destination or replaying a write. The publish-page Referer is
+retained for direct custom-domain requests. Configure the origin that serves
+the API directly; a redirect response is reported as `redirect_rejected`.
+
+Each request has one deadline through headers and body consumption (30 seconds
+by default, five seconds for `doctor --check-auth`). Streamed response limits
+are 10 MiB for API JSON, 1 MiB for doctor, 2 MiB for the public-page count
+fallback, and 64 KiB for error bodies. Limits apply to bytes delivered by fetch,
+including decompressed bytes. Oversized responses fail without partial results.
+The public count fallback returns unavailable when its read fails.
+
+Doctor distinguishes `unexpected_html`, `malformed_json`, `response_too_large`,
+`redirect_rejected`, `timeout`, `rate_limited`, and `unauthorized_or_blocked`.
+HTTP 401/403/429 bodies are discarded without waiting; rate-limit errors retain
+valid delta-seconds or standard HTTP-date `Retry-After` guidance. Error details
+are capped at 500 characters (plus an ellipsis) and matching cookie values are
+redacted before truncation. Requests are never automatically retried. A failed
+or timed-out write may have succeeded upstream; reconcile its state before
+trying again.
+
 Output includes publication key, origin, credential source, configuration and
 authentication status. It omits session tokens, user IDs and upstream error
 bodies. A successful read does not establish user-ID binding or write access.

@@ -22,12 +22,7 @@ describe("tool pagination limits (regression: #28)", () => {
 
   function stubFetch() {
     const body = { posts: [], total: 0 };
-    const fetchMock = vi.fn(async (..._args: any[]) => ({
-      ok: true,
-      status: 200,
-      json: async () => body,
-      text: async () => JSON.stringify(body),
-    }));
+    const fetchMock = vi.fn(async (..._args: any[]) => new Response(JSON.stringify(body)));
     vi.stubGlobal("fetch", fetchMock);
     return fetchMock;
   }

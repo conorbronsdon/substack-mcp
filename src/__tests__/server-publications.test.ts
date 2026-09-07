@@ -14,12 +14,7 @@ describe("multi-publication support", () => {
 
   function stubFetch() {
     const body = { sections: [] };
-    const fetchMock = vi.fn(async (..._args: any[]) => ({
-      ok: true,
-      status: 200,
-      json: async () => body,
-      text: async () => JSON.stringify(body),
-    }));
+    const fetchMock = vi.fn(async (..._args: any[]) => new Response(JSON.stringify(body)));
     vi.stubGlobal("fetch", fetchMock);
     return fetchMock;
   }

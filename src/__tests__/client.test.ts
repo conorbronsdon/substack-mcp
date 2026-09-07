@@ -55,12 +55,7 @@ describe("SubstackClient requests", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   function stubFetch(jsonBody: unknown) {
-    const fetchMock = vi.fn(async (..._args: any[]) => ({
-      ok: true,
-      status: 200,
-      json: async () => jsonBody,
-      text: async () => JSON.stringify(jsonBody),
-    }));
+    const fetchMock = vi.fn(async (..._args: any[]) => new Response(JSON.stringify(jsonBody)));
     vi.stubGlobal("fetch", fetchMock);
     return fetchMock;
   }
@@ -254,12 +249,7 @@ describe("pagination limit cap (regression: #28)", () => {
         })),
         total: totalPosts,
       };
-      return {
-        ok: true,
-        status: 200,
-        json: async () => body,
-        text: async () => JSON.stringify(body),
-      };
+      return new Response(JSON.stringify(body));
     });
     vi.stubGlobal("fetch", fetchMock);
     return fetchMock;
@@ -324,12 +314,7 @@ describe("SubstackClient error mapping (end-to-end through request())", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   function stubFetchError(status: number, body: string) {
-    const fetchMock = vi.fn(async (..._args: any[]) => ({
-      ok: false,
-      status,
-      json: async () => JSON.parse(body),
-      text: async () => body,
-    }));
+    const fetchMock = vi.fn(async (..._args: any[]) => new Response(body, { status }));
     vi.stubGlobal("fetch", fetchMock);
     return fetchMock;
   }
@@ -446,9 +431,9 @@ describe("SubstackClient.getSubscriberCount", () => {
   });
 
   const jsonResponse = (body: unknown) =>
-    ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) }) as Response;
+    new Response(JSON.stringify(body));
   const htmlResponse = (html: string) =>
-    ({ ok: true, status: 200, text: async () => html }) as Response;
+    new Response(html);
 
   it("reports exact when the API returns subscriber_count", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ subscriber_count: 1073 }));
@@ -500,12 +485,7 @@ describe("SubstackClient request timeout", () => {
   });
 
   function stubOk() {
-    const fetchMock = vi.fn(async (..._args: any[]) => ({
-      ok: true,
-      status: 200,
-      json: async () => ({ posts: [] }),
-      text: async () => "{}",
-    }));
+    const fetchMock = vi.fn(async (..._args: any[]) => new Response('{"posts":[]}'));
     vi.stubGlobal("fetch", fetchMock);
     return fetchMock;
   }

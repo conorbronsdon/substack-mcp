@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -50,10 +51,11 @@ try {
   // A deliberately tiny environment excludes actual credentials and multi-publication config.
   const env = Object.fromEntries(Object.entries(process.env).filter(([key, value]) =>
     /^(PATH|SYSTEMROOT|WINDIR|TEMP|TMP)$/i.test(key) && value !== undefined));
+  const testSessionToken = randomUUID();
   Object.assign(env, {
     SUBSTACK_MCP_HOME: join(scratch, 'empty-session'),
     SUBSTACK_PUBLICATION_URL: 'http://127.0.0.1:1',
-    SUBSTACK_USER_ID: '0', SUBSTACK_SESSION_TOKEN: 'package-test',
+    SUBSTACK_USER_ID: '0', SUBSTACK_SESSION_TOKEN: testSessionToken,
     SUBSTACK_REQUEST_TIMEOUT_MS: '100', MCP_TRANSPORT: 'stdio',
   });
   const cli = resolve(installed, installedPkg.bin['substack-mcp']);
@@ -63,7 +65,7 @@ try {
   assert.equal(diagnosis.ok, true);
   assert.equal(diagnosis.mode, 'configuration_only');
   assert.equal(diagnosis.publications[0].authentication, 'not_checked');
-  assert.ok(!JSON.stringify(diagnosis).includes('package-test'), 'Doctor must not print session tokens');
+  assert.ok(!JSON.stringify(diagnosis).includes(testSessionToken), 'Doctor must not print session tokens');
   for (const [args, commandEnv, status] of [
     [['doctor', '--json'], env, 1],
     [['doctor', '--unknown'], doctorEnv, 2],

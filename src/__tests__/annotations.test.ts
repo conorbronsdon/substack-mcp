@@ -20,6 +20,8 @@ const registered = (
 )._registeredTools;
 
 const READ_TOOLS: ToolName[] = [
+  "list_publication_tags",
+  "get_post_tags",
   "get_publication",
   "search_posts",
   "preflight_draft",

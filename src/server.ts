@@ -13,6 +13,7 @@ import { fileToDataUri } from "./utils/image.js";
 import { searchInput } from "./api/search.js";
 import { preflightDraft } from "./utils/draft-preflight.js";
 import { publicationOutput } from "./api/publication.js";
+import { listTagsInput, postTagsInput, listTagsOutput, postTagsOutput } from "./api/tags.js";
 
 export interface PublicationConfig {
   /** Tool-facing `publication` enum value, e.g. "kevin-muldoon". */
@@ -66,6 +67,26 @@ export function createServer(publications: PublicationConfig[]): McpServer {
   // additive; the Note tools publish public content immediately.
 
   // --- Read tools ---
+
+  server.registerTool("list_publication_tags", {
+    description: "Read this publication's tag definitions. Includes hidden tags by default. Returns 25 rows by default, at most 100. Each call makes two reads (publication context and the full tag array), then paginates locally; results can change between calls. Validates publication identity and rejects malformed or oversized responses. Never creates or assigns tags.",
+    inputSchema: { ...listTagsInput.shape, ...publicationField() },
+    outputSchema: listTagsOutput.shape,
+    annotations: buildAnnotations("list_publication_tags"),
+  }, async ({ publication, ...input }: z.output<typeof listTagsInput> & { publication?: string }) => {
+    const result = listTagsOutput.parse({ ...await clientFor(publication).listPublicationTags(input), publication: publication ?? pubKeys[0] });
+    return { structuredContent: result, content: [{ type: "text", text: JSON.stringify(result) }] };
+  });
+
+  server.registerTool("get_post_tags", {
+    description: "Read tag associations by post ID, resolving names from this publication's tag definitions. Includes hidden tags and preserves unresolved IDs. Returns 25 rows by default, at most 100, with local snapshot pagination. Each call makes up to three reads, including the full association and definition arrays; they are not an atomic snapshot. Empty associations do not verify post existence. Nonempty draft associations are not yet live-verified. Never assigns or removes tags.",
+    inputSchema: { ...postTagsInput.shape, ...publicationField() },
+    outputSchema: postTagsOutput.shape,
+    annotations: buildAnnotations("get_post_tags"),
+  }, async ({ publication, ...input }: z.output<typeof postTagsInput> & { publication?: string }) => {
+    const result = postTagsOutput.parse({ ...await clientFor(publication).getPostTags(input), publication: publication ?? pubKeys[0] });
+    return { structuredContent: result, content: [{ type: "text", text: JSON.stringify(result) }] };
+  });
 
   server.registerTool("get_publication", {
     description: "Read projected identity and selected settings for this publication. Verifies the returned publication host; does not verify your account identity or admin role. Missing API fields are named explicitly. No changes are made.",

@@ -18,9 +18,15 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.repository == 'conorbronsdon/substack-mcp'
     timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_MANIFEST: ${{ runner.temp }}/release-server.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -44,80 +50,50 @@ jobs:
       - name: Check release ordering controls
         run: npm run test:release
 
-      - name: Check if package.json version is already published
-        id: version
+      - name: Inspect all release destinations before publication
+        id: plan
+        run: node scripts/release-state.mjs plan
+
+      - name: Build and test new npm release
+        if: steps.plan.outputs.npm == 'true'
         run: |
-          LOCAL_VERSION="$(node -p "require('./package.json').version")"
-          PKG_NAME="$(node -p "require('./package.json').name")"
-          PUBLISHED_VERSION="$(npm view "$PKG_NAME" version 2>/dev/null || echo none)"
-          echo "local=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
-          echo "published=$PUBLISHED_VERSION" >> "$GITHUB_OUTPUT"
-          RELEASE_STATE="$(node scripts/check-release-order.mjs "$LOCAL_VERSION" "$PUBLISHED_VERSION")"
-          if [ "$RELEASE_STATE" = "same" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "package.json version ($LOCAL_VERSION) is already published — nothing to do."
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "package.json version ($LOCAL_VERSION) differs from published ($PUBLISHED_VERSION) — publishing."
-          fi
-
-      - name: Build
-        if: steps.version.outputs.changed == 'true'
-        run: npm run build --if-present
-
-      - name: Test
-        if: steps.version.outputs.changed == 'true'
-        run: npm test --if-present
-
-      - name: Show tool versions
-        if: steps.version.outputs.changed == 'true'
-        run: node --version && npm --version
+          npm run build
+          npm test
 
       - name: Publish to npm
-        if: steps.version.outputs.changed == 'true'
+        if: steps.plan.outputs.npm == 'true'
         run: npm publish --provenance --access public
 
-      # Checked independently of the npm gate above: npm and the registry can be
-      # out of sync on their own, so a workflow_dispatch has to be able to push a
-      # registry-only catch-up without an npm version bump.
-      - name: Check if version is already in the MCP registry
-        id: registry
-        run: |
-          SERVER_NAME="$(node -p "require('./package.json').mcpName")"
-          LOCAL_VERSION="${{ steps.version.outputs.local }}"
-          if curl -fsSL "https://registry.modelcontextprotocol.io/v0.1/servers?search=$SERVER_NAME" -o registry.json; then
-            REGISTRY_VERSION="$(SERVER_NAME="$SERVER_NAME" node -p "const r = JSON.parse(require('fs').readFileSync('registry.json', 'utf8')).servers || []; const exact = r.filter(s => s.server && s.server.name === process.env.SERVER_NAME); const key = 'io.modelcontextprotocol.registry/official'; const latest = exact.find(s => s._meta && s._meta[key] && s._meta[key].isLatest) || exact.sort((a, b) => ((b._meta && b._meta[key] && b._meta[key].publishedAt) || '').localeCompare((a._meta && a._meta[key] && a._meta[key].publishedAt) || ''))[0]; latest ? latest.server.version : 'none'")"
-          else
-            REGISTRY_VERSION=unknown
-            echo "Registry lookup failed — will attempt the publish and let it decide."
-          fi
-          rm -f registry.json
-          if [ "$LOCAL_VERSION" = "$REGISTRY_VERSION" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "MCP registry already has $SERVER_NAME@$LOCAL_VERSION — nothing to do."
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "MCP registry has $REGISTRY_VERSION, package.json is $LOCAL_VERSION — publishing."
-          fi
+      - name: Verify npm and refresh recovery plan
+        id: artifacts
+        env:
+          RELEASE_TARGET: ${{ steps.plan.outputs.target }}
+        run: node scripts/release-state.mjs verify-npm
 
       - name: Publish to the MCP registry
-        if: steps.registry.outputs.changed == 'true'
-        # Pinned: an unpinned /latest/ URL silently changes the CLI under CI.
+        if: steps.artifacts.outputs.registry == 'true'
+        # Pinned publisher and checksum; use the original release manifest.
         run: |
-          curl -fsSL --retry 3 "https://github.com/modelcontextprotocol/registry/releases/download/v1.8.0/mcp-publisher_linux_amd64.tar.gz" -o mcp-publisher.tar.gz
+          curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "https://github.com/modelcontextprotocol/registry/releases/download/v1.8.0/mcp-publisher_linux_amd64.tar.gz" -o mcp-publisher.tar.gz
           echo "1370446bbe74d562608e8005a6ccce02d146a661fbd78674e11cc70b9618d6cf  mcp-publisher.tar.gz" | sha256sum --check --strict
           tar xzf mcp-publisher.tar.gz mcp-publisher
           ./mcp-publisher login github-oidc
-          ./mcp-publisher publish
+          ./mcp-publisher publish "$RELEASE_MANIFEST"
 
-      - name: Create GitHub release
-        if: steps.version.outputs.changed == 'true'
+      - name: Verify Registry and refresh GitHub recovery plan
+        id: registry
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          VERSION="${{ steps.version.outputs.local }}"
-          if gh release view "v$VERSION" >/dev/null 2>&1; then
-            echo "Release v$VERSION already exists — skipping."
-          else
-            gh release create "v$VERSION" --target "$GITHUB_SHA" --generate-notes
-          fi
+          RELEASE_TARGET: ${{ steps.plan.outputs.target }}
+        run: node scripts/release-state.mjs verify-registry
+
+      - name: Create missing GitHub release independently
+        if: steps.registry.outputs.github == 'true'
+        env:
+          VERSION: ${{ steps.registry.outputs.version }}
+          RELEASE_TARGET: ${{ steps.registry.outputs.target }}
+        run: gh release create "v$VERSION" --target "$RELEASE_TARGET" --generate-notes
+
+      - name: Verify all published identities
+        env:
+          RELEASE_TARGET: ${{ steps.plan.outputs.target }}
+        run: node scripts/release-state.mjs verify

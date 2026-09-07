@@ -1,4 +1,4 @@
-import { extractErrorDetail, isAbortError, mapHttpStatusToError, ResponseError, TimeoutError } from "../utils/errors.js";
+import { extractErrorDetail, isAbortError, mapHttpStatusToError, ResponseError, SubstackAPIError, TimeoutError, type ResponseBodyIssue } from "../utils/errors.js";
 
 export const MAX_JSON_BYTES = 10 * 1024 * 1024;
 export const MAX_HTML_BYTES = 2 * 1024 * 1024;
@@ -71,9 +71,13 @@ function redactDetail(detail: string, options: RequestInit): string {
 
 /** One deadline through headers/body. JSON calls never follow redirects or retry. */
 async function request(url: string, options: RequestInit, timeoutMs: number, format: "json" | "text", maxBytes: number): Promise<unknown> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error("Request timeout must be a positive finite number.");
+  timeoutMs = Math.max(1, Math.min(2_147_483_647, Math.floor(timeoutMs)));
   const expiresAt = performance.now() + timeoutMs;
-  const deadline = AbortSignal.timeout(Math.max(1, Math.min(2_147_483_647, Math.floor(timeoutMs))));
+  const deadline = AbortSignal.timeout(timeoutMs);
   const signal = options.signal ? AbortSignal.any([deadline, options.signal]) : deadline;
+  // AbortSignal.any preserves the first reason even if both sources later abort.
+  const callerCancelled = () => options.signal?.aborted && signal.reason === options.signal.reason;
   try {
     signal.throwIfAborted();
     let currentUrl = url, redirects = 0;
@@ -108,15 +112,18 @@ async function request(url: string, options: RequestInit, timeoutMs: number, for
     }
     if (!response.ok) {
       let detail: string;
+      let bodyIssue: ResponseBodyIssue | undefined;
       try {
         const text = await readBounded(response, MAX_ERROR_BYTES, signal, url, expiresAt);
         detail = extractErrorDetail(text, "unknown error", value => redactDetail(value, options));
       } catch (error) {
-        if (!(error instanceof ResponseError) || error.code !== "response_too_large") throw error;
-        // The HTTP failure is known even when its diagnostic body is oversized.
-        detail = "Error response exceeded the byte limit; details were discarded";
+        // A known HTTP failure takes precedence over an unread diagnostic body.
+        bodyIssue = error !== signal.reason && error instanceof ResponseError && error.code === "response_too_large" ? "response_too_large"
+          : callerCancelled() ? "request_cancelled"
+          : deadline.aborted || isAbortError(error) ? "timeout" : "body_read_failed";
+        detail = `HTTP error received; diagnostic body unavailable (${bodyIssue}); details were discarded`;
       }
-      throw mapHttpStatusToError(response.status, detail, url);
+      throw mapHttpStatusToError(response.status, detail, url, retryAfter(response), bodyIssue);
     }
     if (format === "json" && /(?:text\/html|application\/xhtml\+xml)/i.test(response.headers.get("content-type") ?? "")) {
       discard(response);
@@ -132,7 +139,10 @@ async function request(url: string, options: RequestInit, timeoutMs: number, for
     // known complete result rather than manufacture an uncertain write outcome.
     return value;
   } catch (error) {
-    if (options.signal?.aborted && !deadline.aborted) throw new ResponseError(url, "request_cancelled");
+    // Preserve locally classified errors across cancellation during cleanup.
+    // Caller-supplied abort reasons still receive static, credential-safe text.
+    if (error instanceof SubstackAPIError && error !== signal.reason) throw error;
+    if (callerCancelled()) throw new ResponseError(url, "request_cancelled");
     if (deadline.aborted || isAbortError(error)) throw new TimeoutError(url, timeoutMs);
     throw error;
   }

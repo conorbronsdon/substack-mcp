@@ -50,11 +50,11 @@ describe("session store", () => {
   it("does not write the token or URL in plaintext", () => {
     saveSession({
       publicationUrl: "https://secret.substack.com",
-      sessionToken: "SUPERSECRET",
+      sessionToken: "example-secret-token",
       userId: "1",
     });
     const raw = readFileSync(join(dir, "session.json"), "utf8");
-    expect(raw).not.toContain("SUPERSECRET");
+    expect(raw).not.toContain("example-secret-token");
     expect(raw).not.toContain("secret.substack.com");
   });
 

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "substack": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@conorbronsdon/substack-mcp@0.6.2"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      }
+    }
+  }
+}

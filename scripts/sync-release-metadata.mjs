@@ -5,6 +5,10 @@ const server = JSON.parse(readFileSync('server.json', 'utf8'));
 const plugin = JSON.parse(readFileSync('.codex-plugin/plugin.json', 'utf8'));
 const mcp = JSON.parse(readFileSync('.mcp.json', 'utf8'));
 
+if (!mcp.mcpServers?.substack || typeof mcp.mcpServers.substack !== 'object') {
+  throw new Error('.mcp.json must contain the substack server before release synchronization');
+}
+
 server.name = pkg.mcpName;
 server.version = pkg.version;
 for (const entry of server.packages ?? []) {

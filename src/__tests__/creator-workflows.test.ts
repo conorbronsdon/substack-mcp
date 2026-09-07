@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -84,13 +85,15 @@ describe("draft preflight", () => {
   });
 });
 
-const credential: PublicationCredentials = { key: "example", label: "Example", publicationUrl: "https://example.substack.com", sessionToken: "test-only-secret", userId: "123", source: "env", missing: [] };
+const testSessionToken = randomUUID();
+const credential: PublicationCredentials = { key: "example", label: "Example", publicationUrl: "https://example.substack.com", sessionToken: testSessionToken, userId: "123", source: "env", missing: [] };
 describe("doctor", () => {
   it("is offline by default and omits credentials and user IDs", async () => {
     const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
     const report = await doctor(false, () => [credential]);
     expect(report.ok).toBe(true);
-    expect(JSON.stringify(report)).not.toMatch(/test-only-secret|123/);
+    expect(JSON.stringify(report)).not.toContain(testSessionToken);
+    expect(JSON.stringify(report)).not.toContain("123");
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it.each(["https://name:secret@example.org", "https://example.org/path?secret", "http://example.org", "invalid"])("rejects and redacts malformed origin %s", async publicationUrl => {

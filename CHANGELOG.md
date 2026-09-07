@@ -6,7 +6,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases before
 `0.6.0` are recorded in the [GitHub Releases](https://github.com/conorbronsdon/substack-mcp/releases)
 and the git tag history (`v0.1.0`–`v0.5.0`).
 
-## [0.7.0] - Unreleased
+## [0.7.0] - 2026-09-07
 
 ### Added
 - Three subscriber tools: paginated reads, exact email lookup, and consent-based free additions. Adds default to dry-run, require explicit consent evidence for live writes, and never override suppression or grant paid access. (#44)

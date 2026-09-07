@@ -23,11 +23,16 @@ const expectedTools = [
   'list_scheduled_posts', 'list_subscribers', 'update_draft', 'upload_image',
 ].sort();
 
+const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
+  'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md',
+  'dist/index.js', 'dist/login.js'];
 let transport;
 try {
   const [packed] = JSON.parse(npm(['pack', '--json', '--ignore-scripts', '--pack-destination', scratch], process.cwd()));
+  const paths = new Set(packed.files.map(file => file.path));
+  for (const path of requiredFiles) assert.ok(paths.has(path), `Missing package file: ${path}`);
   for (const { path } of packed.files) {
-    assert.ok(/^(dist\/|docs\/[^/]+\.md$|package\.json$|server\.json$|README\.md$|CHANGELOG\.md$|LICENSE$)/.test(path), `Unexpected package file: ${path}`);
+    assert.ok(path.startsWith('dist/') || requiredFiles.includes(path), `Unexpected package file: ${path}`);
     assert.ok(!path.includes('__tests__') && !path.endsWith('.map'), `Development artifact: ${path}`);
   }
   npm(['install', '--prefix', scratch, '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', join(scratch, packed.filename)], scratch);
@@ -61,5 +66,5 @@ try {
 } finally {
   await transport?.close();
   // Only remove the unique directory created above, never a caller-supplied path.
-  rmSync(scratch, { recursive: true, force: true });
+  rmSync(scratch, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 }

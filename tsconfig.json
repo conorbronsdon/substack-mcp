@@ -10,7 +10,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "declaration": true,
-    "sourceMap": true
+    "sourceMap": false
   },
   // Tests are excluded from the *build* only: tsc was emitting src/__tests__
   // into dist/, where the vitest imports can't resolve (npm ci --omit=dev

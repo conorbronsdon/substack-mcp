@@ -62,7 +62,9 @@
     "!dist/__tests__/**",
     "!dist/**/*.map",
     "server.json",
-    "docs/*.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "docs/calendar-sync.md",
+    "docs/cloud-calendar-sync.md",
+    "docs/subscribers.md"
   ]
 }

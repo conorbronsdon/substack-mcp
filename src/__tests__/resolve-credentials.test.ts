@@ -4,7 +4,7 @@ import type { StoredSession } from "../auth/session-store.js";
 
 const stored: StoredSession = {
   publicationUrl: "https://stored.substack.com",
-  sessionToken: "stored-tok",
+  sessionToken: "example-stored-token",
   userId: "99",
   savedAt: "2026-01-01T00:00:00Z",
 };
@@ -13,12 +13,12 @@ describe("resolveCredentials", () => {
   it("prefers env vars when present (source=env)", () => {
     const env = {
       SUBSTACK_PUBLICATION_URL: "https://env.substack.com",
-      SUBSTACK_SESSION_TOKEN: "env-tok",
+      SUBSTACK_SESSION_TOKEN: "example-env-token",
       SUBSTACK_USER_ID: "1",
     } as NodeJS.ProcessEnv;
     const r = resolveCredentials(env, () => stored);
     expect(r.publicationUrl).toBe("https://env.substack.com");
-    expect(r.sessionToken).toBe("env-tok");
+    expect(r.sessionToken).toBe("example-env-token");
     expect(r.userId).toBe("1");
     expect(r.source).toBe("env");
     expect(r.missing).toEqual([]);
@@ -27,16 +27,16 @@ describe("resolveCredentials", () => {
   it("falls back to the stored session when env vars are absent (source=stored)", () => {
     const r = resolveCredentials({} as NodeJS.ProcessEnv, () => stored);
     expect(r.publicationUrl).toBe("https://stored.substack.com");
-    expect(r.sessionToken).toBe("stored-tok");
+    expect(r.sessionToken).toBe("example-stored-token");
     expect(r.userId).toBe("99");
     expect(r.source).toBe("stored");
     expect(r.missing).toEqual([]);
   });
 
   it("mixes per field, env winning each present field (source=mixed)", () => {
-    const env = { SUBSTACK_SESSION_TOKEN: "env-tok" } as NodeJS.ProcessEnv;
+    const env = { SUBSTACK_SESSION_TOKEN: "example-env-token" } as NodeJS.ProcessEnv;
     const r = resolveCredentials(env, () => stored);
-    expect(r.sessionToken).toBe("env-tok"); // env
+    expect(r.sessionToken).toBe("example-env-token"); // env
     expect(r.publicationUrl).toBe("https://stored.substack.com"); // store
     expect(r.userId).toBe("99"); // store
     expect(r.source).toBe("mixed");

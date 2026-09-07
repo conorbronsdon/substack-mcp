@@ -2,7 +2,7 @@
 
 # substack-mcp
 
-An MCP server for Substack. Read your publication data and manage drafts from your AI agent. Long-form posts are draft-only by design — no publish, no delete. Short-form Notes publish immediately.
+Safe creator operations for Substack, via MCP. Prepare rich drafts, publish Notes, inspect analytics, and manage explicitly consented free subscribers across publications. Review and publish long-form posts in Substack.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Language: TypeScript](https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -111,6 +111,8 @@ explicit local setup step; installing the MCP does not start a background job.
 - **Schedule** — Use Substack's editor for scheduling. (`list_scheduled_posts` *reads* what you've queued there, but this server never creates, edits, or cancels a schedule.)
 
 ## Setup
+
+Requires **Node.js 22 or newer** (CI covers Node 22 and 24). Browser login additionally requires Playwright.
 
 You can supply credentials two ways: paste them as env vars (below), or run the
 optional **browser login** which captures and stores them for you.
@@ -331,6 +333,8 @@ The `create_draft` and `update_draft` tools accept markdown and convert it to Su
 - `SIGTERM` and `SIGINT` are handled: the server closes its transport and exits 0, so `docker stop` returns promptly instead of waiting out the grace period.
 
 ## Development
+
+Before releasing, run `npm run test:package`. It installs the built tarball with production dependencies in a clean temporary directory, checks both executable entrypoints, and verifies the MCP version and all 17 registered tools without real credentials.
 
 ```bash
 git clone https://github.com/conorbronsdon/substack-mcp.git

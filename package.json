@@ -1,7 +1,7 @@
 {
   "name": "@conorbronsdon/substack-mcp",
-  "version": "0.6.2",
-  "description": "MCP server for Substack â€” read posts, manage drafts, publish Notes. Long-form posts are draft-only by design (no publish, no delete); Notes publish immediately.",
+  "version": "0.7.0",
+  "description": "Safe creator operations for Substack: rich drafts, Notes, analytics, and consented subscribers. Long-form posts stay draft-only; Notes publish immediately.",
   "type": "module",
   "bin": {
     "substack-mcp": "./dist/index.js",
@@ -16,11 +16,12 @@
     "test:release": "node --test scripts/check-release-order.controls.mjs",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "prepublishOnly": "npm run check:release && npm run build && npm test",
+    "prepublishOnly": "npm run check:release && npm run lint && npm test && npm run test:package",
     "version": "npm run sync:release && git add package-lock.json server.json",
     "lint:cloud": "wrangler types --config cloud/wrangler.jsonc cloud/worker-configuration.d.ts && tsc -p cloud/tsconfig.json && tsc -p cloud/test/tsconfig.json",
     "build:cloud": "wrangler deploy --config cloud/wrangler.jsonc --dry-run",
-    "test:cloud": "vitest run --config cloud/vitest.config.ts"
+    "test:cloud": "vitest run --config cloud/vitest.config.ts",
+    "test:package": "npm run build && node scripts/test-package.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
@@ -36,7 +37,7 @@
     "wrangler": "^4.129.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "keywords": [
     "mcp",
@@ -55,5 +56,13 @@
   "bugs": {
     "url": "https://github.com/conorbronsdon/substack-mcp/issues"
   },
-  "mcpName": "io.github.conorbronsdon/substack-mcp"
+  "mcpName": "io.github.conorbronsdon/substack-mcp",
+  "files": [
+    "dist/**",
+    "!dist/__tests__/**",
+    "!dist/**/*.map",
+    "server.json",
+    "docs/*.md",
+    "CHANGELOG.md"
+  ]
 }

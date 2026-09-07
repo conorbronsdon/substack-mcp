@@ -52,6 +52,10 @@ async function waitForSessionCookie(context: any): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    console.log("Usage: substack-mcp-login [publication-url]\nOpens a browser to sign in and stores a local session. Requires Playwright.");
+    return;
+  }
   console.log("substack-mcp browser login\n");
 
   // Lazy + indirect import so tsc never needs the playwright types and the

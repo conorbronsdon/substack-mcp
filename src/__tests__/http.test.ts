@@ -252,13 +252,9 @@ describe("HTTP transport: origin and host validation", () => {
     // having been called is the proof it got past `rejectRequest`.
     expect(factory).toHaveBeenCalledTimes(1);
     expect(res.status).not.toBe(403);
-    // It then gets a 400 one layer down, from the SDK — `@hono/node-server`'s
-    // `newRequest` (node_modules/@hono/node-server/dist/listener.js:216-219)
-    // compares the raw Host against `new URL(...).hostname`, which WHATWG has
-    // already lowercased, and throws "Invalid host header" on any mismatch.
-    // That is third-party behavior downstream of this transport, recorded here
-    // so nobody re-adds a case-sensitive allowlist trying to "fix" it.
-    expect(res.status).toBe(400);
+    // The updated SDK dependency also accepts case-insensitive hostnames;
+    // verify the complete initialize request succeeds through both layers.
+    expect(res.status).toBe(200);
   });
 
   it("matches an explicit host allowlist case-insensitively", async () => {

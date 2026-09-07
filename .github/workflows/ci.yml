@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [20, 22]
+        node-version: [22, 24]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -21,7 +21,8 @@ jobs:
       - run: npm ci
       - run: npm run check:release
       - run: npm run test:release
-      - run: npm run build
+      - run: npm run lint
+      - run: npm run test:package
       - run: npm test
       - run: npm run lint:cloud
         if: matrix.node-version == 22

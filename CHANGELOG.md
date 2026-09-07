@@ -6,6 +6,26 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases before
 `0.6.0` are recorded in the [GitHub Releases](https://github.com/conorbronsdon/substack-mcp/releases)
 and the git tag history (`v0.1.0`–`v0.5.0`).
 
+## [0.7.0] - Unreleased
+
+### Added
+- Three subscriber tools: paginated reads, exact email lookup, and consent-based free additions. Adds default to dry-run, require explicit consent evidence for live writes, and never override suppression or grant paid access. (#44)
+- Multiple-publication routing with a required publication selector when two or more publications are configured. (#36)
+- Optional stateless Streamable HTTP transport with host/origin checks and optional bearer authentication. (#35)
+- Calendar opt-in sync with durable attempt reconciliation, plus an optional Cloudflare deployment with welcome-email requests and weekly health reporting. (#45, #46)
+- Clean tarball install test covering both binaries, MCP initialization, version identity, and the complete 17-tool catalog. CI runs it on Node 22 and 24.
+- Browser login `--help` without loading Playwright, and a structured, redaction-aware bug report form.
+
+### Changed
+- Minimum supported Node.js version is now 22; Node 18 and 20 are end-of-life.
+- Updated the MCP SDK lockfile to 1.30.0 and compatible dependency security patches.
+- npm package includes runtime output, registry metadata, usage documentation, and changelog; excludes CI, cloud source, tests, and source maps.
+- Registry metadata now marks the session token as secret and includes a project URL and configuration placeholders.
+
+### Fixed
+- MCP initialization reads the version from package.json instead of reporting a stale hard-coded version.
+- Release metadata agreement and monotonic release ordering are checked before publication. (#37, #39, #40)
+
 ## [0.6.2] - 2026-08-03
 
 ### Added

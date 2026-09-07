@@ -107,8 +107,16 @@ async function request(url: string, options: RequestInit, timeoutMs: number, for
       throw mapHttpStatusToError(response.status, "Too many requests", url, retryAfter(response));
     }
     if (!response.ok) {
-      const text = await readBounded(response, MAX_ERROR_BYTES, signal, url, expiresAt);
-      throw mapHttpStatusToError(response.status, extractErrorDetail(text, "unknown error", detail => redactDetail(detail, options)), url);
+      let detail: string;
+      try {
+        const text = await readBounded(response, MAX_ERROR_BYTES, signal, url, expiresAt);
+        detail = extractErrorDetail(text, "unknown error", value => redactDetail(value, options));
+      } catch (error) {
+        if (!(error instanceof ResponseError) || error.code !== "response_too_large") throw error;
+        // The HTTP failure is known even when its diagnostic body is oversized.
+        detail = "Error response exceeded the byte limit; details were discarded";
+      }
+      throw mapHttpStatusToError(response.status, detail, url);
     }
     if (format === "json" && /(?:text\/html|application\/xhtml\+xml)/i.test(response.headers.get("content-type") ?? "")) {
       discard(response);

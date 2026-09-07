@@ -104,6 +104,15 @@ describe("bounded response bodies", () => {
 });
 
 describe("response classification", () => {
+  it.each([400, 404, 500, 502])("preserves HTTP %s classification when its diagnostic body is oversized", async status => {
+    const cancel = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ cancel }), { status, headers: { "content-length": "65537" } })));
+    const error = await requestJson(url).catch(error => error) as Error;
+    expect(error.name).toBe(status === 400 ? "ValidationError" : status === 404 ? "NotFoundError" : "ServerError");
+    expect(error.message).toContain("details were discarded");
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect((await doctor(true, config)).publications[0].authentication).toBe("upstream_error");
+  });
   it.each([
     { body: "private HTML", headers: { "content-type": "text/html" }, code: "unexpected_html" },
     { body: " <html>private</html>", headers: {}, code: "unexpected_html" },

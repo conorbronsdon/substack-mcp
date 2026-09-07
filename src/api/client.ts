@@ -16,6 +16,7 @@ import { mapHttpStatusToError, extractErrorDetail, TimeoutError, isAbortError } 
 import { SubscriberService } from "./subscribers.js";
 import { searchPosts } from "./search.js";
 import { getPublication } from "./publication.js";
+import { listPublicationTags, getPostTags } from "./tags.js";
 
 /**
  * Per-request deadline applied to every outbound fetch.
@@ -174,6 +175,14 @@ export class SubstackClient {
     return getPublication(this.publicationUrl, path => this.request(`${this.publicationUrl}${path}`, {
       headers: { Referer: `${this.publicationUrl}/publish/settings` },
     }));
+  }
+
+  listPublicationTags(input: Parameters<typeof listPublicationTags>[0]) {
+    return listPublicationTags(input, () => this.getPublication(), path => this.request(`${this.publicationUrl}${path}`));
+  }
+
+  getPostTags(input: Parameters<typeof getPostTags>[0]) {
+    return getPostTags(input, () => this.getPublication(), path => this.request(`${this.publicationUrl}${path}`));
   }
 
   /**

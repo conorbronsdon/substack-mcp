@@ -9,6 +9,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Fixed
+- The API client and doctor share strict origin, user-ID and cookie-value validation. Invalid configurations fail before requests, with credential-safe errors; valid custom domains and encoded cookie values remain supported.
 - Archive search rejects duplicate post IDs, unsafe numeric IDs/totals and nonempty pages that exceed the reported total, while preserving valid final and empty out-of-range pages.
 
 ### Added

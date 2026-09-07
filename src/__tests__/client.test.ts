@@ -27,7 +27,7 @@ describe("SubstackClient constructor", () => {
   it("throws with clear message for invalid userId", () => {
     expect(
       () => new SubstackClient("https://example.substack.com", "tok123", "abc")
-    ).toThrow('Invalid SUBSTACK_USER_ID: "abc" — must be a number');
+    ).toThrow('Invalid SUBSTACK_USER_ID: use a positive safe integer containing only digits.');
   });
 
   it("strips trailing slash from publication URL", () => {

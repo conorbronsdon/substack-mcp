@@ -83,6 +83,11 @@ substack-mcp doctor --json --check-auth
 ```
 
 `doctor` uses the same environment/stored-session resolution as the server.
+Both validate an HTTPS publication origin, a positive safe-integer user ID
+containing only digits, and an unquoted cookie value without whitespace or
+cookie separators. Invalid configuration stops server startup before requests.
+Percent-encoded cookie values are preserved exactly. Configuration checks do
+not prove that the supplied host belongs to Substack or that credentials work.
 By default it checks configuration without network requests. `--check-auth`
 adds one draft-list GET per valid publication, with a five-second request
 deadline and redirects disabled. Use an HTTPS publication origin (no path,

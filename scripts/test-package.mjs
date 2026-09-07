@@ -75,7 +75,9 @@ try {
   ]) {
     assert.throws(() => execFileSync(process.execPath, [cli, ...args], { env: commandEnv, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === status);
   }
-  transport = new StdioClientTransport({ command: process.execPath, args: [resolve(installed, installedPkg.bin['substack-mcp'])], env, stderr: 'pipe' });
+  // Startup now validates the same credentials as doctor. The handshake only
+  // lists tools: it makes no publication requests with this synthetic config.
+  transport = new StdioClientTransport({ command: process.execPath, args: [resolve(installed, installedPkg.bin['substack-mcp'])], env: doctorEnv, stderr: 'pipe' });
   const client = new Client({ name: 'package-smoke', version: '1.0.0' });
   await client.connect(transport, { timeout: 10_000 });
   assert.equal(client.getServerVersion()?.version, pkg.version, 'MCP handshake version must match npm');

@@ -37,6 +37,8 @@ Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/
 | `list_subscribers` | Read a bounded page of private subscriber records |
 | `get_subscriber` | Look up membership by exact email; reconcile pending additions |
 | `list_published_posts` | List published posts with pagination |
+| `search_posts` | Search a publication archive by query and status; bounded pages with continuation metadata |
+| `preflight_draft` | Read-only checks for title, audience, body structure, images, and paywalls |
 | `list_drafts` | List draft posts |
 | `get_post` | Get full content of a published post by ID |
 | `get_draft` | Get full content of a draft by ID |
@@ -44,6 +46,54 @@ Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/
 | `get_sections` | List your publication's sections (categories) with their IDs |
 | `get_post_analytics` | Get a published post's stats (views, opens, signups, subscribes, reactions) by ID |
 | `list_scheduled_posts` | List posts scheduled for future publication (read-only; scheduling stays in Substack's editor) |
+
+### Archive search and draft review
+
+`search_posts` accepts `query` (1–500 characters), `status` (`published`, `drafts`,
+or `scheduled`, default `published`), `offset` (default 0), and `limit` (1–50,
+default 25). It makes one authenticated archive request and returns projected
+metadata, `returned`, `total`, `has_more`, and `next_offset`. Continue with
+`next_offset` and the same query/status. When Substack omits the total and a
+page is full, `has_more` is null (unknown); another page may be empty. Substack
+controls matching and indexing: this is not a guaranteed full-text scan. Use
+`get_post` or `get_draft` to retrieve full content. Pagination is not a snapshot;
+concurrent edits can move results between pages.
+
+`preflight_draft` accepts `draft_id`, reads it once, and returns `checks_passed`,
+findings with severity/code/message, and content counts. It checks title,
+audience, JSON/body shape, image wrappers and HTTPS sources, and paywall count
+and edge placement. Unknown nodes and external images produce review warnings.
+Bodies over two million characters, 10,000 nodes, or depth 100 are not fully
+checked; `counts.complete` is false and aggregate checks are skipped after a
+scan limit. Unknown-node warnings name up to five types for editor review.
+This is a focused static check, not full ProseMirror validation or
+publish approval. It does not fetch links/images, verify access settings, or
+prove final rendering. Review the draft in Substack; no content is modified.
+
+Both tools require `publication` when multiple publications are configured.
+
+### Operator diagnostics
+
+```sh
+substack-mcp doctor --json
+substack-mcp doctor --json --check-auth
+```
+
+`doctor` uses the same environment/stored-session resolution as the server.
+By default it checks configuration without network requests. `--check-auth`
+adds one draft-list GET per valid publication, with a five-second request
+deadline and redirects disabled. Use an HTTPS publication origin (no path,
+query, credentials, or custom port); a redirect or custom-domain block may
+require switching to the publication's canonical `name.substack.com` origin.
+Output includes publication key, origin, credential source, configuration and
+authentication status. It omits session tokens, user IDs and upstream error
+bodies. A successful read does not establish user-ID binding or write access.
+
+Exit codes: 0 = requested checks passed; 1 = configuration/authentication check
+failed; 2 = invalid command arguments. Without `--check-auth`, a 0 exit code
+does not mean the session is unexpired. Bare `substack-mcp` still starts the
+MCP server; `substack-mcp serve` is an explicit alias. `--help` does not connect
+to Substack. Browser login remains `substack-mcp-login`.
 
 ### Write (private drafts; image upload returns a public URL)
 

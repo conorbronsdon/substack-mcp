@@ -21,6 +21,7 @@ const expectedTools = [
   'get_draft', 'get_post', 'get_post_analytics', 'get_post_comments', 'get_sections',
   'get_subscriber', 'get_subscriber_count', 'list_drafts', 'list_published_posts',
   'list_scheduled_posts', 'list_subscribers', 'update_draft', 'upload_image',
+  'search_posts', 'preflight_draft',
 ].sort();
 
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
@@ -55,6 +56,21 @@ try {
     SUBSTACK_USER_ID: '0', SUBSTACK_SESSION_TOKEN: 'package-test',
     SUBSTACK_REQUEST_TIMEOUT_MS: '100', MCP_TRANSPORT: 'stdio',
   });
+  const cli = resolve(installed, installedPkg.bin['substack-mcp']);
+  assert.match(execFileSync(process.execPath, [cli, '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /Usage: substack-mcp/);
+  const doctorEnv = { ...env, SUBSTACK_PUBLICATION_URL: 'https://example.substack.com', SUBSTACK_USER_ID: '1' };
+  const diagnosis = JSON.parse(execFileSync(process.execPath, [cli, 'doctor', '--json'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
+  assert.equal(diagnosis.ok, true);
+  assert.equal(diagnosis.mode, 'configuration_only');
+  assert.equal(diagnosis.publications[0].authentication, 'not_checked');
+  assert.ok(!JSON.stringify(diagnosis).includes('package-test'), 'Doctor must not print session tokens');
+  for (const [args, commandEnv, status] of [
+    [['doctor', '--json'], env, 1],
+    [['doctor', '--unknown'], doctorEnv, 2],
+    [['unknown'], doctorEnv, 2],
+  ]) {
+    assert.throws(() => execFileSync(process.execPath, [cli, ...args], { env: commandEnv, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === status);
+  }
   transport = new StdioClientTransport({ command: process.execPath, args: [resolve(installed, installedPkg.bin['substack-mcp'])], env, stderr: 'pipe' });
   const client = new Client({ name: 'package-smoke', version: '1.0.0' });
   await client.connect(transport, { timeout: 10_000 });

@@ -171,7 +171,25 @@ async function main() {
   );
 }
 
-main().catch((err) => {
+async function run() {
+  const args = process.argv.slice(2);
+  if (args[0] === "doctor") {
+    const { runDoctor } = await import("./doctor.js");
+    return runDoctor(args.slice(1));
+  }
+  if (args.length === 1 && ["--help", "-h"].includes(args[0])) {
+    console.log("Usage: substack-mcp [serve | doctor [--json] [--check-auth]]\nWith no command, starts the MCP server. doctor checks configuration without network access; --check-auth adds a bounded read per publication. Login: substack-mcp-login.");
+    return;
+  }
+  if (args.length && !(args.length === 1 && args[0] === "serve")) {
+    console.error("Unknown command. Run substack-mcp --help.");
+    process.exitCode = 2;
+    return;
+  }
+  await main();
+}
+
+run().catch((err) => {
   console.error("Fatal error:", err);
   process.exit(1);
 });

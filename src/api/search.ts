@@ -36,6 +36,9 @@ export async function searchPosts(
   if (parsed.data.posts.length > limit) throw new Error("Archive search exceeded the requested page size.");
   const { posts } = parsed.data;
   const total = parsed.data.total ?? null;
+  if (posts.length === 0 && total !== null && offset < total) {
+    throw new Error("Inconsistent archive search page: no rows before the reported total. Retry the query; the archive may have changed.");
+  }
   const hasMore = total === null ? (posts.length === limit ? null : false) : offset + posts.length < total;
   return { query, status, offset, limit, returned: posts.length, total,
     has_more: hasMore, next_offset: hasMore === false || posts.length === 0 ? null : offset + posts.length,

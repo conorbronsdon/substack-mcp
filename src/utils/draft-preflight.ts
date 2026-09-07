@@ -21,15 +21,18 @@ export function preflightDraft(draft: unknown, requestedId: number) {
     catch { add("error", "invalid_json", "Draft body is not valid ProseMirror JSON."); }
   }
   let nodes = 0, images = 0, paywalls = 0, textCharacters = 0;
+  let countsComplete = false;
+  const unknownTypes = new Set<string>();
   if (root !== undefined) {
     if (!object(root) || root.type !== "doc" || !Array.isArray(root.content)) add("error", "invalid_document", "Body must be a doc with a content array.");
     else {
+      countsComplete = true;
       const stack: { node: unknown; depth: number }[] = [{ node: root, depth: 0 }];
       while (stack.length) {
         const { node, depth } = stack.pop()!;
-        if (++nodes > 10_000 || depth > 100) { add("error", "structure_limit", "Body exceeds preflight structure limits; checks are incomplete."); break; }
+        if (++nodes > 10_000 || depth > 100) { countsComplete = false; add("error", "structure_limit", "Body exceeds preflight structure limits; checks are incomplete."); break; }
         if (!object(node) || typeof node.type !== "string") { add("error", "invalid_node", "Body contains a node without a valid type."); continue; }
-        if (!knownNodes.has(node.type)) add("warning", "unrecognized_nodes", "Some node types are outside this focused check; verify their rendering in Substack.");
+        if (!knownNodes.has(node.type) && unknownTypes.size < 5) unknownTypes.add(node.type.slice(0, 80));
         if (node.type === "text") {
           if (typeof node.text !== "string") add("error", "invalid_text", "A text node is missing its text.");
           else textCharacters += node.text.trim().length;
@@ -51,12 +54,15 @@ export function preflightDraft(draft: unknown, requestedId: number) {
           else for (const child of node.content) stack.push({ node: child, depth: depth + 1 });
         }
       }
-      if (!textCharacters && !images) add("warning", "no_text_or_images", "No text or image content was found; inspect any embeds in the editor.");
-      if (paywalls > 1) add("error", "multiple_paywalls", "Keep at most one paywall break.");
-      if (root.content.length && [root.content[0], root.content.at(-1)].some(n => object(n) && n.type === "paywall")) add("warning", "paywall_at_edge", "The paywall is at the start or end of the body; check its placement.");
+      if (unknownTypes.size) add("warning", "unrecognized_nodes", `Node types outside this focused check (up to five shown): ${[...unknownTypes].join(", ")}. Verify their rendering in Substack.`);
+      if (countsComplete) {
+        if (!textCharacters && !images) add("warning", "no_text_or_images", "No text or image content was found; inspect any embeds in the editor.");
+        if (paywalls > 1) add("error", "multiple_paywalls", "Keep at most one paywall break.");
+        if (root.content.length && [root.content[0], root.content.at(-1)].some(n => object(n) && n.type === "paywall")) add("warning", "paywall_at_edge", "The paywall is at the start or end of the body; check its placement.");
+      }
     }
   }
   return { draft_id: requestedId, checks_passed: !findings.some(f => f.severity === "error"),
-    findings, counts: { nodes, images, paywalls, text_characters: textCharacters },
+    findings, counts: { complete: countsComplete, nodes, images, paywalls, text_characters: textCharacters },
     limitations: "Read-only static checks, not a publish approval or full schema validation. Images, links, embeds, access settings and final rendering require review in Substack. Nothing was modified." };
 }

@@ -64,7 +64,9 @@ findings with severity/code/message, and content counts. It checks title,
 audience, JSON/body shape, image wrappers and HTTPS sources, and paywall count
 and edge placement. Unknown nodes and external images produce review warnings.
 Bodies over two million characters, 10,000 nodes, or depth 100 are not fully
-checked. This is a focused static check, not full ProseMirror validation or
+checked; `counts.complete` is false and aggregate checks are skipped after a
+scan limit. Unknown-node warnings name up to five types for editor review.
+This is a focused static check, not full ProseMirror validation or
 publish approval. It does not fetch links/images, verify access settings, or
 prove final rendering. Review the draft in Substack; no content is modified.
 

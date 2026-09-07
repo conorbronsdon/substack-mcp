@@ -37,6 +37,9 @@ describe("archive search", () => {
     expect(await searchPosts({ query: "x", limit: 1 }, async () => ({ posts: [{ id: 1 }] }))).toMatchObject({ total: null, has_more: null, next_offset: 1 });
     expect(await searchPosts({ query: "x" }, async () => ({ posts: [] }))).toMatchObject({ total: null, has_more: false, next_offset: null });
   });
+  it("rejects an empty page before the reported total instead of returning a contradictory cursor", async () => {
+    await expect(searchPosts({ query: "x", offset: 2 }, async () => ({ posts: [], total: 10 }))).rejects.toThrow(/Inconsistent/);
+  });
 });
 
 describe("draft preflight", () => {
@@ -68,7 +71,16 @@ describe("draft preflight", () => {
   it("bounds deeply nested bodies", () => {
     let node: unknown = { type: "text", text: "deep" };
     for (let i = 0; i < 102; i++) node = { type: "blockquote", content: [node] };
-    expect(codes({ ...draft, draft_body: body([node]) })).toContain("structure_limit");
+    const result = preflightDraft({ ...draft, draft_body: body([node]) }, 42);
+    expect(result.findings.map(f => f.code)).toContain("structure_limit");
+    expect(result.counts.complete).toBe(false);
+    expect(result.findings.map(f => f.code)).not.toContain("no_text_or_images");
+  });
+  it("names unknown node types in a bounded warning", () => {
+    const result = preflightDraft({ ...draft, draft_body: body(Array.from({ length: 12 }, (_, i) => ({ type: `custom_${i}` }))) }, 42);
+    const warning = result.findings.find(f => f.code === "unrecognized_nodes")!;
+    expect(warning.message.match(/custom_/g)).toHaveLength(5);
+    expect(result.counts.complete).toBe(true);
   });
 });
 
@@ -95,6 +107,11 @@ describe("doctor", () => {
     const result = await doctor(false, () => { throw new Error("secret-value"); });
     expect(result.ok).toBe(false);
     expect(JSON.stringify(result)).not.toContain("secret-value");
+  });
+  it.each(["token; other=cookie", "token,other", "token\n", '"quoted"', "token with spaces"])("rejects malformed cookie values without a request", async sessionToken => {
+    const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+    expect((await doctor(true, () => [{ ...credential, sessionToken }])).ok).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
   it("checks reads with a timeout and no redirects without claiming user binding", async () => {
     const fetchMock = vi.fn(async (_url: string, _options: RequestInit) => new Response(JSON.stringify({ posts: [] })));

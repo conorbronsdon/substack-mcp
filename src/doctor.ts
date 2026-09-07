@@ -12,7 +12,7 @@ export async function doctor(checkAuth = false, resolve = resolvePublications) {
       const url = new URL(p.publicationUrl);
       if (url.protocol === "https:" && !url.username && !url.password && url.pathname === "/" && !url.search && !url.hash && !url.port) origin = url.origin;
     } catch { /* Report a static code, never the supplied URL. */ }
-    const valid = !!origin && p.missing.length === 0 && /^\d+$/.test(p.userId) && Number.isSafeInteger(Number(p.userId)) && Number(p.userId) > 0 && !!p.sessionToken.trim() && !/[\r\n]/.test(p.sessionToken);
+    const valid = !!origin && p.missing.length === 0 && /^\d+$/.test(p.userId) && Number.isSafeInteger(Number(p.userId)) && Number(p.userId) > 0 && /^[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]+$/.test(p.sessionToken);
     let authentication = "not_checked";
     if (checkAuth && valid) {
       try {

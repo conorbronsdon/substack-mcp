@@ -88,6 +88,9 @@ try {
       assert.match(error.stderr, /Invalid (publication URL|SUBSTACK_USER_ID|session token)/);
       assert.ok(!error.stderr.includes(testSessionToken), 'Startup must not print session tokens');
       assert.ok(!error.stderr.includes('server running'), 'Invalid configuration must fail before connection');
+      assert.ok(error.stderr.includes('substack-mcp doctor --json'), 'Startup must explain the diagnostic command');
+      assert.ok(!/\n\s+at /.test(error.stderr), 'Configuration failures should not dump a stack');
+      if (overrides.SUBSTACK_PUB_B_USER_ID) assert.match(error.stderr, /publication "b"/);
       return true;
     });
   }

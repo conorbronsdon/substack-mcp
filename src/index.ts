@@ -127,8 +127,12 @@ async function main() {
 
     // Fail before connecting if any publication is invalid. Dropping one would
     // change the publication selector and could route a write to the wrong host.
-    const client = new SubstackClient(p.publicationUrl, p.sessionToken, p.userId, userAgent, timeoutMs);
-    return { key: p.key, label: p.label, client };
+    try {
+      const client = new SubstackClient(p.publicationUrl, p.sessionToken, p.userId, userAgent, timeoutMs);
+      return { key: p.key, label: p.label, client };
+    } catch (error) {
+      throw new Error(`Invalid configuration for publication "${p.key}": ${error instanceof Error ? error.message : "Credential validation failed."} Run substack-mcp doctor --json to inspect each publication; run substack-mcp-login to set up a session.`);
+    }
   });
 
   const transportMode = process.env.MCP_TRANSPORT ?? "stdio";
@@ -189,6 +193,6 @@ async function run() {
 }
 
 run().catch((err) => {
-  console.error("Fatal error:", err);
+  console.error("Fatal error:", err instanceof Error ? err.message : String(err));
   process.exit(1);
 });

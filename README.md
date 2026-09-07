@@ -373,6 +373,18 @@ Built and maintained by [Conor Bronsdon](https://github.com/conorbronsdon) for t
 
 *This is an independent personal project, not affiliated with, sponsored by, or endorsed by any company. All views expressed are my own.*
 
+## Codex plugin
+
+The repository includes a Codex manifest at `.codex-plugin/plugin.json` and an
+MCP configuration at `.mcp.json`. It runs the published npm package over stdio
+using `npx`; Node.js and npm must be available. The package version is pinned
+in `.mcp.json`, so upgrading the plugin's server is an explicit change.
+
+Configure your Substack credentials outside the plugin using the environment
+variables or browser-login session described above. Never commit a session
+token. Installation does not authenticate an account or grant approval to post.
+Long-form posts remain drafts; Notes publish immediately.
+
 ## License
 
 MIT

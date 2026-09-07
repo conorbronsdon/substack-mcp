@@ -4,7 +4,7 @@ import type { StoredSession } from "../auth/session-store.js";
 
 const stored: StoredSession = {
   publicationUrl: "https://stored.substack.com",
-  sessionToken: "stored-tok",
+  sessionToken: "example-stored-token",
   userId: "99",
   savedAt: "2026-01-01T00:00:00Z",
 };
@@ -17,7 +17,7 @@ describe("resolvePublications", () => {
   it("falls back to resolveCredentials (single 'default' entry) when no prefixed vars are set", () => {
     const env = {
       SUBSTACK_PUBLICATION_URL: "https://env.substack.com",
-      SUBSTACK_SESSION_TOKEN: "env-tok",
+      SUBSTACK_SESSION_TOKEN: "example-env-token",
       SUBSTACK_USER_ID: "1",
     } as NodeJS.ProcessEnv;
     const pubs = resolvePublications(env, () => stored);
@@ -25,7 +25,7 @@ describe("resolvePublications", () => {
     expect(pubs[0]).toMatchObject({
       key: "default",
       publicationUrl: "https://env.substack.com",
-      sessionToken: "env-tok",
+      sessionToken: "example-env-token",
       userId: "1",
       source: "env",
       missing: [],
@@ -86,7 +86,7 @@ describe("resolvePublications", () => {
     const warn = vi.spyOn(console, "error").mockImplementation(() => {});
     const env = {
       SUBSTACK_PUBLICATION_URL: "https://legacy.substack.com",
-      SUBSTACK_SESSION_TOKEN: "legacy-tok",
+      SUBSTACK_SESSION_TOKEN: "example-legacy-token",
       SUBSTACK_USER_ID: "1",
       SUBSTACK_PUB_SAPERE_PUBLICATION_URL: "https://sapere.substack.com",
       SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "tok-2",
@@ -245,7 +245,7 @@ describe("resolvePublications: names that do not match the grammar", () => {
   it("control: the legacy SUBSTACK_PUBLICATION_URL is not mistaken for a malformed prefixed name", () => {
     const env = {
       SUBSTACK_PUBLICATION_URL: "https://legacy.substack.com",
-      SUBSTACK_SESSION_TOKEN: "FAKE-LEGACY",
+      SUBSTACK_SESSION_TOKEN: "example-legacy-fallback",
       SUBSTACK_USER_ID: "1",
     } as NodeJS.ProcessEnv;
     expect(resolvePublications(env, () => null)[0].key).toBe("default");
@@ -258,10 +258,10 @@ describe("resolvePublications: key collisions", () => {
     // merge them, and can pair one publication's URL with the other's cookie.
     const env = {
       SUBSTACK_PUB_ALPHA_PUBLICATION_URL: "https://alpha.substack.com",
-      SUBSTACK_PUB_ALPHA_SESSION_TOKEN: "tok-alpha",
+      SUBSTACK_PUB_ALPHA_SESSION_TOKEN: "example-alpha-token",
       SUBSTACK_PUB_ALPHA_USER_ID: "1",
       SUBSTACK_PUB_Alpha_PUBLICATION_URL: "https://beta.substack.com",
-      SUBSTACK_PUB_Alpha_SESSION_TOKEN: "tok-beta",
+      SUBSTACK_PUB_Alpha_SESSION_TOKEN: "example-beta-token",
       SUBSTACK_PUB_Alpha_USER_ID: "2",
     } as NodeJS.ProcessEnv;
     expect(() => resolvePublications(env, () => null)).toThrow(/same publication key/i);
@@ -271,7 +271,7 @@ describe("resolvePublications: key collisions", () => {
   it("does not fire on a single key used across all three of its variables", () => {
     const env = {
       SUBSTACK_PUB_ALPHA_PUBLICATION_URL: "https://alpha.substack.com",
-      SUBSTACK_PUB_ALPHA_SESSION_TOKEN: "tok-alpha",
+      SUBSTACK_PUB_ALPHA_SESSION_TOKEN: "example-alpha-token",
       SUBSTACK_PUB_ALPHA_USER_ID: "1",
     } as NodeJS.ProcessEnv;
     expect(resolvePublications(env, () => null).map((p) => p.key)).toEqual(["alpha"]);

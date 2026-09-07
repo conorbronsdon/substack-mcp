@@ -301,22 +301,22 @@ describe("HTTP transport: origin and host validation", () => {
 
 describe("HTTP transport: bearer auth", () => {
   it("rejects a request with no token when one is configured", async () => {
-    await listen({ token: "FAKE-TEST-TOKEN" });
+    await listen({ token: "example-test-token" });
     const res = await post();
     expect(res.status).toBe(401);
     expect(factory).not.toHaveBeenCalled();
   });
 
   it("rejects a wrong token", async () => {
-    await listen({ token: "FAKE-TEST-TOKEN" });
+    await listen({ token: "example-test-token" });
     const res = await post({ Authorization: "Bearer WRONG" });
     expect(res.status).toBe(401);
     expect(factory).not.toHaveBeenCalled();
   });
 
   it("accepts the configured token", async () => {
-    await listen({ token: "FAKE-TEST-TOKEN" });
-    const res = await post({ Authorization: "Bearer FAKE-TEST-TOKEN" });
+    await listen({ token: "example-test-token" });
+    const res = await post({ Authorization: "Bearer example-test-token" });
     expect(res.status).toBe(200);
     expect(factory).toHaveBeenCalledTimes(1);
   });
@@ -324,29 +324,29 @@ describe("HTTP transport: bearer auth", () => {
   // RFC 9110 §11.1: the auth scheme is case-insensitive and is separated from
   // the credential by one or more spaces. Both of these were 401s.
   it("accepts a lowercase bearer scheme", async () => {
-    await listen({ token: "FAKE-TEST-TOKEN" });
-    const res = await post({ Authorization: "bearer FAKE-TEST-TOKEN" });
+    await listen({ token: "example-test-token" });
+    const res = await post({ Authorization: "bearer example-test-token" });
     expect(res.status).toBe(200);
     expect(factory).toHaveBeenCalledTimes(1);
   });
 
   it("accepts more than one space after the scheme", async () => {
-    await listen({ token: "FAKE-TEST-TOKEN" });
-    const res = await post({ Authorization: "Bearer   FAKE-TEST-TOKEN" });
+    await listen({ token: "example-test-token" });
+    const res = await post({ Authorization: "Bearer   example-test-token" });
     expect(res.status).toBe(200);
     expect(factory).toHaveBeenCalledTimes(1);
   });
 
   it("still rejects a token that only shares a prefix", async () => {
-    await listen({ token: "FAKE-TEST-TOKEN" });
-    const res = await post({ Authorization: "Bearer FAKE-TEST-TOKEN-EXTRA" });
+    await listen({ token: "example-test-token" });
+    const res = await post({ Authorization: "Bearer example-test-token-EXTRA" });
     expect(res.status).toBe(401);
     expect(factory).not.toHaveBeenCalled();
   });
 
   it("rejects a non-bearer scheme carrying the right secret", async () => {
-    await listen({ token: "FAKE-TEST-TOKEN" });
-    const res = await post({ Authorization: "Basic FAKE-TEST-TOKEN" });
+    await listen({ token: "example-test-token" });
+    const res = await post({ Authorization: "Basic example-test-token" });
     expect(res.status).toBe(401);
     expect(factory).not.toHaveBeenCalled();
   });

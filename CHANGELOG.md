@@ -9,7 +9,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
-- `get_publication`: projected publication metadata with host matching, explicit missing fields, structured MCP output and a text fallback. Does not infer account identity or permissions. Endpoint mapping is source-referenced; live contract validation remains pending for 0.9.
+- `get_publication`: projected publication metadata with normalized host matching, explicit absent fields, structured MCP output and a text fallback. Does not infer account identity or permissions. A read-only live check passed on one custom-domain publication; broader 0.9 contract validation remains pending.
 
 ## [0.8.0] - 2026-09-07
 

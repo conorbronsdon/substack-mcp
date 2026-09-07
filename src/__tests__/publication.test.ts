@@ -23,12 +23,20 @@ describe("publication context", () => {
   it("accepts an exact custom domain", async () => {
     expect((await getPublication("https://news.example.com", async () => ({ ...publication, custom_domain: "news.example.com" }))).data.id).toBe(42);
   });
+  it.each([
+    ["https://sample.substack.com.", null],
+    ["https://news.example.com", "NEWS.EXAMPLE.COM."],
+    ["https://bücher.example", "bücher.example"],
+  ])("normalizes equivalent hostname representations for %s", async (url, custom_domain) => {
+    expect((await getPublication(url, async () => ({ ...publication, custom_domain }))).data.id).toBe(42);
+  });
   it.each(["https://ample.substack.com", "https://sample.substack.com.attacker.example", "https://unrelated.example"])("rejects wrong publication %s", async url => {
     await expect(getPublication(url, async () => publication)).rejects.toThrow(/does not match/);
   });
   it.each([{}, null, { ...publication, id: -1 }, { ...publication, id: Number.MAX_SAFE_INTEGER + 1 },
     { ...publication, name: "x".repeat(1001) }, { ...publication, paused: "false" },
-    { ...publication, custom_domain: "https://example.com" }])("fails closed on malformed context", async response => {
+    { ...publication, custom_domain: "https://example.com" }, { ...publication, custom_domain: "news..example.com" },
+    { ...publication, custom_domain: "news.example.com/path" }])("fails closed on malformed context", async response => {
     await expect(getPublication("https://sample.substack.com", async () => response)).rejects.toThrow(/cannot be verified/);
   });
   it("propagates read failures without inventing context", async () => {

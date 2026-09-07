@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { decideRelease, inspectRelease, lookupJson, releaseManifest, verifyStage } from './release-state.mjs';
+import { decideRelease, inspectRelease, lookupJson, releaseManifest, verifyStage, releaseErrorMessage } from './release-state.mjs';
 
 const pkg = { name: '@conorbronsdon/substack-mcp', mcpName: 'io.github.conorbronsdon/substack-mcp', version: '0.9.0' };
 const sha = 'a'.repeat(40), newerSha = 'b'.repeat(40);
@@ -122,8 +122,18 @@ test('recovery manifest comes from verified original commit, not development HEA
   const git = args => { commands.push(args); return args[0] === 'merge-base' ? '' : JSON.stringify(args[1].endsWith('package.json') ? pkg : manifest); };
   assert.deepEqual(releaseManifest(pkg, sha, newerSha, git), manifest);
   assert.deepEqual(commands, [['merge-base', '--is-ancestor', sha, newerSha], ['show', `${sha}:package.json`], ['show', `${sha}:server.json`]]);
-  assert.throws(() => releaseManifest(pkg, sha, newerSha, () => { throw Error('not ancestor'); }), /not ancestor/);
+  assert.throws(() => releaseManifest(pkg, sha, newerSha, () => { throw Error('private git failure'); }), /Fetch full history/);
   assert.throws(() => releaseManifest(pkg, sha, newerSha, args => args[0] === 'merge-base' ? '' : JSON.stringify({ ...pkg, version: '0.8.0' })), /identity mismatch/);
+});
+
+test('renders precise trusted diagnostics without exposing external error details', async () => {
+  try { decideRelease(pkg, sha, { ...state(), tagSha: newerSha }); assert.fail('must reject mismatched tag'); }
+  catch (error) { assert.equal(releaseErrorMessage(error), 'Existing release tag points to a different commit'); }
+  assert.ok(!releaseErrorMessage(new Error('private external error')).includes('private'));
+  try {
+    await lookupJson('https://example.invalid', { fetchImpl: async () => { throw Error('Release lookup private forged message'); } });
+    assert.fail('must reject failed lookup');
+  } catch (error) { assert.equal(releaseErrorMessage(error), 'Release lookup failed; state is unknown'); }
 });
 
 test('workflow separates recovery gates and verifies each publication', () => {

@@ -7,14 +7,18 @@ import { classifyRelease } from './check-release-order.mjs';
 const repository = 'conorbronsdon/substack-mcp';
 const officialKey = 'io.modelcontextprotocol.registry/official';
 const isSha = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value);
-const requireState = (condition, message) => { if (!condition) throw new Error(message); };
+class ReleaseStateError extends Error {}
+const requireState = (condition, message) => { if (!condition) throw new ReleaseStateError(message); };
+export const releaseErrorMessage = error => error instanceof ReleaseStateError
+  ? error.message
+  : 'Release state could not be verified. Inspect metadata and local history before retrying; no lookup failure authorizes publication.';
 
 /** Only a confirmed HTTP 404 is absence. Errors never authorize publication. */
 export async function lookupJson(url, { headers = {}, fetchImpl = fetch, timeoutMs = 10000, maxBytes = 2 * 1024 * 1024 } = {}) {
   const controller = new AbortController();
   let rejectTimeout;
   const expired = new Promise((_, reject) => { rejectTimeout = reject; });
-  const timer = setTimeout(() => { rejectTimeout(new Error('Release lookup timed out')); controller.abort(); }, timeoutMs);
+  const timer = setTimeout(() => { rejectTimeout(new ReleaseStateError('Release lookup timed out')); controller.abort(); }, timeoutMs);
   let response, reader;
   const discard = value => { void value?.body?.cancel().catch(() => {}); };
   try {
@@ -41,7 +45,7 @@ export async function lookupJson(url, { headers = {}, fetchImpl = fetch, timeout
     return result;
   } catch (error) {
     // Do not echo response bodies, authorization headers, or fetch error causes.
-    throw new Error(error instanceof Error && /^Release lookup /.test(error.message) ? error.message : 'Release lookup failed; state is unknown');
+    throw new ReleaseStateError(error instanceof ReleaseStateError ? error.message : 'Release lookup failed; state is unknown');
   } finally {
     clearTimeout(timer);
     if (reader) { void reader.cancel().catch(() => {}); reader.releaseLock(); }
@@ -62,7 +66,8 @@ export function decideRelease(pkg, sha, { latest, npm, registry, release, tagSha
   requireState(isSha(sha), 'Invalid release commit');
   requireState(semver.valid(pkg.version) === pkg.version && !semver.prerelease(pkg.version), 'Only canonical stable releases are supported');
   if (latest) requireState(latest.name === pkg.name && semver.valid(latest.version) === latest.version, 'npm latest identity mismatch');
-  classifyRelease(pkg.version, latest?.version ?? 'none');
+  try { classifyRelease(pkg.version, latest?.version ?? 'none'); }
+  catch { throw new ReleaseStateError('Refusing non-monotonic release: local version is older than npm latest'); }
   if (npm) {
     requireState(npm.name === pkg.name && npm.version === pkg.version, 'npm version identity mismatch');
     requireState(isSha(npm.gitHead), 'npm release commit is missing or invalid; manual reconciliation required');
@@ -86,7 +91,7 @@ export function decideRelease(pkg, sha, { latest, npm, registry, release, tagSha
 export async function inspectRelease(pkg, sha, { token, lookup = lookupJson } = {}) {
   const npmBase = `https://registry.npmjs.org/${encodeURIComponent(pkg.name)}`;
   const api = `https://api.github.com/repos/${repository}`;
-  const ghOptions = { headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(token ? { Authorization: `Bearer ${token}` } : {}) } };
+  const ghOptions = { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'substack-mcp-release-check', 'X-GitHub-Api-Version': '2022-11-28', ...(token ? { Authorization: `Bearer ${token}` } : {}) } };
   const latest = await lookup(`${npmBase}/latest`);
   const npm = await lookup(`${npmBase}/${encodeURIComponent(pkg.version)}`);
   const registry = await lookup(`https://registry.modelcontextprotocol.io/v0.1/servers/${encodeURIComponent(pkg.mcpName)}/versions/${encodeURIComponent(pkg.version)}?include_deleted=true`);
@@ -111,7 +116,8 @@ export async function inspectRelease(pkg, sha, { token, lookup = lookupJson } = 
 export function releaseManifest(pkg, target, head, git = args => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })) {
   // The package's recorded commit must exist in this checkout's history. Never
   // attach an old npm version to the current development HEAD during recovery.
-  git(['merge-base', '--is-ancestor', target, head]);
+  try { git(['merge-base', '--is-ancestor', target, head]); }
+  catch { throw new ReleaseStateError('Release commit is not in checkout history. Fetch full history and reconcile the npm commit before retrying.'); }
   const sourcePackage = JSON.parse(git(['show', `${target}:package.json`]));
   requireState(sourcePackage.name === pkg.name && sourcePackage.version === pkg.version && sourcePackage.mcpName === pkg.mcpName, 'Release commit package identity mismatch');
   const manifest = JSON.parse(git(['show', `${target}:server.json`]));
@@ -141,5 +147,5 @@ export async function main(command = 'plan') {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.argv[2]).catch(() => { console.error('Release state could not be verified. No lookup failure authorizes publication; inspect metadata and retry after reconciliation.'); process.exitCode = 1; });
+  main(process.argv[2]).catch(error => { console.error(releaseErrorMessage(error)); process.exitCode = 1; });
 }

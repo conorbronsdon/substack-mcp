@@ -39,11 +39,13 @@
  * pair one publication's URL with another's session cookie, per field, in
  * whatever order the environment happens to enumerate.
  *
- * Browser-login sessions stay out of scope for named publications: only the
- * single-publication fallback above can ever pull from a stored session.
+ * SUBSTACK_PROFILES explicitly selects stored named sessions and rejects any
+ * simultaneous publication credential variables. Missing or invalid selected
+ * profiles fail closed; stored profiles are never activated by discovery.
  */
 import { resolveCredentials, type ResolvedCredentials } from "./resolve-credentials.js";
 import { loadSession, type StoredSession } from "./session-store.js";
+import { loadProfile, profileKey } from "./profiles.js";
 
 export interface PublicationCredentials {
   /** Tool-facing `publication` enum value, e.g. "kevin-muldoon". Never surfaced when only one publication is configured. */
@@ -106,7 +108,17 @@ function labelFromKey(key: string): string {
 export function resolvePublications(
   env: NodeJS.ProcessEnv = process.env,
   loader: () => StoredSession | null = loadSession,
+  profileLoader: (key: string) => StoredSession = loadProfile,
 ): PublicationCredentials[] {
+  if (env.SUBSTACK_PROFILES !== undefined) {
+    const keys = env.SUBSTACK_PROFILES.split(",");
+    if (keys.length > 32 || new Set(keys).size !== keys.length) throw new Error("Select at most 32 distinct profile keys.");
+    keys.forEach(profileKey);
+    if (Object.keys(env).some(key => PUB_PREFIX_RE.test(key) || ["SUBSTACK_PUBLICATION_URL", "SUBSTACK_SESSION_TOKEN", "SUBSTACK_USER_ID"].includes(key))) {
+      throw new Error("SUBSTACK_PROFILES cannot be combined with publication credential environment variables. Choose one configuration source.");
+    }
+    return keys.map(key => ({ key, label: labelFromKey(key), ...profileLoader(key), source: "stored" as const, missing: [] }));
+  }
   const groups = new Map<string, Group>();
   const malformed: string[] = [];
 

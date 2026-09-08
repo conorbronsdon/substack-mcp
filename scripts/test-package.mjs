@@ -67,6 +67,10 @@ try {
   assert.throws(() => execFileSync(process.execPath, [cli, 'export', '-1'], { env, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
   assert.match(execFileSync(process.execPath, [cli, 'drafts', '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /drafts apply/);
   assert.throws(() => execFileSync(process.execPath, [cli, 'drafts', 'apply'], { env, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
+  assert.match(execFileSync(process.execPath, [cli, 'login', '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /--profile/);
+  assert.match(execFileSync(process.execPath, [cli, 'profiles', '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /SUBSTACK_PROFILES/);
+  assert.deepEqual(JSON.parse(execFileSync(process.execPath, [cli, 'profiles', 'list'], { env, encoding: 'utf8', timeout: 10_000 })).profiles, []);
+  assert.throws(() => execFileSync(process.execPath, [cli, 'status', '--json'], { env: { ...env, SUBSTACK_PROFILES: 'missing' }, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 1);
   const doctorEnv = { ...env, SUBSTACK_PUBLICATION_URL: 'https://example.invalid', SUBSTACK_USER_ID: '1' };
   const diagnosis = JSON.parse(execFileSync(process.execPath, [cli, 'doctor', '--json'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
   const status = JSON.parse(execFileSync(process.execPath, [cli, 'status', '--json'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));

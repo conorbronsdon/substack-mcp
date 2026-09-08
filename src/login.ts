@@ -1,153 +1,100 @@
 #!/usr/bin/env node
-/**
- * `substack-mcp-login` — a one-time browser login that captures your Substack
- * session and stores it locally (encrypted, machine-bound) so the MCP server
- * can run without pasting a session token into your client config.
- *
- * Playwright is NOT a dependency of this package (it is large and downloads
- * browsers). It is imported lazily and indirectly below; if it isn't
- * installed, this prints install instructions and exits. This keeps
- * `npx @conorbronsdon/substack-mcp` small for the common env-var path.
- *
- * NOTE: The browser-automation portion talks to Substack's live login UI,
- * which changes over time and can present a CAPTCHA. It cannot be covered by
- * automated tests. The encrypted store and credential resolution it feeds ARE
- * unit-tested (see src/__tests__).
- */
+/** Browser login is interactive; the legacy binary remains a supported alias. */
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
+import { pathToFileURL } from "node:url";
 import { saveSession } from "./auth/session-store.js";
+import { profileKey, saveProfile, assertProfileAvailable } from "./auth/profiles.js";
+import { publicationOrigin, validateCredentials } from "./auth/validate-credentials.js";
+import { doctor } from "./doctor.js";
 
-const SESSION_COOKIE_NAMES = ["connect.sid", "substack.sid"];
-const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
+const usage = "Usage: substack-mcp-login [publication-url] [--user-id id] [--profile key] [--force]\nAlias: substack-mcp login [same options]\nInteractive browser sign-in. Missing URL/user ID are prompted. User ID must be your own configured Substack ID; a post byline is not identity verification. --profile stores a named session; existing profiles require --force. Requires Playwright. --help is offline.";
+const COOKIE_NAMES = ["connect.sid", "substack.sid"];
+interface CookieContext { cookies(url: string): Promise<{ name: string; value: string }[]> }
+interface LoginBrowser { newContext(): Promise<CookieContext & { newPage(): Promise<{ goto(url: string, options?: { waitUntil: "domcontentloaded" }): Promise<unknown> }> }>; close(): Promise<void> }
+interface Chromium { launch(options: { headless: boolean }): Promise<LoginBrowser> }
 
+export function parseLoginArguments(args: string[]) {
+  let publicationUrl: string | undefined, userId: string | undefined, profile: string | undefined;
+  let force = false;
+  const seen = new Set<string>();
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (!arg.startsWith("--") && i === 0) { publicationUrl = publicationOrigin(arg) ?? undefined; if (!publicationUrl) throw new Error("Invalid publication URL."); continue; }
+    if (seen.has(arg)) throw new Error("Duplicate login option."); seen.add(arg);
+    if (arg === "--force") { force = true; continue; }
+    if (!["--user-id", "--profile"].includes(arg) || !args[i + 1]) throw new Error("Unknown or incomplete login option.");
+    const value = args[++i];
+    if (arg === "--profile") profile = profileKey(value);
+    else { validateCredentials("https://example.invalid", "validation-only", value); userId = value; }
+  }
+  if (force && !profile) throw new Error("--force requires --profile.");
+  return { publicationUrl, userId, profile, force };
+}
+
+/** Only inspect cookies that apply to the requested URL; never pick another host's session. */
+export async function readSessionCookie(context: CookieContext, url: string): Promise<string> {
+  const cookies = await context.cookies(url);
+  for (const name of COOKIE_NAMES) {
+    const values = [...new Set(cookies.filter(c => c.name === name && c.value).map(c => c.value))];
+    if (values.length > 1) throw new Error("Ambiguous session cookies; sign in with a fresh browser context.");
+    if (values.length === 1) return values[0];
+  }
+  return "";
+}
 async function ask(question: string): Promise<string> {
   const rl = createInterface({ input: stdin, output: stdout });
-  try {
-    return (await rl.question(question)).trim();
-  } finally {
-    rl.close();
-  }
+  try { return (await rl.question(question)).trim(); } finally { rl.close(); }
 }
-
-/** Read the first present Substack session cookie from the browser context. */
-async function readSessionCookie(context: any): Promise<string> {
-  const cookies = await context.cookies();
-  for (const name of SESSION_COOKIE_NAMES) {
-    const hit = cookies.find((c: any) => c.name === name && c.value);
-    if (hit) return hit.value;
-  }
-  return "";
+async function loadChromium(): Promise<Chromium> {
+  const moduleName = "playwright";
+  try { return (await import(moduleName)).chromium; }
+  catch { throw new Error("Install the package and Playwright together in a local tools directory: npm install @conorbronsdon/substack-mcp playwright; then npx playwright install chromium; then npx substack-mcp login."); }
 }
-
-/** Poll the context until a session cookie appears or the timeout elapses. */
-async function waitForSessionCookie(context: any): Promise<string> {
-  const deadline = Date.now() + LOGIN_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    const token = await readSessionCookie(context);
-    if (token) return token;
-    await new Promise((r) => setTimeout(r, 1500));
+const defaults = { ask, loadChromium, out: (text: string) => console.log(text), error: (text: string) => console.error(text) };
+export async function runLogin(args: string[], deps = defaults): Promise<number> {
+  if (args.length === 1 && ["--help", "-h"].includes(args[0])) { deps.out(usage); return 0; }
+  let options: ReturnType<typeof parseLoginArguments>;
+  try { options = parseLoginArguments(args); } catch { deps.error(usage); return 2; }
+  if (options.profile) {
+    try { assertProfileAvailable(options.profile, options.force); }
+    catch { deps.error("Profile already exists or cannot be replaced. Choose another key, inspect storage, or explicitly use --force for an existing regular profile."); return 1; }
   }
-  return "";
-}
-
-async function main(): Promise<void> {
-  if (process.argv.includes("--help") || process.argv.includes("-h")) {
-    console.log("Usage: substack-mcp-login [publication-url]\nOpens a browser to sign in and stores a local session. Requires Playwright.");
-    return;
-  }
-  console.log("substack-mcp browser login\n");
-
-  // Lazy + indirect import so tsc never needs the playwright types and the
-  // package never hard-depends on it.
-  let chromium: any;
+  let browser: LoginBrowser | undefined;
   try {
-    const moduleName = "playwright";
-    ({ chromium } = await import(moduleName));
-  } catch {
-    console.error(
-      "This login flow needs Playwright, which is not bundled with substack-mcp.\n" +
-        "Install it once, then re-run:\n\n" +
-        "  npm i -g playwright && npx playwright install chromium\n" +
-        "  npx --package @conorbronsdon/substack-mcp substack-mcp-login\n",
-    );
-    process.exit(1);
-    return;
-  }
-
-  const publicationUrl = (
-    process.argv[2] ||
-    (await ask("Publication URL (e.g. https://yourblog.substack.com): "))
-  ).replace(/\/+$/, "");
-
-  if (!/^https?:\/\//.test(publicationUrl)) {
-    console.error("That doesn't look like a URL (needs http/https). Aborting.");
-    process.exit(1);
-    return;
-  }
-
-  const browser = await chromium.launch({ headless: false });
-  try {
-    const context = await browser.newContext();
-    const page = await context.newPage();
-
-    console.log(
-      "\nA browser window opened. Sign in to Substack there (including any CAPTCHA).",
-    );
-    console.log("Waiting for sign-in to complete (up to 5 minutes)...\n");
+    const publicationUrl = options.publicationUrl ?? publicationOrigin(await deps.ask("Publication HTTPS origin: "));
+    const userId = options.userId ?? await deps.ask("Your Substack user ID (not a publication author's byline ID): ");
+    if (!publicationUrl) { deps.error("Use a direct HTTPS publication origin."); return 2; }
+    try { validateCredentials(publicationUrl, "validation-only", userId); } catch { deps.error("Use your positive numeric Substack user ID."); return 2; }
+    let chromium: Chromium;
+    try { chromium = await deps.loadChromium(); } catch { deps.error("Browser login needs Playwright. In a local tools directory run npm install @conorbronsdon/substack-mcp playwright, then npx playwright install chromium, then npx substack-mcp login."); return 1; }
+    browser = await chromium.launch({ headless: false });
+    const context = await browser.newContext(), page = await context.newPage();
+    deps.out("Sign in to Substack in the opened browser, including any CAPTCHA. Waiting up to five minutes.");
     await page.goto("https://substack.com/sign-in");
-
-    const token = await waitForSessionCookie(context);
-    if (!token) {
-      // Throw (don't exit here) so the finally below closes the browser first.
-      throw new Error("Timed out waiting for sign-in. Nothing was saved.");
+    const deadline = Date.now() + 5 * 60 * 1000;
+    while (!(await readSessionCookie(context, "https://substack.com"))) {
+      if (Date.now() >= deadline) throw new Error("Login timed out.");
+      await new Promise(resolve => setTimeout(resolve, 1500));
     }
-
-    console.log("Signed in. Resolving your user id from the publication...");
     await page.goto(publicationUrl, { waitUntil: "domcontentloaded" });
-    const userId: string = await page.evaluate(async () => {
-      try {
-        const res = await fetch("/api/v1/archive?sort=new&limit=1", {
-          credentials: "include",
-        });
-        const data = await res.json();
-        return String(data?.[0]?.publishedBylines?.[0]?.id ?? "");
-      } catch {
-        return "";
-      }
-    });
-
-    // Prefer the cookie as seen in the publication's own context (custom
-    // domains use connect.sid); fall back to the substack.com one.
-    const publicationToken = (await readSessionCookie(context)) || token;
-
-    if (!userId) {
-      // Throw (don't exit here) so the finally below closes the browser first.
-      throw new Error(
-        "Signed in, but could not auto-resolve your user id from " +
-          `${publicationUrl}. Find it via DevTools (see the README) and set ` +
-          "SUBSTACK_USER_ID manually, or re-run with the correct publication URL.",
-      );
-    }
-
-    const file = saveSession({
-      publicationUrl,
-      sessionToken: publicationToken,
-      userId,
-    });
-
-    console.log(
-      `\nSaved. Credentials stored (encrypted, machine-bound) at:\n  ${file}\n`,
-    );
-    console.log(
-      "substack-mcp will now use these automatically when SUBSTACK_* env vars are unset.",
-    );
+    const sessionToken = await readSessionCookie(context, `${publicationUrl}/api/v1/post_management/drafts`);
+    validateCredentials(publicationUrl, sessionToken, userId);
+    const credentials = { publicationUrl, sessionToken, userId };
+    const check = await doctor(true, () => [{ ...credentials, key: options.profile ?? "default", label: "login", source: "stored", missing: [] }]);
+    if (!check.ok) throw new Error("Authenticated read did not succeed.");
+    if (options.profile) saveProfile(options.profile, credentials, options.force);
+    else saveSession(credentials);
+    deps.out(JSON.stringify({ format_version: 1, ok: true, command: "login", profile: options.profile ?? null, authentication: "authenticated_read_succeeded", user_identity: "not_verified", storage: "machine_bound_file" }));
+    deps.out(options.profile ? `Select this profile with SUBSTACK_PROFILES=${options.profile}. Remove publication credential env vars first.` : "Stored legacy session is used when publication credential env vars are unset.");
+    return 0;
+  } catch {
+    deps.error("Login or local saving failed. Check sign-in, publication access, your configured user ID and profile overwrite choice. Inspect local status before retrying; user identity is not independently verified."); return 1;
   } finally {
-    await browser.close();
+    try { await browser?.close(); }
+    catch { deps.error("Browser cleanup failed. Close the login window manually; inspect local status to confirm whether saving completed."); }
   }
 }
-
-main().catch((err) => {
-  console.error("Login failed:", err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runLogin(process.argv.slice(2)).then(code => { process.exitCode = code; }).catch(() => { console.error("Login failed."); process.exitCode = 1; });
+}

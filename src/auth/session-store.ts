@@ -70,11 +70,8 @@ function deriveKey(salt: Buffer): Buffer {
   return scryptSync(identity, salt, 32);
 }
 
-/** Encrypt and write the session `0600`. Returns the file path. */
-export function saveSession(session: Omit<StoredSession, "savedAt">): string {
-  const dir = sessionDir();
-  mkdirSync(dir, { recursive: true });
-
+/** Existing machine-bound format, shared by legacy sessions and named profiles. */
+export function encodeSession(session: Omit<StoredSession, "savedAt">): string {
   const salt = randomBytes(16);
   const iv = randomBytes(12);
   const key = deriveKey(salt);
@@ -99,8 +96,14 @@ export function saveSession(session: Omit<StoredSession, "savedAt">): string {
     data: data.toString("base64"),
   };
 
+  return JSON.stringify(envelope);
+}
+
+/** Encrypt and write the session `0600`. Returns the file path. */
+export function saveSession(session: Omit<StoredSession, "savedAt">): string {
+  mkdirSync(sessionDir(), { recursive: true });
   const file = sessionFile();
-  writeFileSync(file, JSON.stringify(envelope), { mode: 0o600 });
+  writeFileSync(file, encodeSession(session), { mode: 0o600 });
   // writeFileSync's mode is ignored if the file already existed; force it.
   try {
     chmodSync(file, 0o600);
@@ -119,9 +122,12 @@ export function saveSession(session: Omit<StoredSession, "savedAt">): string {
 export function loadSession(): StoredSession | null {
   const file = sessionFile();
   if (!existsSync(file)) return null;
+  try { return decodeSession(readFileSync(file, "utf8")); } catch { return null; }
+}
 
+export function decodeSession(text: string): StoredSession | null {
   try {
-    const envelope = JSON.parse(readFileSync(file, "utf8")) as Envelope;
+    const envelope = JSON.parse(text) as Envelope;
     if (envelope.v !== 1) return null;
 
     const salt = Buffer.from(envelope.salt, "base64");

@@ -165,7 +165,7 @@ Exit codes: 0 = requested checks passed; 1 = configuration/authentication check
 failed; 2 = invalid command arguments. Without `--check-auth`, a 0 exit code
 does not mean the session is unexpired. Bare `substack-mcp` still starts the
 MCP server; `substack-mcp serve` is an explicit alias. `--help` does not connect
-to Substack. Browser login remains `substack-mcp-login`.
+to Substack. Browser login is `substack-mcp login`; `substack-mcp-login` remains an alias.
 
 ### Write (private drafts; image upload returns a public URL)
 
@@ -241,33 +241,74 @@ optional **browser login** which captures and stores them for you.
 
 ### Option A — Browser login (optional, no manual cookie copying)
 
-Removes the DevTools cookie hunt and the ~90-day re-copy. Playwright is **not**
-bundled (it's large), so install it once, then sign in:
+Install the server and optional Playwright dependency together in a local tools
+directory, then sign in:
 
 ```bash
-npm i -g playwright && npx playwright install chromium
-npx --package @conorbronsdon/substack-mcp substack-mcp-login https://yourblog.substack.com
+npm install @conorbronsdon/substack-mcp playwright
+npx playwright install chromium
+npx substack-mcp login https://yourblog.substack.com --user-id 12345
 ```
 
-A browser opens; sign in to Substack (CAPTCHA included). The tool captures your
-session cookie, auto-resolves your user id, and writes them to
-`~/.substack-mcp/session.json` (override the directory with `SUBSTACK_MCP_HOME`).
-The MCP server reads that file automatically whenever the `SUBSTACK_*` env vars
-are unset — so with browser login you can omit the `env` block entirely.
+`substack-mcp-login` remains a supported alias. Missing publication URL and user
+ID are prompted. Supply your own account's user ID; a post author's byline does
+not verify your identity. The browser opens for sign-in, including any CAPTCHA.
+Only a cookie applicable to the publication API is captured, and a bounded
+authenticated read must succeed before saving. This verifies read access, not
+the configured user ID or permission to write.
 
-**Storage & security:** the file is written `0600` and encrypted with AES-256-GCM
-under a key derived from this OS account + machine (never stored). A copied file
-is useless elsewhere and casual disk/backup reads see only ciphertext. This is
-machine-binding + obfuscation, **not** a secret vault — code running as you on
-this machine can re-derive the key (the same caveat as the plaintext env-var
-path). If you prefer, use Option B and let your MCP client handle the secret.
+Without `--profile`, login saves `~/.substack-mcp/session.json` (directory override:
+`SUBSTACK_MCP_HOME`). The server uses this legacy session when publication
+credential environment variables and `SUBSTACK_PROFILES` are unset.
+
+**Storage:** sessions use AES-256-GCM with a key derived from the OS account and
+machine. File permissions request `0600`; Windows access also depends on directory
+ACLs. This is a machine-bound file, not an OS keychain or secret vault. Code
+running as your OS user can derive the key. Use environment credentials if your
+MCP client manages secrets for you.
+
+#### Named profiles and migration
+
+```bash
+npx substack-mcp login https://yourblog.substack.com --user-id 12345 --profile work
+npx substack-mcp profiles list
+# Copy an existing legacy session without changing its file:
+npx substack-mcp profiles migrate --name personal
+```
+
+Keys start with a lowercase ASCII letter and contain only lowercase letters,
+digits and hyphens, up to 64 characters. Existing profiles require explicit
+`--force` to replace. List output contains keys, readability status, publication origins and file save
+times; it excludes cookies and user IDs. Unreadable profiles remain visible but
+cannot be selected. Save time records local persistence, including migration; it
+is not token issuance or expiration time. Listing is bounded to 32 profiles.
+
+Profile storage requires a local filesystem supporting hard links (such as NTFS
+or a typical Linux filesystem), so creation can install a complete encrypted file
+without overwriting an existing name. FAT/exFAT and some network mounts are not
+supported: set `SUBSTACK_MCP_HOME` to a suitable local directory. Do not use
+`--force` to work around an unsupported filesystem.
+
+Set `SUBSTACK_PROFILES=work,personal` in your MCP client's environment to select
+up to 32 distinct profiles. Remove all publication credential variables first:
+combining profile selection with legacy or named credential variables is an
+error, including empty variables. Missing, corrupt or invalid selected profiles
+stop startup; they never fall back to another account. Profiles on disk are
+never activated by discovery. With multiple profiles, tools require an explicit
+publication key and CLI reads require `--publication`.
+
+To roll back, unset `SUBSTACK_PROFILES` and restore your previous environment
+configuration. Migration preserves the legacy session byte-for-byte. These files
+use the existing encryption format; an OS keychain is not currently supported.
+Run `substack-mcp status --json` for offline configuration diagnostics or
+`substack-mcp doctor --check-auth --json` for a bounded read per selected account.
 
 ### Option B — Get your credentials manually
 
 Open your Substack in a browser, then:
 
 1. **Session token:** Navigate to your publication, open DevTools → Application → Cookies → copy the value of `connect.sid` (URL-encoded string starting with `s%3A`)
-2. **User ID:** In DevTools Console, run: `fetch('/api/v1/archive?sort=new&limit=1').then(r=>r.json()).then(d=>console.log(d[0]?.publishedBylines?.[0]?.id))`
+2. **User ID:** Use the numeric ID of your signed-in Substack account from your authenticated account data. Do not use a publication post's byline ID: publications can have multiple authors. This server does not independently verify the supplied ID.
 3. **Publication URL:** Your Substack URL, including custom domain if you have one (e.g., `https://newsletter.yourdomain.com` or `https://yourblog.substack.com`)
 
 ### 2. Configure your MCP client
@@ -344,7 +385,7 @@ With two or more publications configured, every tool gains a **required** `publi
 
 Don't mix the two styles: if any `SUBSTACK_PUB_<KEY>_*` var is set, the plain `SUBSTACK_*` vars are ignored (with a startup warning) rather than treated as an unnamed extra publication.
 
-`SUBSTACK_USER_AGENT` and `SUBSTACK_REQUEST_TIMEOUT_MS` apply to every configured publication — they are not per-publication. The browser-login flow (`substack-mcp-login`) is single-publication only; multiple publications require the env-var scheme above.
+`SUBSTACK_USER_AGENT` and `SUBSTACK_REQUEST_TIMEOUT_MS` apply to every configured publication — they are not per-publication. Browser login also supports explicit named profiles; see [Named profiles and migration](#named-profiles-and-migration).
 
 ## Token expiration
 

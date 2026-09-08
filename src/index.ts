@@ -176,12 +176,17 @@ async function main() {
 
 async function run() {
   const args = process.argv.slice(2);
+  if (args[0] === "export") {
+    const { runExport } = await import("./export-cli.js");
+    process.exitCode = await runExport(args.slice(1));
+    return;
+  }
   if (args[0] === "doctor") {
     const { runDoctor } = await import("./doctor.js");
     return runDoctor(args.slice(1));
   }
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) {
-    console.log("Usage: substack-mcp [serve | doctor [--json] [--check-auth]]\nWith no command, starts the MCP server. doctor checks configuration without network access; --check-auth adds a bounded read per publication. Login: substack-mcp-login.");
+    console.log("Usage: substack-mcp [serve | doctor [--json] [--check-auth] | export <draft-id> [options]]\nWith no command, starts the MCP server. doctor checks configuration without network access; --check-auth adds a bounded read per publication. export saves Markdown and original JSON without changing Substack; run export --help. Login: substack-mcp-login.");
     return;
   }
   if (args.length && !(args.length === 1 && args[0] === "serve")) {

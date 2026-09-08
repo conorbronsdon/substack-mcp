@@ -93,4 +93,5 @@ SHA, tested features, returned structure and any rendering differences without
 private publication content. Leave cleanup explicit and manual; do not publish
 the draft, automatically delete it, or publish Notes as a contract test.
 
-Export and stale-edit safeguards remain tracked separately in #54 and #63.
+Use [draft export](export.md) to retain the original body alongside editable Markdown.
+Stale-edit safeguards remain tracked separately in #63.

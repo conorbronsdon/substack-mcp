@@ -73,6 +73,8 @@ export function parseMagnitude(raw: string): number | null {
 }
 
 export class SubstackClient {
+  /** Validated configured origin; never includes credentials. */
+  get origin(): string { return this.publicationUrl; }
   readonly subscribers = new SubscriberService((path, options) =>
     this.request(`${this.publicationUrl}${path}`, options));
   private publicationUrl: string;

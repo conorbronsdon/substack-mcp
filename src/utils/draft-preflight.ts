@@ -1,6 +1,6 @@
 type Finding = { severity: "error" | "warning"; code: string; message: string };
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
-const knownNodes = new Set(["doc", "paragraph", "text", "heading", "blockquote", "bullet_list", "ordered_list", "list_item", "code_block", "horizontal_rule", "hard_break", "captionedImage", "image2", "caption", "paywall"]);
+const knownNodes = new Set(["doc", "paragraph", "text", "bulletList", "orderedList", "listItem", "codeBlock", "hardBreak", "horizontalRule", "heading", "blockquote", "bullet_list", "ordered_list", "list_item", "code_block", "horizontal_rule", "hard_break", "captionedImage", "image2", "caption", "paywall"]);
 
 /** Static review aid, deliberately not a complete Substack schema validator. */
 export function preflightDraft(draft: unknown, requestedId: number) {

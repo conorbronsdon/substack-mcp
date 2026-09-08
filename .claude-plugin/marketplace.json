@@ -7,9 +7,9 @@
     {
       "name": "substack-mcp",
       "source": "./",
-      "description": "Read Substack content and manage long-form drafts; Notes publish immediately.",
+      "description": "Safe creator operations for Substack: rich drafts, Notes, analytics, and consented subscribers. Long-form posts stay draft-only; Notes publish immediately.",
       "version": "1.0.0"
     }
   ],
-  "description": "Substack creator tools and a shared draft-review workflow, maintained with the server."
+  "description": "Safe Substack creator tools for drafts, Notes, analytics, and consented subscribers, maintained with the server."
 }

@@ -1,7 +1,14 @@
 {
   "name": "substack-mcp",
   "version": "1.0.0",
-  "description": "Read Substack content and manage long-form drafts; Notes publish immediately.",
+  "description": "Safe creator operations for Substack: rich drafts, Notes, analytics, and consented subscribers. Long-form posts stay draft-only; Notes publish immediately.",
+  "keywords": [
+    "mcp",
+    "substack",
+    "newsletter",
+    "ai",
+    "claude"
+  ],
   "author": {
     "name": "Conor Bronsdon",
     "url": "https://github.com/conorbronsdon"
@@ -12,8 +19,8 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Substack MCP",
-    "shortDescription": "Read Substack content and manage long-form drafts; Notes publish immediately.",
-    "longDescription": "Runs the published Substack MCP server over stdio. Long-form posts have no publish, delete, or schedule tools. Notes publish immediately. Configure your own credentials outside the plugin.",
+    "shortDescription": "Substack drafts, analytics, consented subscribers; Notes publish immediately.",
+    "longDescription": "Runs the published Substack MCP server over stdio for safe creator operations across publications: rich drafts, Notes, analytics, and consented subscribers. Long-form posts have no publish, delete, or schedule tools. Notes publish immediately. Configure your own credentials outside the plugin.",
     "developerName": "Conor Bronsdon",
     "category": "Productivity",
     "capabilities": [

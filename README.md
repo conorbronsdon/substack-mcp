@@ -15,9 +15,11 @@ Safe creator operations for Substack, via MCP. Prepare rich drafts, publish Note
 
 ---
 
-![Demo: list_drafts tool call and response](docs/demo.gif)
+![Create, search, export, plan and review a draft with substack-mcp](https://raw.githubusercontent.com/conorbronsdon/substack-mcp/ce36ba4bd0683a77c7b0bb50f9e62c30f635dc5b/docs/workflow-demo.gif)
 
-An MCP server for Substack that lets AI assistants read your publication data and manage drafts. The draft list shown in the demo above is sample data, not real account values.
+The demo runs actual MCP handlers against offline sample data. No live API calls or publication occur. Follow the [draft workflow](docs/workflow.md) to create, find, export and review a post.
+
+This server imposes no Bestseller-status check. Use an authenticated account with permission to manage the publication; individual operations depend on your Substack access. Connect through local stdio or self-hosted HTTP.
 
 **Safe by design — with one loud exception:** This server cannot publish or delete long-form posts. Post tools create and edit drafts only; you review and publish manually through Substack's editor. The exception is Substack **Notes**: `create_note` and `create_note_with_link` publish short-form Notes immediately, because Notes have no draft state on Substack. Treat the Note tools as public-publish actions — there is no preview step and no undo from this server. The split is proportionate review, the piece of trust infrastructure for agents this server cares most about: the high-stakes surface gets a human gate, and the exception is stated loudly.
 

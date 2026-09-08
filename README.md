@@ -357,6 +357,9 @@ Add to your `.mcp.json`:
 
 Ask your AI assistant: "How many Substack subscribers do I have?"
 
+Tool output compatibility, response limits and versioning are documented in
+[the tool contract](docs/tool-contract.md).
+
 ## Multiple publications
 
 Running more than one publication behind a single server? Set a `SUBSTACK_PUB_<KEY>_*` triplet per publication instead of the plain `SUBSTACK_*` vars. `<KEY>` is any name you choose (letters, digits, underscores) — it becomes the publication's lowercase, hyphenated key, e.g. `KEVIN_MULDOON` → `kevin-muldoon`.

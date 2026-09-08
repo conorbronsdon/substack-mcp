@@ -74,11 +74,11 @@ describe("operator read commands", () => {
   });
   it("preserves missing analytics and approximate subscriber-count semantics", async () => {
     vi.spyOn(SubstackClient.prototype, "getPostAnalytics").mockResolvedValue(null);
-    vi.spyOn(SubstackClient.prototype, "getSubscriberCount").mockResolvedValue({ count: 1000, precision: "approximate" } as never);
+    vi.spyOn(SubstackClient.prototype, "getSubscriberCount").mockResolvedValue({ count: 1000, precision: "approximate", note: "Rounded public count." } as never);
     const analytics = io(); expect(await runOperator(["analytics", "post", "42"], () => [credentials], analytics)).toBe(0);
     expect(JSON.parse(analytics.out.mock.calls[0][0]).data).toMatchObject({ found: false, post_id: 42 });
     const count = io(); expect(await runOperator(["subscribers", "count"], () => [credentials], count)).toBe(0);
-    expect(JSON.parse(count.out.mock.calls[0][0]).data).toEqual({ count: 1000, precision: "approximate" });
+    expect(JSON.parse(count.out.mock.calls[0][0]).data).toEqual({ count: 1000, precision: "approximate", note: "Rounded public count." });
   });
   it("does not print upstream errors or credential values", async () => {
     vi.spyOn(SubstackClient.prototype, "getDraft").mockRejectedValue(new Error("synthetic-private-token private-body-marker"));

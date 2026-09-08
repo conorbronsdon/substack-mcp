@@ -74,6 +74,7 @@
     "docs/authoring.md",
     "docs/export.md",
     "docs/draft-changes.md",
-    "docs/workflow.md"
+    "docs/workflow.md",
+    "docs/tool-contract.md"
   ]
 }

@@ -1,16 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import * as fs from "node:fs";
 import { tmpdir } from "node:os";
 import { loadProfile, saveProfile, migrateProfile, listProfiles, profileKey } from "../auth/profiles.js";
 import { loadSession, saveSession } from "../auth/session-store.js";
 import { resolvePublications } from "../auth/resolve-publications.js";
 import { runProfiles } from "../profiles-cli.js";
 
+vi.mock("node:fs", async importOriginal => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return { ...actual, linkSync: vi.fn(actual.linkSync) };
+});
 let dir: string;
 const sample = { publicationUrl: "https://example.substack.com", sessionToken: "private-test-token", userId: "42" };
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "substack-profile-test-")); vi.stubEnv("SUBSTACK_MCP_HOME", dir); });
-afterEach(() => { vi.unstubAllEnvs(); expect(dir.startsWith(join(tmpdir(), "substack-profile-test-"))).toBe(true); rmSync(dir, { recursive: true, force: true }); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); expect(dir.startsWith(join(tmpdir(), "substack-profile-test-"))).toBe(true); rmSync(dir, { recursive: true, force: true }); });
 describe("named profile storage", () => {
   it("round-trips encrypted profiles without changing legacy storage", () => {
     saveSession(sample); const original = readFileSync(join(dir, "session.json"));
@@ -18,7 +23,7 @@ describe("named profile storage", () => {
     expect(loadProfile("work")).toMatchObject(sample);
     expect(readFileSync(join(dir, "session.json"))).toEqual(original);
     const raw = readFileSync(join(dir, "profile-work.json"), "utf8"); expect(raw).not.toContain(sample.sessionToken); expect(raw).not.toContain(sample.publicationUrl);
-    expect(listProfiles()).toEqual([{ key: "work", origin: sample.publicationUrl, saved_at: loadProfile("work").savedAt }]);
+    expect(listProfiles()).toEqual([{ key: "work", status: "readable", origin: sample.publicationUrl, saved_at: loadProfile("work").savedAt }]);
     expect(JSON.stringify(listProfiles())).not.toContain(sample.sessionToken);
   });
   it("requires explicit replacement and preserves complete files on rejection", () => {
@@ -27,6 +32,16 @@ describe("named profile storage", () => {
     expect(() => saveProfile("work", updated)).toThrow();
     expect(readFileSync(join(dir, "profile-work.json"))).toEqual(original);
     saveProfile("work", updated, true); expect(loadProfile("work").userId).toBe("43");
+    expect(readdirSync(dir).some(name => name.endsWith(".tmp"))).toBe(false);
+  });
+  it("never overwrites a profile created after the early availability check", async () => {
+    const original = (await vi.importActual<typeof import("node:fs")>("node:fs")).linkSync;
+    vi.mocked(fs.linkSync).mockImplementationOnce((source, target) => {
+      writeFileSync(target, "concurrent-profile-bytes");
+      original(source, target);
+    });
+    expect(() => saveProfile("work", sample)).toThrow();
+    expect(readFileSync(join(dir, "profile-work.json"), "utf8")).toBe("concurrent-profile-bytes");
     expect(readdirSync(dir).some(name => name.endsWith(".tmp"))).toBe(false);
   });
   it.each(["../work", "WORK", "", "x/y", "x\\y", "x.y", "a".repeat(65), "work,other", " work"])("rejects unsafe profile key %s", key => {
@@ -40,6 +55,11 @@ describe("named profile storage", () => {
     writeFileSync(path, JSON.stringify(envelope)); expect(() => loadProfile("work")).toThrow(/no fallback/);
     writeFileSync(path, "x".repeat(128 * 1024 + 1)); expect(() => loadProfile("work")).toThrow(/no fallback/);
     mkdirSync(join(dir, "profile-directory.json")); expect(() => loadProfile("directory")).toThrow(/no fallback/);
+  });
+  it("lists healthy and unreadable profiles without activating either", () => {
+    saveProfile("work", sample); writeFileSync(join(dir, "profile-broken.json"), "invalid");
+    expect(listProfiles()).toEqual([{ key: "broken", status: "unreadable" }, { key: "work", status: "readable", origin: sample.publicationUrl, saved_at: loadProfile("work").savedAt }]);
+    expect(() => resolvePublications({ SUBSTACK_PROFILES: "broken" })).toThrow();
   });
   it("validates credentials before creating a profile", () => {
     expect(() => saveProfile("work", { ...sample, userId: "0" })).toThrow();

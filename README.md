@@ -278,8 +278,16 @@ npx substack-mcp profiles migrate --name personal
 
 Keys start with a lowercase ASCII letter and contain only lowercase letters,
 digits and hyphens, up to 64 characters. Existing profiles require explicit
-`--force` to replace. List output contains keys, publication origins and save
-times; it excludes cookies and user IDs.
+`--force` to replace. List output contains keys, readability status, publication origins and file save
+times; it excludes cookies and user IDs. Unreadable profiles remain visible but
+cannot be selected. Save time records local persistence, including migration; it
+is not token issuance or expiration time. Listing is bounded to 32 profiles.
+
+Profile storage requires a local filesystem supporting hard links (such as NTFS
+or a typical Linux filesystem), so creation can install a complete encrypted file
+without overwriting an existing name. FAT/exFAT and some network mounts are not
+supported: set `SUBSTACK_MCP_HOME` to a suitable local directory. Do not use
+`--force` to work around an unsupported filesystem.
 
 Set `SUBSTACK_PROFILES=work,personal` in your MCP client's environment to select
 up to 32 distinct profiles. Remove all publication credential variables first:

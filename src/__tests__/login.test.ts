@@ -45,8 +45,10 @@ describe("browser login contract", () => {
     const args = ["https://example.com", "--user-id", "43", "--profile", "work"];
     expect(await runLogin(args, f.deps)).toBe(0);
     const before = loadProfile("work");
+    f.deps.loadChromium.mockClear(); f.fetch.mockClear();
     expect(await runLogin(["https://example.com", "--user-id", "44", "--profile", "work"], f.deps)).toBe(1);
     expect(loadProfile("work")).toEqual(before);
+    expect(f.deps.loadChromium).not.toHaveBeenCalled(); expect(f.fetch).not.toHaveBeenCalled();
     expect(await runLogin(["https://example.com", "--user-id", "44", "--profile", "work", "--force"], f.deps)).toBe(0);
     expect(loadProfile("work").userId).toBe("44");
     expect(loadSession()?.userId).toBe("42");

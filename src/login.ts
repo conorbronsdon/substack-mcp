@@ -4,7 +4,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { pathToFileURL } from "node:url";
 import { saveSession } from "./auth/session-store.js";
-import { profileKey, saveProfile } from "./auth/profiles.js";
+import { profileKey, saveProfile, assertProfileAvailable } from "./auth/profiles.js";
 import { publicationOrigin, validateCredentials } from "./auth/validate-credentials.js";
 import { doctor } from "./doctor.js";
 
@@ -56,6 +56,10 @@ export async function runLogin(args: string[], deps = defaults): Promise<number>
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) { deps.out(usage); return 0; }
   let options: ReturnType<typeof parseLoginArguments>;
   try { options = parseLoginArguments(args); } catch { deps.error(usage); return 2; }
+  if (options.profile) {
+    try { assertProfileAvailable(options.profile, options.force); }
+    catch { deps.error("Profile already exists or cannot be replaced. Choose another key, inspect storage, or explicitly use --force for an existing regular profile."); return 1; }
+  }
   let browser: LoginBrowser | undefined;
   try {
     const publicationUrl = options.publicationUrl ?? publicationOrigin(await deps.ask("Publication HTTPS origin: "));

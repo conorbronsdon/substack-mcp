@@ -32,13 +32,23 @@ export function loadProfile(key: string): StoredSession {
     }
     if (count > MAX_BYTES) throw new Error();
     return valid(decodeSession(new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, count))));
-  } catch { throw new Error(`Profile "${key}" is missing, invalid or unreadable. Recreate it; no fallback session was selected.`); }
+  } catch { throw new Error(`Profile "${key}" is missing, invalid or unreadable. Check local storage and permissions; no fallback session was selected.`); }
   finally { if (fd !== undefined) closeSync(fd); }
+}
+
+/** Early usability check only; exclusive creation still enforces the race boundary. */
+export function assertProfileAvailable(key: string, force = false): void {
+  try {
+    const stat = lstatSync(fileFor(key));
+    if (!force) throw Object.assign(new Error("Profile already exists; choose another key or use --force."), { code: "EEXIST" });
+    if (!stat.isFile()) throw new Error("Existing profile must be a regular file.");
+  } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
 }
 
 /** Complete encrypted file, exclusive by default. Existing profiles require force. */
 export function saveProfile(key: string, session: Omit<StoredSession, "savedAt">, force = false): void {
   const target = fileFor(key);
+  assertProfileAvailable(key, force);
   valid({ ...session, savedAt: new Date().toISOString() });
   const encoded = encodeSession(session);
   if (Buffer.byteLength(encoded) > MAX_BYTES) throw new Error("Profile exceeds storage bounds.");
@@ -65,11 +75,14 @@ export function migrateProfile(key: string, force = false): void {
   saveProfile(key, session, force);
 }
 
-export function listProfiles(): { key: string; origin: string; saved_at: string }[] {
+export function listProfiles(): { key: string; status: "readable" | "unreadable"; origin?: string; saved_at?: string }[] {
   let names: string[];
   try { names = readdirSync(sessionDir()); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return []; throw new Error("Profile directory is unreadable."); }
   const keys = names.filter(name => /^profile-[a-z][a-z0-9-]{0,63}\.json$/.test(name)).map(name => name.slice(8, -5)).sort();
   if (keys.length > 32) throw new Error("At most 32 profiles can be listed at once.");
-  return keys.map(key => { const session = loadProfile(key); return { key, origin: new URL(session.publicationUrl).origin, saved_at: session.savedAt }; });
+  return keys.map(key => {
+    try { const session = loadProfile(key); return { key, status: "readable" as const, origin: new URL(session.publicationUrl).origin, saved_at: session.savedAt }; }
+    catch { return { key, status: "unreadable" as const }; }
+  });
 }

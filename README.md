@@ -516,6 +516,9 @@ changes and the distinction between offline fixtures and live editor checks.
 
 ## Development
 
+For opt-in live read checks, see [live contract evidence](docs/live-contract-evidence.md).
+The probe is disabled in ordinary CI and never publishes or writes.
+
 Before releasing, run `npm run test:package`. It installs the built tarball with production dependencies in a clean temporary directory, checks both executable entrypoints, and verifies the MCP version and the complete registered tool catalog without real credentials.
 
 ```bash

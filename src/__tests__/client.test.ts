@@ -572,3 +572,17 @@ describe("SubstackClient request timeout", () => {
     expect(timeoutSpy).toHaveBeenNthCalledWith(2, 7000);
   });
 });
+
+
+describe("authentication evidence", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("never identifies the signed-in user from a draft byline", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ posts: [{ draft_bylines: [{ id: 999 }] }] })));
+    const client = new SubstackClient("https://example.invalid", "synthetic-token", "42");
+    expect(await client.validateAuth()).toEqual({ authentication: "authenticated_read_succeeded", user_identity: "not_verified" });
+  });
+  it.each([{}, { posts: null }, { posts: "not-an-array" }])("rejects malformed successful authentication responses: %j", async body => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json(body)));
+    await expect(new SubstackClient("https://example.invalid", "synthetic-token", "42").validateAuth()).rejects.toThrow("unexpected response");
+  });
+});

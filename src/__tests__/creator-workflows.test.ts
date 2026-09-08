@@ -109,6 +109,8 @@ describe("doctor", () => {
     const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
     const report = await doctor(false, () => [credential]);
     expect(report.ok).toBe(true);
+    expect(report.runtime).toEqual({ node: process.version, platform: process.platform });
+    expect(report.version).toMatch(/^\d+\.\d+\.\d+/);
     expect(JSON.stringify(report)).not.toContain(testSessionToken);
     expect(JSON.stringify(report)).not.toContain("123");
     expect(fetchMock).not.toHaveBeenCalled();

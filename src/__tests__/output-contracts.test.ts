@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi, afterEach } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../server.js";
@@ -64,6 +64,57 @@ describe("stable output contracts", () => {
         expect((await c.client.callTool({ name: "get_draft", arguments: { draft_id: 42, publication } })).isError).toBe(true);
       }
       expect(second).toHaveBeenCalledTimes(1);
+    } finally { await c.close(); }
+  });
+  it("bounds thrown upstream errors and preserves write uncertainty without private data", async () => {
+    const c = await connected();
+    try {
+      vi.spyOn(c.first, "createNote").mockRejectedValue(new Error("private-upstream-token".repeat(300000)));
+      const response = await c.client.callTool({ name: "create_note", arguments: { body: "Synthetic fixture" } });
+      expect(response.isError).toBe(true);
+      const serialized = JSON.stringify(response);
+      expect(serialized.length).toBeLessThan(1000); expect(serialized).not.toContain("private-upstream-token");
+      expect(serialized).toContain("reconcile"); expect(serialized).not.toContain("no write was attempted");
+    } finally { await c.close(); }
+  });
+  it("projects representative client results into every legacy object/array read and write contract", async () => {
+    const c = await connected();
+    try {
+      const post = { id: 42, title: "Post", subtitle: null, audience: "everyone", slug: "post", canonical_url: "https://first.example/p/post", post_date: null, word_count: 12 };
+      const draft = { id: 42, draft_title: "Draft", draft_subtitle: null, draft_body: null, audience: "everyone", word_count: 0, draft_created_at: "date", draft_updated_at: "date" };
+      const subscriber = { user_email_address: "reader@example.com", subscription_id: 42, subscription_interval: null };
+      const cases = [
+        ["get_subscriber_count", {}, "getSubscriberCount", { count: 0, precision: "exact", note: "Exact." }],
+        ["list_published_posts", {}, "getPublishedPosts", { total: 1, posts: [post] }],
+        ["get_post", { post_id: 42 }, "getPost", post],
+        ["get_draft", { draft_id: 42 }, "getDraft", draft],
+        ["get_post_analytics", { post_id: 42 }, "getPostAnalytics", { ...post, stats: { views: 5 } }],
+        ["list_drafts", {}, "getDrafts", [draft]],
+        ["list_scheduled_posts", {}, "getScheduledPosts", [{ id: 42, draft_title: null, audience: "everyone", trigger_at: null }]],
+        ["get_sections", {}, "getSections", [{ id: 42, name: "Section" }]],
+        ["get_post_comments", { post_id: 42 }, "getPostComments", [{ id: 42, name: "Reader", body: "Untrusted comment", date: "date", reactions: { heart: 2 }, children_count: 0 }]],
+        ["upload_image", { image_base64: "data:image/png;base64,AA==" }, "uploadImage", { url: "https://example.com/image.png" }],
+        ["create_draft", { title: "Draft" }, "createDraft", draft],
+        ["create_note", { body: "Text" }, "createNote", { id: 42, body: "Text", date: "date" }],
+        ["create_note_with_link", { body: "Text", url: "https://example.com" }, "createNote", { id: 42, body: "Text", date: "date" }],
+      ] as const;
+      vi.spyOn(c.first, "createNoteAttachment").mockResolvedValue({ id: "attachment", type: "link" });
+      for (const [name, args, method, value] of cases) {
+        vi.spyOn(c.first, method).mockResolvedValue(value as never);
+        const response = await c.client.callTool({ name, arguments: args });
+        expect(response.isError, name).not.toBe(true);
+        const parsed = JSON.parse((response.content as {text:string}[])[0].text);
+        if (Array.isArray(parsed)) expect(response.structuredContent).toBeUndefined();
+        else expect(response.structuredContent, name).toEqual(parsed);
+      }
+      vi.spyOn(c.first.subscribers, "list").mockResolvedValue({ count: 1, subscribers: [subscriber], lastSync: "date" });
+      vi.spyOn(c.first.subscribers, "get").mockResolvedValue({ email: subscriber.user_email_address, subscriber, last_sync: "date", note: "Membership." });
+      vi.spyOn(c.first.subscribers, "add").mockResolvedValue({ status: "dry_run", email: subscriber.user_email_address, note: "No write." });
+      for (const name of ["list_subscribers", "get_subscriber", "add_free_subscriber"]) {
+        const response = await c.client.callTool({ name, arguments: { email: subscriber.user_email_address, consent_confirmed: true } });
+        expect(response.isError, name).not.toBe(true);
+        expect(response.structuredContent).toEqual(JSON.parse((response.content as {text:string}[])[0].text));
+      }
     } finally { await c.close(); }
   });
   it("rejects invalid numeric inputs before any API read", async () => {

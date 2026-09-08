@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { MarkdownConversionError } from "./utils/markdown-to-prosemirror.js";
+import { TOOL_KINDS } from "./annotations.js";
+import { SubstackAPIError, TimeoutError, ResponseError } from "./utils/errors.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
@@ -43,9 +46,20 @@ const arrayOutputSchemas: Record<string, z.ZodTypeAny> = {
   get_post_comments: z.array(z.object({ id, name: maybeText, body: maybeText, date: maybeText, reactions: z.record(count).optional(), replies: maybeCount })),
 };
 
+function failure(name: string, code: string, error?: unknown): CallToolResult {
+  const write = (TOOL_KINDS as Record<string, string>)[name] !== "read";
+  const api = error instanceof SubstackAPIError ? error : undefined;
+  const status = api && Number.isInteger(api.statusCode) && api.statusCode >= 100 && api.statusCode <= 599 ? api.statusCode : undefined;
+  const retry = api?.retryAfter;
+  const retryAfter = retry && (/^\d{1,10}$/.test(retry) || (/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(retry) && Number.isFinite(Date.parse(retry)))) ? retry : undefined;
+  return { isError: true, content: [{ type: "text", text: JSON.stringify({ code, status, status_source: api?.statusSource, retry_after: retryAfter,
+    message: write ? "Tool operation or result could not be verified. A write may have occurred; reconcile in Substack before any explicit retry. No automatic retry was performed."
+      : "The read could not be verified within its response contract. Check configuration, authentication and upstream availability. No writes were attempted." }) }] };
+}
+
 /** Validate before returning anything; never echo a malformed private upstream value. */
-export function contractResult(name: string, result: CallToolResult): CallToolResult {
-  const fail = (code: string) => ({ isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code, message: "Tool result could not be returned safely. If this was a write, its outcome may be unknown; reconcile before any retry." }) }] });
+export function contractResult(name: string, result: CallToolResult, declaredSchema?: z.ZodTypeAny): CallToolResult {
+  const fail = (code: string) => failure(name, code);
   const serialized = JSON.stringify(result);
   if (Buffer.byteLength(serialized, "utf8") > MAX_TOOL_RESULT_BYTES * 2 + 1024) return fail("result_too_large");
   if (result.content.some(block => block.type === "text" && Buffer.byteLength(block.text, "utf8") > MAX_TOOL_RESULT_BYTES)) return fail("result_too_large");
@@ -55,7 +69,7 @@ export function contractResult(name: string, result: CallToolResult): CallToolRe
   if (Buffer.byteLength(block.text, "utf8") > MAX_TOOL_RESULT_BYTES) return fail("result_too_large");
   let value: unknown;
   try { value = JSON.parse(block.text); } catch { return fail("invalid_tool_output"); }
-  const schema = objectOutputSchemas[name] ?? arrayOutputSchemas[name];
+  const schema = declaredSchema ?? objectOutputSchemas[name] ?? arrayOutputSchemas[name];
   if (schema && !schema.safeParse(value).success) return fail("invalid_tool_output");
   if (name === "get_subscriber_count") {
     const v = value as { count: number; precision: string };
@@ -67,13 +81,24 @@ export function contractResult(name: string, result: CallToolResult): CallToolRe
   }
   if (Array.isArray(value)) return result;
   if (!value || typeof value !== "object") return fail("invalid_tool_output");
-  return { ...result, structuredContent: value as Record<string, unknown> };
+  const final = { ...result, structuredContent: value as Record<string, unknown> };
+  if (Buffer.byteLength(JSON.stringify(final), "utf8") > MAX_TOOL_RESULT_BYTES * 2 + 1024) return fail("result_too_large");
+  return final;
 }
 
 export function contractRegistrar(server: McpServer): McpServer["registerTool"] {
   // Preserve the SDK's generic registration signature at this one adapter boundary.
   const register = server.registerTool.bind(server);
-  return ((name: string, config: any, callback: (...args: any[]) => Promise<CallToolResult>) =>
-    register(name, { ...config, outputSchema: config.outputSchema ?? objectOutputSchemas[name]?.shape },
-      async (...args: any[]) => contractResult(name, await callback(...args)))) as McpServer["registerTool"];
+  return ((name: string, config: any, callback: (...args: any[]) => Promise<CallToolResult>) => {
+    const outputSchema = config.outputSchema ?? objectOutputSchemas[name]?.shape;
+    const schema = outputSchema instanceof z.ZodType ? outputSchema : outputSchema ? z.object(outputSchema) : undefined;
+    return register(name, { ...config, outputSchema }, async (...args: any[]) => {
+      try { return contractResult(name, await callback(...args), schema); }
+      catch (error) {
+        if (error instanceof MarkdownConversionError) return { isError: true, content: [{ type: "text", text: JSON.stringify({ code: "markdown_conversion_failed", message: "Markdown exceeds conversion bounds or uses an unsupported structure. Simplify the input before retrying; no write was attempted.", write_attempts: 0 }) }] };
+        const code = error instanceof TimeoutError ? "timeout" : error instanceof ResponseError ? error.code : error instanceof SubstackAPIError ? "upstream_error" : "tool_execution_failed";
+        return failure(name, code, error);
+      }
+    });
+  }) as McpServer["registerTool"];
 }

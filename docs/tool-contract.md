@@ -1,4 +1,4 @@
-﻿# Tool contract and compatibility policy
+# Tool contract and compatibility policy
 
 The 1.x public interface consists of tool names, input/output fields, side-effect
 annotations, documented CLI JSON/exit codes, and configuration selection rules.
@@ -18,7 +18,12 @@ Successful JSON text is limited to 4 MiB per call; duplicated structured/text
 representations have an aggregate serialized ceiling of 8 MiB plus 1 KiB.
 Oversized results return `isError` with `result_too_large`; they are never silently
 truncated. Malformed projected results return `invalid_tool_output`, excluding
-private upstream values. Error responses do not masquerade as schema-conforming
+private upstream values. Thrown handler errors also produce bounded, static
+guidance; HTTP status/source and validated Retry-After are retained without
+upstream messages or private endpoint details. Typed Markdown conversion failures
+report that no write was attempted. Other write failures require reconciliation.
+Malformed legacy array rows now fail validation; preserving the array shape does
+not promise to pass through malformed upstream data. Error responses do not masquerade as schema-conforming
 success. A result-validation failure after a write does not undo it: reconcile
 in Substack before any explicit retry. No automatic retry is added.
 

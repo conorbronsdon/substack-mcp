@@ -1,3 +1,4 @@
+export class MarkdownConversionError extends Error {}
 /** Markdown AST conversion. See docs/authoring.md for supported mappings and fallbacks. */
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown } from "mdast-util-gfm";
@@ -87,12 +88,12 @@ function safeUrl(value: string, image = false): boolean {
 }
 
 export function convertMarkdown(markdown: string, target: "draft" | "note" = "draft"): MarkdownConversion {
-  if (markdown.length > MAX_MARKDOWN_CHARS) throw new Error(`Markdown exceeds ${MAX_MARKDOWN_CHARS} characters. Split the document before converting.`);
+  if (markdown.length > MAX_MARKDOWN_CHARS) throw new MarkdownConversionError(`Markdown exceeds ${MAX_MARKDOWN_CHARS} characters. Split the document before converting.`);
   let root: Root;
   try {
     root = fromMarkdown(markdown, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] });
   } catch {
-    throw new Error("Markdown could not be parsed within the supported parser limits.");
+    throw new MarkdownConversionError("Markdown could not be parsed within the supported parser limits.");
   }
   // Check depth iteratively before recursive conversion and collect reference definitions.
   const definitions = new Map<string, Definition>();
@@ -103,7 +104,7 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
   let count = 0;
   while (stack.length) {
     const { node, depth } = stack.pop()!;
-    if (++count > MAX_NODES || depth > MAX_DEPTH) throw new Error("Markdown exceeds the 10,000-node or 100-level conversion limit.");
+    if (++count > MAX_NODES || depth > MAX_DEPTH) throw new MarkdownConversionError("Markdown exceeds the 10,000-node or 100-level conversion limit.");
     if (node.type === "definition") {
       // Stack visits siblings in source order: CommonMark uses the first definition.
       if (!definitions.has(node.identifier)) definitions.set(node.identifier, node);
@@ -115,7 +116,7 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
   const unsupported_nodes: UnsupportedMarkdownNode[] = [];
   const raw = (node: Nodes): string => markdown.slice(node.position?.start.offset ?? 0, node.position?.end.offset ?? markdown.length);
   const report = (node: Nodes, reason: string): void => {
-    if (unsupported_nodes.length >= 100) throw new Error("Markdown has more than 100 unsupported constructs. Simplify it before converting.");
+    if (unsupported_nodes.length >= 100) throw new MarkdownConversionError("Markdown has more than 100 unsupported constructs. Simplify it before converting.");
     unsupported_nodes.push({ type: node.type, reason, line: node.position?.start.line ?? 1, column: node.position?.start.column ?? 1 });
   };
   const fallback = (node: Nodes, reason: string, inline = false, marks: PMMark[] = []): PMNode[] => {
@@ -200,7 +201,7 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
       case "html":
         if (node.value.trim() === "<!-- paywall -->") {
           if (target !== "draft" || !topLevel) return fallback(node, "Paywall markers are supported only at the top level of long-form drafts.");
-          if (++paywalls > 1) throw new Error("Only one paywall marker is allowed in a draft.");
+          if (++paywalls > 1) throw new MarkdownConversionError("Only one paywall marker is allowed in a draft.");
           return [{ type: "paywall" }];
         }
         return fallback(node, "Raw HTML has no verified editor mapping; retained as code.");
@@ -222,10 +223,10 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
   count = 0;
   while (output.length) {
     const { node, depth } = output.pop()!;
-    if (++count > MAX_NODES || depth > MAX_DEPTH) throw new Error("Converted Markdown exceeds the 10,000-node or 100-level output limit.");
+    if (++count > MAX_NODES || depth > MAX_DEPTH) throw new MarkdownConversionError("Converted Markdown exceeds the 10,000-node or 100-level output limit.");
     if (node.content) for (const child of node.content) output.push({ node: child, depth: depth + 1 });
   }
-  if (JSON.stringify(document).length > 2_000_000) throw new Error("Converted Markdown exceeds the 2,000,000-character output limit.");
+  if (JSON.stringify(document).length > 2_000_000) throw new MarkdownConversionError("Converted Markdown exceeds the 2,000,000-character output limit.");
   return { document, unsupported_nodes, source_markdown: markdown };
 }
 

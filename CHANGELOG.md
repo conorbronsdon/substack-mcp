@@ -8,6 +8,9 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+### Added
+- Shared-handler CLI reads: `drafts list/get`, `analytics post` and `subscribers count/get`, with explicit publication selection, versioned JSON envelopes and bounded output. `drafts export` aliases the existing export command. Offline `status` reports installed version, runtime and credential-safe configuration diagnostics.
+
 ## [0.9.0] - 2026-09-08
 
 ### Changed

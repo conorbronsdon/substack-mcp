@@ -176,6 +176,21 @@ async function main() {
 
 async function run() {
   const args = process.argv.slice(2);
+  if (args[0] === "status") {
+    const { runStatus } = await import("./operator-cli.js");
+    process.exitCode = await runStatus(args.slice(1));
+    return;
+  }
+  if (["analytics", "subscribers"].includes(args[0]) || (args[0] === "drafts" && ["list", "get"].includes(args[1]))) {
+    const { runOperator } = await import("./operator-cli.js");
+    process.exitCode = await runOperator(args);
+    return;
+  }
+  if (args[0] === "drafts" && args[1] === "export") {
+    const { runExport } = await import("./export-cli.js");
+    process.exitCode = await runExport(args.slice(2));
+    return;
+  }
   if (args[0] === "drafts") {
     const { runDrafts } = await import("./draft-cli.js");
     process.exitCode = await runDrafts(args.slice(1));
@@ -191,7 +206,7 @@ async function run() {
     return runDoctor(args.slice(1));
   }
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) {
-    console.log("Usage: substack-mcp [serve | doctor [--json] [--check-auth] | export <draft-id> [options] | drafts plan/apply [options]]\nWith no command, starts the MCP server. doctor checks configuration without network access; --check-auth adds a bounded read per publication. export saves Markdown and original JSON without changing Substack; run export --help. For reviewed updates, run drafts --help. Login: substack-mcp-login.");
+    console.log("Usage: substack-mcp [serve | status [--json] | doctor [--json] [--check-auth] | export <draft-id> [options] | drafts list/get/export/plan/apply [options] | analytics post <id> | subscribers count/get]\nWith no command, starts the MCP server. doctor checks configuration without network access; --check-auth adds a bounded read per publication. export saves Markdown and original JSON without changing Substack; run export --help. For reviewed updates, run drafts --help. Read commands: drafts list/get, analytics post, subscribers count/get; add --publication when needed. status is offline. Login: substack-mcp-login.");
     return;
   }
   if (args.length && !(args.length === 1 && args[0] === "serve")) {

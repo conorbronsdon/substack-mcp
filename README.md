@@ -81,6 +81,32 @@ Both tools require `publication` when multiple publications are configured.
 
 ### Operator diagnostics
 
+The CLI also exposes read-only workflows through the same MCP handlers:
+
+```sh
+substack-mcp status --json
+substack-mcp drafts list --limit 10 --offset 0
+substack-mcp drafts get 42
+substack-mcp drafts export 42 --format json
+substack-mcp analytics post 42
+substack-mcp subscribers count
+substack-mcp subscribers get reader@example.com
+```
+
+Add `--publication key` when multiple publications are configured. Read commands
+return `{format_version: 1, ok, command, publication, data}` as JSON; `--json` is
+accepted explicitly. Exit 0 means a completed read, 1 means a configuration,
+upstream or output failure, and 2 means invalid arguments or selection. A missing
+analytics result or subscriber is still a completed read; inspect `data`. Counts
+retain their exact/approximate/unavailable precision. Output is capped at 4 MiB
+without partial printing. Draft and subscriber output is private.
+
+`status` reports installed version, Node/platform and the same offline
+configuration diagnostics as doctor. It never opens a browser or claims a
+verified user identity. `drafts export` is an alias of the existing `export`
+command and retains its bundle/overwrite contract. Draft plan/apply also retain
+their existing output and exit codes; these aliases do not rewrap saved plans.
+
 ```sh
 substack-mcp doctor --json
 substack-mcp doctor --json --check-auth

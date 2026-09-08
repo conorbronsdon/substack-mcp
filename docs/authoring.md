@@ -38,12 +38,14 @@ Substack before publishing.
 
 ## Unsupported content and write behavior
 
-`create_draft` and `update_draft` return `isError: true` with
+`create_draft`, `plan_draft_update` and `update_draft` return `isError: true` with
 `code: "unsupported_markdown"` and an `unsupported_nodes` array when conversion
 needs a fallback. Each diagnostic names the node type, reason, line and column.
 No draft write occurs. Simplify the Markdown, or inspect the diagnostics and
 explicitly retry with `allow_unsupported: true` to store the fallback in a private
-draft. A successful response still includes the diagnostics.
+draft. For updates, make a new plan with the acknowledgment and pass the same
+fields plus its receipt to apply. A successful response still includes the
+diagnostics. See [reviewed draft changes](draft-changes.md).
 
 Tables retain their exact Markdown in a code block because this converter has
 no verified native table mapping. Raw HTML, footnote definitions, unused, unconverted or

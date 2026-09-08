@@ -27,7 +27,7 @@ An MCP server for Substack that lets AI assistants read your publication data an
 
 ## Tools
 
-Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/concepts/tools#tool-annotations), set **explicitly** rather than left to MCP's defaults (an omitted `destructiveHint` or `openWorldHint` defaults to `true`). Reads carry `readOnlyHint: true`. Every write is additive, so all writes carry `destructiveHint: false`. Draft writes are private (`openWorldHint: false`); `upload_image` carries `openWorldHint: true` because it returns a publicly-fetchable CDN URL; and the Note tools carry `openWorldHint: true` for immediate public publish. Annotations are untrusted hints, so the authoritative wording lives in each tool's description.
+Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/concepts/tools#tool-annotations), set **explicitly** rather than left to MCP's defaults (an omitted `destructiveHint` or `openWorldHint` defaults to `true`). Reads carry `readOnlyHint: true`. Draft updates replace existing fields and carry `destructiveHint: true`; additive writes carry `destructiveHint: false`. Draft writes are private (`openWorldHint: false`); `upload_image` carries `openWorldHint: true` because it returns a publicly-fetchable CDN URL; and the Note tools carry `openWorldHint: true` for immediate public publish. Annotations are untrusted hints, so the authoritative wording lives in each tool's description.
 
 ### Read
 
@@ -41,6 +41,7 @@ Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/
 | `list_publication_tags` | Read tag definitions, including hidden tags by default, with bounded local pagination |
 | `get_post_tags` | Resolve post tag associations; preserves unresolved IDs and reports empty-result identity uncertainty. Draft coverage is currently live-verified only for empty responses |
 | `search_posts` | Search a publication archive by query and status; bounded pages with continuation metadata |
+| `plan_draft_update` | Review proposed changes, preflight and a receipt for best-effort stale detection; no writes |
 | `export_draft` | Editable Markdown, exact original body, conversion diagnostics, preflight and editor link |
 | `preflight_draft` | Read-only checks for title, audience, body structure, images, and paywalls, with an editor link |
 | `list_drafts` | List draft posts |
@@ -143,7 +144,7 @@ to Substack. Browser login remains `substack-mcp-login`.
 | Tool | Description |
 |------|-------------|
 | `create_draft` | Create a new draft from markdown (private) |
-| `update_draft` | Update an existing draft (unpublished only; private) |
+| `update_draft` | Apply a reviewed change receipt; recheck unpublished state and report readback outcomes |
 | `upload_image` | Upload an image to Substack's CDN — returns a publicly-fetchable (unlisted) URL |
 
 ### Publish (Notes — public immediately)
@@ -499,3 +500,11 @@ Long-form posts remain drafts; Notes publish immediately.
 MIT
 
 For an always-on scheduler with durable cloud state and weekly email reports, see [Cloud Calendar sync](docs/cloud-calendar-sync.md).
+
+### Review before changing a draft
+
+In 0.9, call `plan_draft_update`, review its output, then call `update_draft` with
+the same fields and returned receipt. Published or known stale drafts are
+rejected. The read/write race remains; check readback outcomes and review in
+Substack. The CLI shares this flow through `drafts plan` and `drafts apply`.
+See [draft changes and migration](docs/draft-changes.md) for examples and limits.

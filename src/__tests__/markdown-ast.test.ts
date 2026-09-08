@@ -166,21 +166,22 @@ async function withMcp(run: (mcp: Client, api: SubstackClient) => Promise<void>)
 
 describe("Markdown conversion through MCP", () => {
   const table = "| A | B |\n|---|---|\n| x | y |";
-  it.each(["create_draft", "update_draft", "create_note", "create_note_with_link"])("returns an MCP error for hard conversion failures without writing: %s", async name => {
+  it.each(["create_draft", "plan_draft_update", "create_note", "create_note_with_link"])("returns an MCP error for hard conversion failures without writing: %s", async name => {
     await withMcp(async (mcp, api) => {
-      const writes = [vi.spyOn(api, "createDraft"), vi.spyOn(api, "updateDraft"), vi.spyOn(api, "createNote"), vi.spyOn(api, "createNoteAttachment")];
+      const writes = [vi.spyOn(api, "createDraft"), vi.spyOn(api, "writeDraft"), vi.spyOn(api, "createNote"), vi.spyOn(api, "createNoteAttachment")];
       for (const body of ["x".repeat(MAX_MARKDOWN_CHARS + 1), "> ".repeat(102) + "x"]) {
-        const result = await mcp.callTool({ name, arguments: { title: "Test", draft_id: 42, body, url: "https://example.com", allow_unsupported: true } });
+        const result = await mcp.callTool({ name, arguments: name === "plan_draft_update" ? { draft_id: 42, body, allow_unsupported: true } : { title: "Test", draft_id: 42, body, url: "https://example.com", allow_unsupported: true } });
         expect(result.isError).toBe(true);
-        expect((result.content as { text: string }[])[0].text).toMatch(/exceeds/);
+        expect((result.content as { text: string }[])[0].text).toMatch(/exceed|too_big|200000/);
       }
       for (const spy of writes) expect(spy).not.toHaveBeenCalled();
     });
   });
-  it.each(["create_draft", "update_draft"])("requires explicit fallback acknowledgment for %s", async name => {
+  it("requires explicit fallback acknowledgment for create_draft", async () => {
+    const name = "create_draft";
     await withMcp(async (mcp, api) => {
       const create = vi.spyOn(api, "createDraft").mockResolvedValue({ id: 42, draft_title: "Test" } as never);
-      const update = vi.spyOn(api, "updateDraft").mockResolvedValue({ id: 42, draft_title: "Test" } as never);
+      const update = vi.spyOn(api, "writeDraft").mockResolvedValue({ id: 42, draft_title: "Test" } as never);
       const args = { title: "Test", draft_id: 42, body: table };
       const result = await mcp.callTool({ name, arguments: args });
       expect(result.isError).toBe(true);

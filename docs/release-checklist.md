@@ -8,7 +8,7 @@ Keep credentials, subscriber data and private drafts out of evidence packs.
 
 - [ ] Resolve release-blocking findings and dependency advisories, or record a scoped reason to defer.
 - [ ] Update the changelog and compatibility limits. Use `npm version <version> --no-git-tag-version` to synchronize manifests.
-- [ ] Run `npm run build`, `node scripts/workflow-demo.mjs --write` and `python scripts/render-workflow-demo.py`; inspect the rendered demo and pin the README image to its committed revision.
+- [ ] Run `npm run build`, `node scripts/workflow-demo.mjs --write` and `python scripts/render-workflow-demo.py`; inspect the rendered demo and pin the README image to its committed revision. Preserve that revision in default-branch ancestry with a merge commit, or pin an already retained revision; do not leave the image dependent on a discarded branch commit.
 - [ ] Run `npm run lint`, `npm test`, `npm run test:release`, `npm run test:package`, and the cloud checks used by CI. Inspect the packed file list and both installed binaries.
 - [ ] Run independent reviews against the final commit. Verify findings against source; repeat affected reviews after structural changes. Keep the review receipt and meaningful negative controls.
 - [ ] Verify configured named clients can initialize and call a read tool. Label fixture checks separately from live account checks.

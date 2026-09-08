@@ -1,6 +1,6 @@
 # Distribution inventory
 
-Maintainer: Conor Bronsdon. Inventory checked September 8, 2026; this is a dated
+Maintainer: Conor Bronsdon. Inventory checked September 8, 2026 UTC; this is a dated
 status record, not a promise that third-party indexes have refreshed. npm remains
 the canonical package. Release artifacts are verified by the Publish workflow;
 directory admission and social publication are tracked separately in

@@ -12,9 +12,11 @@ Substack account alone does not grant access to another publication's drafts,
 analytics or subscribers. Account tier coverage has not been independently
 verified across every Substack plan.
 
-The release's opt-in live read probe passed publication metadata, draft-list and
-subscriber-count checks against one custom-domain publication on September 8,
-2026. It made five read requests and no writes. This establishes authenticated
+The opt-in live read probe at source revision
+`601b9b53315d0814a76cf45fbf4eae8d093ce93e` (PR #88, before the 1.0 version bump)
+passed publication metadata, draft-list and subscriber-count checks against one
+custom-domain publication on September 8, 2026 at 05:19 UTC. It made five read
+requests and no writes. This establishes authenticated
 read access for that configuration; it does not verify account identity, tier,
 every endpoint or a different publication. Automated fixtures cover malformed
 responses, expired authentication, publication isolation and bounded failures.

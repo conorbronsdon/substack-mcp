@@ -69,6 +69,16 @@ try {
   assert.throws(() => execFileSync(process.execPath, [cli, 'drafts', 'apply'], { env, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
   const doctorEnv = { ...env, SUBSTACK_PUBLICATION_URL: 'https://example.invalid', SUBSTACK_USER_ID: '1' };
   const diagnosis = JSON.parse(execFileSync(process.execPath, [cli, 'doctor', '--json'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
+  const status = JSON.parse(execFileSync(process.execPath, [cli, 'status', '--json'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
+  assert.equal(status.version, pkg.version);
+  assert.equal(status.mode, 'configuration_only');
+  assert.equal(status.publications[0].authentication, 'not_checked');
+  assert.ok(!JSON.stringify(status).includes(testSessionToken));
+  assert.match(execFileSync(process.execPath, [cli, 'drafts', 'export', '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /source\.json/);
+  for (const args of [['drafts', 'list', '--help'], ['analytics', '--help'], ['subscribers', '--help']]) {
+    assert.match(execFileSync(process.execPath, [cli, ...args], { env, encoding: 'utf8', timeout: 10_000 }), /Read-only JSON/);
+  }
+  assert.throws(() => execFileSync(process.execPath, [cli, 'drafts', 'get', '-1'], { env, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
   assert.equal(diagnosis.ok, true);
   assert.equal(diagnosis.mode, 'configuration_only');
   assert.equal(diagnosis.publications[0].authentication, 'not_checked');

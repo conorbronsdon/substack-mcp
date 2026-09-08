@@ -4,7 +4,7 @@ import { resolvePublications } from "./auth/resolve-publications.js";
 import { SubstackClient } from "./api/client.js";
 import { planDraftUpdate, applyDraftUpdate, draftChangesInput, draftPlanOutput, DraftChangeError } from "./api/draft-changes.js";
 
-const usage = "Usage: substack-mcp drafts plan --input changes.json [--publication key]\n       substack-mcp drafts apply --input changes.json --plan plan.json [--publication key]\nplan reads only and prints a review plan as JSON. apply requires the saved plan and identical changes; it can update an unpublished draft. Inspect the plan and Substack before applying. No automatic retries. Changes JSON: draft_id plus title, subtitle, body (Markdown), audience and optional allow_unsupported. Redirect stdout to retain a plan privately.";
+const usage = "Usage: substack-mcp drafts list/get/export (run each with --help)\n       substack-mcp drafts plan --input changes.json [--publication key]\n       substack-mcp drafts apply --input changes.json --plan plan.json [--publication key]\nplan reads only and prints a review plan as JSON. apply requires the saved plan and identical changes; it can update an unpublished draft. Inspect the plan and Substack before applying. No automatic retries. Changes JSON: draft_id plus title, subtitle, body (Markdown), audience and optional allow_unsupported. Redirect stdout to retain a plan privately.";
 const MAX_INPUT_BYTES = 1024 * 1024;
 
 /** Read a bounded regular file, including a bound if it grows after stat. */

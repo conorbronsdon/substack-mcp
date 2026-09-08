@@ -13,7 +13,7 @@ vi.mock("node:fs/promises", async importOriginal => {
 
 const source = '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Hello"}]}]}';
 const draft = { id: 42, publication_id: 7, draft_title: "Draft", audience: "everyone", draft_body: source };
-const credentials: PublicationCredentials = { key: "example", label: "Example", publicationUrl: "https://example.substack.com", userId: "1", sessionToken: "test-only", source: "env", missing: [] };
+const credentials: PublicationCredentials = { key: "example", label: "Example", publicationUrl: "https://example.substack.com", userId: "1", sessionToken: "example-session-token", source: "env", missing: [] };
 const output = () => ({ out: vi.fn(), error: vi.fn() });
 const directories: string[] = [];
 const scratch = async () => { const path = await mkdtemp(join(tmpdir(), "substack-export-test-")); directories.push(path); return path; };

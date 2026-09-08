@@ -3,7 +3,7 @@ import { runOperator, runStatus } from "../operator-cli.js";
 import packageMetadata from "../../package.json" with { type: "json" };
 import { SubstackClient } from "../api/client.js";
 
-const credentials = { key: "example", label: "Example", publicationUrl: "https://example.substack.com", sessionToken: "synthetic-private-token", userId: "1", source: "env" as const, missing: [] };
+const credentials = { key: "example", label: "Example", publicationUrl: "https://example.substack.com", sessionToken: "example-private-token", userId: "1", source: "env" as const, missing: [] };
 const io = () => ({ out: vi.fn(), error: vi.fn() });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -81,11 +81,11 @@ describe("operator read commands", () => {
     expect(JSON.parse(count.out.mock.calls[0][0]).data).toEqual({ count: 1000, precision: "approximate" });
   });
   it("does not print upstream errors or credential values", async () => {
-    vi.spyOn(SubstackClient.prototype, "getDraft").mockRejectedValue(new Error("synthetic-private-token private-body-marker"));
+    vi.spyOn(SubstackClient.prototype, "getDraft").mockRejectedValue(new Error("example-private-token private-body-marker"));
     const output = io(); expect(await runOperator(["drafts", "get", "42"], () => [credentials], output)).toBe(1);
     expect(output.out).not.toHaveBeenCalled();
     expect(JSON.parse(output.error.mock.calls[0][0]).code).toBe("read_failed");
-    expect(output.error.mock.calls[0][0]).not.toMatch(/synthetic-private-token|private-body-marker/);
+    expect(output.error.mock.calls[0][0]).not.toMatch(/example-private-token|private-body-marker/);
   });
   it("rejects oversized output without printing a partial private result", async () => {
     vi.spyOn(SubstackClient.prototype, "getDraft").mockResolvedValue({ id: 42, draft_body: "x".repeat(4 * 1024 * 1024) } as never);

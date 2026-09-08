@@ -10,7 +10,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 const url = "https://example.substack.com/api/test";
 const encode = (value: string) => new TextEncoder().encode(value);
 const signal = () => new AbortController().signal;
-const config = () => [{ key: "test", label: "Test", publicationUrl: "https://example.substack.com", sessionToken: "synthetic-session", userId: "1", missing: [], source: "env" as const }];
+const config = () => [{ key: "test", label: "Test", publicationUrl: "https://example.substack.com", sessionToken: "example-session", userId: "1", missing: [], source: "env" as const }];
 
 function streaming(chunks: Uint8Array[], headers: HeadersInit = {}) {
   let index = 0;
@@ -160,7 +160,7 @@ describe("response classification", () => {
   it("routes API calls through the response limit with no automatic write retry", async () => {
     const fetchMock = vi.fn(async () => new Response("", { headers: { "content-length": String(MAX_JSON_BYTES + 1) } }));
     vi.stubGlobal("fetch", fetchMock);
-    await expect(new SubstackClient("https://example.substack.com", "synthetic", "1").createDraft("Sample")).rejects.toBeInstanceOf(ResponseError);
+    await expect(new SubstackClient("https://example.substack.com", "example-token", "1").createDraft("Sample")).rejects.toBeInstanceOf(ResponseError);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
@@ -188,7 +188,7 @@ describe("public page redirect policy", () => {
       .mockResolvedValueOnce(new Response("", { status: 302, headers: { location: "https://newsletter.example.org/" } }))
       .mockResolvedValueOnce(new Response('{"freeSubscriberCount":"1,000"}'));
     vi.stubGlobal("fetch", fetchMock);
-    expect(await new SubstackClient("https://example.substack.com", "synthetic", "1").getSubscriberCount()).toMatchObject({ count: 1000, precision: "approximate" });
+    expect(await new SubstackClient("https://example.substack.com", "example-token", "1").getSubscriberCount()).toMatchObject({ count: 1000, precision: "approximate" });
     expect(new Headers(fetchMock.mock.calls[0][1].headers).has("Cookie")).toBe(true);
     for (const [, options] of fetchMock.mock.calls.slice(1)) expect(new Headers(options.headers).has("Cookie")).toBe(false);
   });

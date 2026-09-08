@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import { decideRelease, inspectRelease, lookupJson, releaseManifest, verifyStage, releaseErrorMessage, verifyWithPolling } from './release-state.mjs';
 
 const pkg = { name: '@conorbronsdon/substack-mcp', mcpName: 'io.github.conorbronsdon/substack-mcp', version: '0.9.0' };
+// Synthetic credential used only to assert auth scoping; never a real value.
+const fixtureAuth = 'example-token';
 const sha = 'a'.repeat(40), newerSha = 'b'.repeat(40);
 const manifest = { name: pkg.mcpName, version: pkg.version, packages: [{ registryType: 'npm', identifier: pkg.name, version: pkg.version }] };
 const state = () => ({
@@ -79,9 +81,9 @@ test('response bounds include streamed bytes and slow headers/body/cancellation'
 });
 
 test('lookup requests reject redirects and preserve provided auth only for that call', async () => {
-  await lookupJson('https://example.invalid', { headers: { Authorization: 'synthetic' }, fetchImpl: async (_url, options) => {
+  await lookupJson('https://example.invalid', { headers: { Authorization: fixtureAuth }, fetchImpl: async (_url, options) => {
     assert.equal(options.redirect, 'error');
-    assert.equal(options.headers.Authorization, 'synthetic');
+    assert.equal(options.headers.Authorization, fixtureAuth);
     assert.ok(options.signal instanceof AbortSignal);
     return new Response('{}');
   } });
@@ -91,7 +93,7 @@ test('uses exact encoded identities, handles annotated tags and scopes GitHub au
   const s = state(), calls = [];
   const lookup = async (url, options) => {
     calls.push(url);
-    if (url.startsWith('https://api.github.com/')) assert.equal(options.headers.Authorization, 'Bearer synthetic');
+    if (url.startsWith('https://api.github.com/')) assert.equal(options.headers.Authorization, `Bearer ${fixtureAuth}`);
     else assert.equal(options, undefined);
     if (url.endsWith('/latest')) return s.latest;
     if (url.startsWith('https://registry.npmjs.org/')) return s.npm;
@@ -100,7 +102,7 @@ test('uses exact encoded identities, handles annotated tags and scopes GitHub au
     if (url.includes('/git/ref/')) return { ref: 'refs/tags/v0.9.0', object: { type: 'tag', sha: newerSha } };
     return { sha: newerSha, object: { type: 'commit', sha } };
   };
-  assert.equal((await inspectRelease(pkg, newerSha, { token: 'synthetic', lookup })).target, sha);
+  assert.equal((await inspectRelease(pkg, newerSha, { token: fixtureAuth, lookup })).target, sha);
   assert.ok(calls.includes('https://registry.npmjs.org/%40conorbronsdon%2Fsubstack-mcp/0.9.0'));
   assert.ok(calls.includes('https://registry.modelcontextprotocol.io/v0.1/servers/io.github.conorbronsdon%2Fsubstack-mcp/versions/0.9.0?include_deleted=true'));
   assert.equal(calls.length, 6);

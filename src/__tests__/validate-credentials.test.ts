@@ -4,7 +4,7 @@ import { doctor } from "../doctor.js";
 import { validateCredentials } from "../auth/validate-credentials.js";
 
 afterEach(() => vi.unstubAllGlobals());
-const base = { publicationUrl: "https://example.substack.com", sessionToken: "s%3Aexample.signature", userId: "123" };
+const base = { publicationUrl: "https://example.substack.com", sessionToken: "example-session-signature", userId: "123" };
 const resolve = (overrides: Partial<typeof base>) => () => [{ ...base, ...overrides, key: "test", label: "Test", source: "env" as const, missing: [] }];
 
 describe("shared configuration boundary", () => {

@@ -20,7 +20,7 @@ globalThis.fetch=async (url,options={})=>{
  if(method==='PUT'&&target.pathname==='/api/v1/drafts/42'){puts++;draft={...draft,...JSON.parse(options.body),draft_updated_at:'2026-09-07T00:01:00Z'};return Response.json(draft);}
  throw Error('Unexpected fixture request; no network fallback is permitted.');
 };
-const server=createServer([{key:'example',label:'Sample publication',client:new SubstackClient('https://example.substack.com','synthetic-test-only','1')}]);
+const server=createServer([{key:'example',label:'Sample publication',client:new SubstackClient('https://example.substack.com','example-demo-token','1')}]);
 const client=new Client({name:'offline-workflow-demo',version:'1'}),[ct,st]=InMemoryTransport.createLinkedPair();
 await Promise.all([client.connect(ct),server.connect(st)]);
 const frames=[];

@@ -21,7 +21,8 @@ truncated. Malformed projected results return `invalid_tool_output`, excluding
 private upstream values. Thrown handler errors also produce bounded, static
 guidance; HTTP status/source and validated Retry-After are retained without
 upstream messages or private endpoint details. Typed Markdown conversion failures
-report that no write was attempted. Other write failures require reconciliation.
+return `code: "markdown_conversion_failed"` and `write_attempts: 0`, indicating
+that no write was attempted. Other write failures require reconciliation.
 Malformed legacy array rows now fail validation; preserving the array shape does
 not promise to pass through malformed upstream data. Error responses do not masquerade as schema-conforming
 success. A result-validation failure after a write does not undo it: reconcile

@@ -1,5 +1,8 @@
-export class MarkdownConversionError extends Error {}
 /** Markdown AST conversion. See docs/authoring.md for supported mappings and fallbacks. */
+export class MarkdownConversionError extends Error {
+  constructor(message: string) { super(message); this.name = "MarkdownConversionError"; }
+}
+
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown } from "mdast-util-gfm";
 import { gfm } from "micromark-extension-gfm";

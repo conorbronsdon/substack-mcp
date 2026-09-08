@@ -172,10 +172,19 @@ export function prosemirrorToMarkdown(source: string): MarkdownExport {
         check(image, at + "/content/0", ["src", "alt", "title", "href"]);
         if (image.content !== undefined || image.marks !== undefined) report(at + "/content/0", image.type, "Image children/marks are retained only in original source.");
         if (!safeUrl(ia.src, true)) return placeholder(at, type, "Image has no safe absolute HTTPS source; original retained.");
-        const alt = typeof ia.alt === "string" ? ia.alt : "";
+        let alt = typeof ia.alt === "string" ? ia.alt : "";
+        let title = typeof ia.title === "string" ? ia.title : null;
         if (ia.alt != null && typeof ia.alt !== "string") report(at + "/content/0/attrs", image.type, "Non-string alt text retained in source.");
         if (ia.title != null && typeof ia.title !== "string") report(at + "/content/0/attrs", image.type, "Non-string image title retained in source.");
-        let result: PhrasingContent = { type: "image", url: ia.src, alt, title: typeof ia.title === "string" ? ia.title : null };
+        if (/[\u0000-\u001f\u007f]/.test(alt)) {
+          report(at + "/content/0/attrs/alt", image.type, "Alt text control characters were replaced with spaces to preserve Markdown image syntax; original retained in source.");
+          alt = alt.replace(/[\u0000-\u001f\u007f]/g, " ");
+        }
+        if (title !== null && /[\u0000-\u001f\u007f]/.test(title)) {
+          report(at + "/content/0/attrs/title", image.type, "Image title with control characters was omitted to preserve Markdown image syntax; original retained in source.");
+          title = null;
+        }
+        let result: PhrasingContent = { type: "image", url: ia.src, alt, title };
         if (ia.href != null) {
           if (safeUrl(ia.href)) result = { type: "link", url: ia.href, children: [result] };
           else report(at + "/content/0/attrs", image.type, "Unsafe image link retained only in original source.");

@@ -102,12 +102,34 @@ describe("export files", () => {
       await actual.unlink(temporary);
     });
     try {
-      await expect(writeExportFiles(result, path, "markdown", false)).rejects.toThrow("destination was saved, but temporary-file cleanup failed (EACCES)");
+      await expect(writeExportFiles(result, path, "markdown", false)).rejects.toThrow("was saved; temporary-file cleanup failed (EACCES)");
       expect(JSON.parse(await readFile(`${path}.source.json`, "utf8"))).toEqual(result);
       if (stage === "markdown") expect(await readFile(path, "utf8")).toBe(result.markdown);
       else await expect(readFile(path)).rejects.toMatchObject({ code: "ENOENT" });
       expect((await readdir(dir)).filter(name => name.endsWith(".tmp"))).toHaveLength(1);
     } finally { vi.mocked(unlink).mockImplementation(actual.unlink); }
+  });
+  it("reports both the failed write and remaining temporary file when cleanup also fails", async () => {
+    const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    const dir = await scratch(), path = join(dir, "draft.md"), result = await bundle();
+    vi.mocked(link).mockImplementation(async (from, to) => {
+      if (String(to) === path) throw Object.assign(new Error("private write details"), { code: "ENOSPC" });
+      await actual.link(from, to);
+    });
+    vi.mocked(unlink).mockImplementation(async temporary => {
+      if (!String(temporary).includes(".source.json.")) throw Object.assign(new Error("private cleanup details"), { code: "EACCES" });
+      await actual.unlink(temporary);
+    });
+    try {
+      let message = "";
+      try { await writeExportFiles(result, path, "markdown", false); } catch (error) { message = (error as Error).message; }
+      expect(message).toContain("was not saved (ENOSPC); temporary-file cleanup failed (EACCES)");
+      const temporary = (await readdir(dir)).find(name => name.endsWith(".tmp"))!;
+      expect(message).toContain(temporary);
+      expect(message).not.toContain("private write details");
+      expect(JSON.parse(await readFile(`${path}.source.json`, "utf8"))).toEqual(result);
+      await expect(readFile(path)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally { vi.mocked(link).mockImplementation(actual.link); vi.mocked(unlink).mockImplementation(actual.unlink); }
   });
 });
 

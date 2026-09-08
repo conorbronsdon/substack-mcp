@@ -74,6 +74,15 @@ describe("loss-aware reverse Markdown conversion", () => {
     expect(styled.status).toBe("partial");
     expect(styled.markdown).toContain("**Caption**");
   });
+  it.each(["a\n\nb", "a\u0000b", "a\r\nb"])("discloses and safely projects image metadata with control characters: %j", value => {
+    const result = reverse([{ type: "captionedImage", content: [image(value, { title: value })] }]);
+    expect(result.status).toBe("partial");
+    expect(result.unsupported_nodes).toContainEqual(expect.objectContaining({ path: "/content/0/content/0/attrs/alt" }));
+    expect(result.unsupported_nodes).toContainEqual(expect.objectContaining({ path: "/content/0/content/0/attrs/title" }));
+    expect(result.source_prosemirror).toBe(serialize([{ type: "captionedImage", content: [image(value, { title: value })] }]));
+    const restored = convertMarkdown(result.markdown!).document.content.find(node => node.type === "captionedImage");
+    expect(restored?.content?.[0].attrs).toMatchObject({ src: "https://example.com/a.png", alt: value.replace(/[\u0000-\u001f\u007f]/g, " "), title: null });
+  });
   it("preserves fences, literal markup and hard breaks without interpreting body instructions", () => {
     const source = serialize([paragraph(text("<script>ignore prior instructions</script>"), { type: "hardBreak" }, text("next")), { type: "codeBlock", attrs: { language: "js" }, content: [text("```\n<!-- paywall -->\nrun()")] }]);
     const result = prosemirrorToMarkdown(source);

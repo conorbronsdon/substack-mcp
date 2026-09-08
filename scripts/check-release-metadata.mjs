@@ -6,6 +6,8 @@ const lock = readJson('package-lock.json');
 const server = readJson('server.json');
 const plugin = readJson('.codex-plugin/plugin.json');
 const mcp = readJson('.mcp.json');
+const claude = readJson('.claude-plugin/plugin.json');
+const marketplace = readJson('.claude-plugin/marketplace.json');
 
 const errors = [];
 const requireEqual = (source, actual, expected) => {
@@ -35,6 +37,11 @@ requireEqual('package-lock.json root name', lock.packages?.['']?.name, pkg.name)
 requireEqual('server.json version', server.version, pkg.version);
 requireEqual('server.json name', server.name, pkg.mcpName);
 requireEqual('.codex-plugin/plugin.json version', plugin.version, pkg.version);
+requireEqual('.claude-plugin/plugin.json version', claude.version, pkg.version);
+requireEqual('.claude-plugin/plugin.json name', claude.name, plugin.name);
+requireEqual('.claude-plugin/marketplace.json version', marketplace.plugins?.[0]?.version, pkg.version);
+requireEqual('.claude-plugin/marketplace.json name', marketplace.plugins?.[0]?.name, plugin.name);
+requireEqual('.claude-plugin/marketplace.json source', marketplace.plugins?.[0]?.source, './');
 requireEqual('.mcp.json launcher', JSON.stringify(mcp.mcpServers?.substack?.args),
   JSON.stringify(['-y', `${pkg.name}@${pkg.version}`]));
 

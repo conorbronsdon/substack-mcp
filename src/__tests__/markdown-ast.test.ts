@@ -173,6 +173,11 @@ describe("Markdown conversion through MCP", () => {
         const result = await mcp.callTool({ name, arguments: name === "plan_draft_update" ? { draft_id: 42, body, allow_unsupported: true } : { title: "Test", draft_id: 42, body, url: "https://example.com", allow_unsupported: true } });
         expect(result.isError).toBe(true);
         expect((result.content as { text: string }[])[0].text).toMatch(/exceed|too_big|200000/);
+        if (name !== "plan_draft_update") {
+          const text = (result.content as { text: string }[])[0].text;
+          expect(JSON.parse(text)).toMatchObject({ code: "markdown_conversion_failed", write_attempts: 0 });
+          expect(text).not.toContain("reconcile");
+        }
       }
       for (const spy of writes) expect(spy).not.toHaveBeenCalled();
     });

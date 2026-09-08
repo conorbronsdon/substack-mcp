@@ -162,8 +162,8 @@ async function main() {
   await Promise.all(
     publications.map(async (p) => {
       try {
-        const user = await p.client.validateAuth();
-        console.error(`Authenticated as user ${user.id}${pubSuffix(p.label)}`);
+        await p.client.validateAuth();
+        console.error(`Authenticated publication read succeeded${pubSuffix(p.label)}; configured user identity and write permissions are not independently verified.`);
       } catch (err) {
         console.error(
           `Warning: Authentication failed${pubSuffix(p.label)}. Tools will error until a valid session token is provided.`,

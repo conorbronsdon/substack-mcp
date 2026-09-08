@@ -9,6 +9,9 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
+- Claude Code plugin and repository marketplace, sharing the creator workflow skill and exact-version npm launcher with the existing Codex plugin. Manifest versions are synchronized and tested with release metadata. Local plugin support is distinct from hosted ChatGPT or curated-directory admission.
+- Opt-in read-only live contract probes with clean source revision, client/transport and credential-safe coverage reports. Doctor includes installed version and runtime; startup authentication reports read access without inferring an account ID from a post byline.
+- Typed object results with matching text JSON across all object-returning MCP tools; legacy array outputs remain unchanged. Shared response validation and size limits, schema snapshots, and a documented 1.x compatibility policy. Numeric read IDs and pagination now reject unsafe or invalid values before API requests.
 - Explicit named session profiles, exclusive creation and legacy migration with rollback. `substack-mcp login` retains the legacy login binary, captures only publication-scoped cookies and checks authenticated read access before saving. Login requires a supplied account user ID rather than inferring one from a post byline.
 - Shared-handler CLI reads: `drafts list/get`, `analytics post` and `subscribers count/get`, with explicit publication selection, versioned JSON envelopes and bounded output. `drafts export` aliases the existing export command. Offline `status` reports installed version, runtime and credential-safe configuration diagnostics.
 

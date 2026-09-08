@@ -333,6 +333,10 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
+[Claude Code and Codex plugin setup](docs/plugins.md) is available alongside
+manual MCP configuration. The repository marketplace and local plugin are
+separate from curated-directory acceptance or hosted ChatGPT support.
+
 #### Claude Code
 
 Add to your `.mcp.json`:
@@ -356,6 +360,9 @@ Add to your `.mcp.json`:
 ### 3. Verify
 
 Ask your AI assistant: "How many Substack subscribers do I have?"
+
+Tool output compatibility, response limits and versioning are documented in
+[the tool contract](docs/tool-contract.md).
 
 ## Multiple publications
 
@@ -512,6 +519,9 @@ changes and the distinction between offline fixtures and live editor checks.
 - `SIGTERM` and `SIGINT` are handled: the server closes its transport and exits 0, so `docker stop` returns promptly instead of waiting out the grace period.
 
 ## Development
+
+For opt-in live read checks, see [live contract evidence](docs/live-contract-evidence.md).
+The probe is disabled in ordinary CI and never publishes or writes.
 
 Before releasing, run `npm run test:package`. It installs the built tarball with production dependencies in a clean temporary directory, checks both executable entrypoints, and verifies the MCP version and the complete registered tool catalog without real credentials.
 

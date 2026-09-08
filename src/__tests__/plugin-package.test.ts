@@ -23,7 +23,20 @@ describe("Codex plugin package", () => {
   it("discloses the immediate Notes publishing boundary", () => {
     const manifest = readJson(".codex-plugin/plugin.json");
     expect(manifest.description).toContain("Notes publish immediately");
+    expect(manifest.interface.shortDescription).toContain("Notes publish immediately");
     expect(manifest.interface.longDescription).toContain("no publish, delete, or schedule tools");
     expect(manifest.interface.longDescription).toContain("Notes publish immediately");
+  });
+
+  it("keeps discovery metadata aligned across package formats", () => {
+    const pkg = readJson("package.json");
+    const codex = readJson(".codex-plugin/plugin.json");
+    const claude = readJson(".claude-plugin/plugin.json");
+    const marketplace = readJson(".claude-plugin/marketplace.json");
+
+    expect(codex.description).toBe(pkg.description);
+    expect(claude.description).toBe(pkg.description);
+    expect(marketplace.plugins[0].description).toBe(pkg.description);
+    expect(codex.keywords).toEqual(pkg.keywords);
   });
 });

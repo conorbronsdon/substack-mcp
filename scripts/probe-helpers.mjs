@@ -1,4 +1,4 @@
-﻿export function probeEnabled(env, args) {
+export function probeEnabled(env, args) {
   return env.SUBSTACK_CONTRACT_PROBE === '1' && args.length === 1 && args[0] === '--read-only';
 }
 export function selectProbePublication(publications, key) {

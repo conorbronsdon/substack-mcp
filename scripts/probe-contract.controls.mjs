@@ -1,4 +1,4 @@
-﻿import { test } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { probeEnabled, selectProbePublication, readOnlyProbeFetch } from './probe-helpers.mjs';
 test('explicit probe opt-in and read-only argument are both required', () => {

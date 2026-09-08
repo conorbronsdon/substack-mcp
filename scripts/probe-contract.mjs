@@ -7,13 +7,13 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
 if (!probeEnabled(process.env, process.argv.slice(2))) {
-  console.error('Disabled. Build first; set SUBSTACK_CONTRACT_PROBE=1 and explicitly pass --read-only. For multiple configured publications also set SUBSTACK_PROBE_PUBLICATION to a configured key. This performs authenticated reads, never writes.');
+  console.error('Disabled. Set SUBSTACK_CONTRACT_PROBE=1 and explicitly pass --read-only. For multiple configured publications also set SUBSTACK_PROBE_PUBLICATION to a configured key. This performs authenticated reads, never writes.');
   process.exitCode = 2;
 } else {
   const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
   const report = { format_version: 1, captured_at: new Date().toISOString(), version: packageMetadata.version,
     node: process.version, client: 'MCP TypeScript SDK', transport: 'in_memory', live: true,
-    write_attempts: 0, user_identity: 'not_verified', account_eligibility: 'not_independently_verified', checks: [], ok: false };
+    user_identity: 'not_verified', account_eligibility: 'not_independently_verified', checks: [], ok: false };
   let server, client;
   const counters = { reads: 0, blocked: 0 };
   try {
@@ -28,11 +28,11 @@ if (!probeEnabled(process.env, process.argv.slice(2))) {
     execFileSync('git', ['diff', '--quiet'], gitOptions);
     execFileSync('git', ['diff', '--cached', '--quiet'], gitOptions);
     if (execFileSync('git', ['rev-parse', 'HEAD'], gitOptions).trim() !== report.source_revision || execFileSync('git', ['ls-files', '--others', '--exclude-standard'], gitOptions).trim()) throw new Error('Source changed during build');
+    globalThis.fetch = readOnlyProbeFetch(globalThis.fetch, counters);
     const { resolvePublications } = await import('../dist/auth/resolve-publications.js');
     const { SubstackClient } = await import('../dist/api/client.js');
     const { createServer } = await import('../dist/server.js');
     const selected = selectProbePublication(resolvePublications(), process.env.SUBSTACK_PROBE_PUBLICATION);
-    globalThis.fetch = readOnlyProbeFetch(globalThis.fetch, counters);
     const api = new SubstackClient(selected.publicationUrl, selected.sessionToken, selected.userId);
     const auth = await api.validateAuth();
     report.checks.push({ name: 'authenticated_read', ok: auth.authentication === 'authenticated_read_succeeded' });

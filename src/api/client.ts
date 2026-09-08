@@ -138,12 +138,14 @@ export class SubstackClient {
     return requestJson<T>(url, { ...options, headers }, this.timeoutMs);
   }
 
-  async validateAuth(): Promise<{ id: number; name: string }> {
-    // /user/self is restricted; validate by listing drafts instead.
-    const drafts = await this.getDrafts(0, 1);
-    // If we get here without a 401/403, auth is valid
-    const byline = drafts[0]?.draft_bylines?.[0];
-    return { id: byline?.id ?? this.userId, name: "authenticated" };
+  async validateAuth(): Promise<{ authentication: "authenticated_read_succeeded"; user_identity: "not_verified" }> {
+    const data = await this.request<unknown>(`${this.publicationUrl}/api/v1/post_management/drafts?offset=0&limit=1&order_by=draft_updated_at&order_direction=desc`);
+    if (!data || typeof data !== "object" || !("posts" in data) || !Array.isArray(data.posts)) {
+      throw new Error("Authentication read returned an unexpected response.");
+    }
+    // A successful publication read proves neither the configured account ID nor
+    // a post author's identity. Never infer the signed-in user from a byline.
+    return { authentication: "authenticated_read_succeeded", user_identity: "not_verified" };
   }
 
   searchPosts(input: Parameters<typeof searchPosts>[0]) {

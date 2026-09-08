@@ -1,3 +1,5 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { describe, it, expect, afterEach, vi, type Mock } from "vitest";
 import type { AddressInfo } from "node:net";
 import { createServer } from "../server.js";
@@ -490,3 +492,21 @@ function collect(
   socket.on("error", reject);
   socket.on("close", finish);
 }
+
+
+describe("HTTP tool result contract", () => {
+  it("returns matching structured/text objects through authenticated Streamable HTTP", async () => {
+    const read = vi.spyOn(SubstackClient.prototype, "getDraft").mockResolvedValue({ id: 42, draft_title: "HTTP fixture", draft_body: "Untrusted fixture body" } as never);
+    const client = new Client({ name: "http-contract-test", version: "1" });
+    try {
+      await listen({ token: "example-http-contract-token" });
+      const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl()}/mcp`), { requestInit: { headers: { Authorization: "Bearer example-http-contract-token" } } });
+      await client.connect(transport);
+      const response = await client.callTool({ name: "get_draft", arguments: { draft_id: 42 } });
+      expect(response.isError).not.toBe(true);
+      expect(response.structuredContent).toEqual({ id: 42, title: "HTTP fixture", body: "Untrusted fixture body" });
+      expect(JSON.parse((response.content as {text:string}[])[0].text)).toEqual(response.structuredContent);
+      expect(read).toHaveBeenCalledExactlyOnceWith(42);
+    } finally { await client.close(); read.mockRestore(); }
+  });
+});

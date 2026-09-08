@@ -1,65 +1,42 @@
-/**
- * Converts markdown to Substack's ProseMirror JSON format.
- *
- * Supports: paragraphs, headings (h1-h6), bold, italic, links, images,
- * bullet lists, ordered lists, NESTED lists (arbitrary depth, mixed
- * ordered/unordered), code blocks, blockquotes, horizontal rules.
- *
- * Tables: Substack's post schema has NO table node (its editor never
- * integrated prosemirror-tables), so a GFM table cannot be represented
- * natively. Rather than let the pipes collapse into a mangled paragraph, a
- * detected table is preserved verbatim inside a `code_block` — monospace
- * keeps the columns aligned and the content survives round-trip so the author
- * can reformat it (as an image/embed) in Substack's editor.
- */
+/** Markdown AST conversion. See docs/authoring.md for supported mappings and fallbacks. */
+import { fromMarkdown } from "mdast-util-from-markdown";
+import { gfmFromMarkdown } from "mdast-util-gfm";
+import { gfm } from "micromark-extension-gfm";
+import type { Nodes, Definition, Root } from "mdast";
 
-interface PMNode {
+export interface PMNode {
   type: string;
   attrs?: Record<string, unknown>;
   content?: PMNode[];
   marks?: PMMark[];
   text?: string;
 }
-
-interface PMMark {
+export interface PMMark { type: string; attrs?: Record<string, unknown> }
+export interface UnsupportedMarkdownNode {
   type: string;
-  attrs?: Record<string, unknown>;
+  reason: string;
+  line: number;
+  column: number;
 }
-
-/** A single markdown list item, flattened with its indentation depth. */
-interface ListItemRaw {
-  /** Leading-whitespace width, tabs counted as 4 columns. */
-  indent: number;
-  ordered: boolean;
-  text: string;
+export interface MarkdownConversion {
+  document: PMNode & { content: PMNode[] };
+  unsupported_nodes: UnsupportedMarkdownNode[];
+  /** Original input, including definitions and syntax not represented by the editor. */
+  source_markdown: string;
 }
+export const MAX_MARKDOWN_CHARS = 200_000;
+const MAX_NODES = 10_000;
+const MAX_DEPTH = 100;
+const IMAGE_DIMENSIONS_RE = /_(\d+)x(\d+)\.(png|jpe?g|gif|webp|avif|bmp|tiff?)$/i;
 
-// A list item: optional leading whitespace, a bullet (-, *, +) or an ordered
-// marker (`1.`), one or more spaces, then the item text. The capture groups
-// are used to recover indentation, list type, and content.
-const LIST_ITEM_RE = /^(\s*)([-*+]|\d+\.)\s+(.*)$/;
-const HEADING_RE = /^(#{1,6})\s+(.+)$/;
-const HR_RE = /^(-{3,}|\*{3,}|_{3,})\s*$/;
-const IMAGE_LINE_RE = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/;
-// Substack CDN uploads encode the pixel dimensions in the filename, e.g.
-// `..._1265x5808.png`. We parse them so the editor can lay the image out; the
-// same suffix also tells us the MIME type. Non-CDN URLs simply yield nulls.
-const IMAGE_DIMENSIONS_RE =
-  /_(\d+)x(\d+)\.(png|jpe?g|gif|webp|avif|bmp|tiff?)(?:$|[?#])/i;
-// The `_WxH_` suffix is a Substack CDN convention, so only trust it on
-// Substack-hosted URLs. A foreign URL like `hero_16x9.jpg` uses that shape as
-// an aspect-ratio label, not pixel dimensions — parsing it would emit a bogus
-// 16x9-pixel layout. Those fall through to null, which the editor tolerates.
-const SUBSTACK_CDN_RE = /(?:substackcdn\.com|substack-post-media\.s3\.amazonaws\.com)/i;
-
-// Build a Substack image node. Substack renders an image as a `captionedImage`
-// that WRAPS an `image2` child — the `src` and dimensions live on that child,
-// not on the wrapper. Emitting a flat `{type:"captionedImage", attrs:{src}}`
-// node is accepted by the drafts API but crashes Substack's editor when it
-// tries to render the (missing) child, so we always nest an `image2` here and
-// attach a `caption` node when alt text is present.
-function buildImageNode(alt: string, src: string): PMNode {
-  const dims = SUBSTACK_CDN_RE.test(src) ? src.match(IMAGE_DIMENSIONS_RE) : null;
+function buildImageNode(alt: string, src: string, title: string | null = null, href: string | null = null): PMNode {
+  const url = new URL(src);
+  const host = url.hostname;
+  const trusted = host === "substackcdn.com" || host.endsWith(".substackcdn.com") ||
+    host === "substack-post-media.s3.amazonaws.com";
+  const match = trusted ? url.pathname.match(IMAGE_DIMENSIONS_RE) : null;
+  const dims = match && Number.isSafeInteger(Number(match[1])) && Number(match[1]) > 0 &&
+    Number.isSafeInteger(Number(match[2])) && Number(match[2]) > 0 ? match : null;
   const width = dims ? parseInt(dims[1], 10) : null;
   const height = dims ? parseInt(dims[2], 10) : null;
   const ext = dims ? dims[3].toLowerCase() : null;
@@ -79,9 +56,9 @@ function buildImageNode(alt: string, src: string): PMNode {
       resizeWidth: width,
       bytes: null,
       alt: alt || null,
-      title: null,
+      title,
       type: mime,
-      href: null,
+      href,
       belowTheFold: false,
       topImage: false,
       internalRedirect: null,
@@ -95,350 +72,153 @@ function buildImageNode(alt: string, src: string): PMNode {
   return { type: "captionedImage", content };
 }
 
-/**
- * True for a GFM table delimiter row — the `|---|:--:|` line under the header.
- * Every pipe-separated cell must be dashes with optional alignment colons.
- */
-function isTableDelimiter(line: string): boolean {
-  const trimmed = line.trim();
-  if (!trimmed.includes("-")) return false;
-  const cells = trimmed.replace(/^\|/, "").replace(/\|$/, "").split("|");
-  return cells.length > 0 && cells.every((c) => /^\s*:?-+:?\s*$/.test(c));
+
+function textNodes(value: string, marks: PMMark[] = []): PMNode[] {
+  return value ? [{ type: "text", text: value, ...(marks.length ? { marks } : {}) }] : [];
+}
+function safeUrl(value: string, image = false): boolean {
+  if (/[\u0000-\u0020\u007f]/.test(value)) return false;
+  try {
+    const url = new URL(value);
+    return !url.username && !url.password && (image
+      ? url.protocol === "https:"
+      : ["https:", "http:", "mailto:"].includes(url.protocol));
+  } catch { return false; }
 }
 
-/** A line that could be a table row: non-blank and containing a pipe. */
-function looksLikeTableRow(line: string): boolean {
-  return line.trim().length > 0 && line.includes("|");
-}
-
-/**
- * True when a GFM table starts at `lines[idx]`: a pipe row immediately
- * followed by a delimiter row. Requires the two-line lookahead so an ordinary
- * paragraph that merely contains a pipe is not misread as a table.
- */
-function startsTable(lines: string[], idx: number): boolean {
-  return (
-    looksLikeTableRow(lines[idx]) &&
-    idx + 1 < lines.length &&
-    isTableDelimiter(lines[idx + 1])
-  );
-}
-
-/** Width of a leading-whitespace run, counting each tab as 4 columns. */
-function indentWidth(whitespace: string): number {
-  let width = 0;
-  for (const ch of whitespace) width += ch === "\t" ? 4 : 1;
-  return width;
-}
-
-/**
- * True when a line begins a block that is NOT a plain paragraph — used to
- * terminate paragraph accumulation. Kept in sync with the block handlers in
- * the main loop so a paragraph never swallows a following heading (h1-h6),
- * list, blockquote, code fence, rule, or standalone image.
- */
-function startsBlock(line: string): boolean {
-  const trimmed = line.trimStart();
-  return (
-    trimmed === "" ||
-    trimmed.startsWith("```") ||
-    HEADING_RE.test(trimmed) ||
-    trimmed.startsWith("> ") ||
-    HR_RE.test(line.trim()) ||
-    LIST_ITEM_RE.test(line) ||
-    IMAGE_LINE_RE.test(trimmed)
-  );
-}
-
-/** A live nesting level while lists are being assembled. */
-interface ListFrame {
-  indent: number;
-  ordered: boolean;
-  list: PMNode;
-  lastItem: PMNode | null;
-}
-
-/**
- * Build ProseMirror list nodes from a flat, ordered run of list items.
- *
- * A stack tracks the open nesting levels. A deeper indent opens a nested list
- * inside the current item; a shallower indent closes levels; a marker-type
- * flip at the same indent starts a sibling list of the other kind. The design
- * goal is that NO item is ever dropped — a leading over-indented item with no
- * parent simply becomes its own top-level list rather than being discarded, so
- * even malformed indentation round-trips its content.
- */
-function buildListNodes(raws: ListItemRaw[]): PMNode[] {
-  const root: PMNode[] = [];
-  const stack: ListFrame[] = [];
-
-  const openList = (ordered: boolean): PMNode => ({
-    type: ordered ? "ordered_list" : "bullet_list",
-    content: [],
-  });
-
-  for (const raw of raws) {
-    // Close any levels deeper than this item.
-    while (stack.length && raw.indent < stack[stack.length - 1].indent) {
-      stack.pop();
-    }
-
-    let top: ListFrame | undefined = stack[stack.length - 1];
-
-    if (!top || raw.indent > top.indent) {
-      // Open a nested list under the current item, or a new root list when
-      // there is no enclosing item (including a leading over-indented item).
-      const list = openList(raw.ordered);
-      if (top && top.lastItem) {
-        top.lastItem.content!.push(list);
-      } else {
-        root.push(list);
-      }
-      top = { indent: raw.indent, ordered: raw.ordered, list, lastItem: null };
-      stack.push(top);
-    } else if (raw.ordered !== top.ordered) {
-      // Same level, different marker → a sibling list of the other kind,
-      // attached wherever the current list lives (parent item, or root).
-      const list = openList(raw.ordered);
-      const parent = stack[stack.length - 2];
-      if (parent && parent.lastItem) {
-        parent.lastItem.content!.push(list);
-      } else {
-        root.push(list);
-      }
-      stack.pop();
-      top = { indent: raw.indent, ordered: raw.ordered, list, lastItem: null };
-      stack.push(top);
-    }
-
-    const item: PMNode = {
-      type: "list_item",
-      content: [{ type: "paragraph", content: parseInline(raw.text) }],
-    };
-    top.list.content!.push(item);
-    top.lastItem = item;
+export function convertMarkdown(markdown: string, target: "draft" | "note" = "draft"): MarkdownConversion {
+  if (markdown.length > MAX_MARKDOWN_CHARS) throw new Error(`Markdown exceeds ${MAX_MARKDOWN_CHARS} characters. Split the document before converting.`);
+  let root: Root;
+  try {
+    root = fromMarkdown(markdown, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] });
+  } catch {
+    throw new Error("Markdown could not be parsed within the supported parser limits.");
   }
-
-  return root;
-}
-
-export function markdownToProseMirror(markdown: string): string {
-  const lines = markdown.split("\n");
-  const nodes: PMNode[] = [];
-  let i = 0;
-
-  while (i < lines.length) {
-    const line = lines[i];
-
-    // Blank line — skip
-    if (line.trim() === "") {
-      i++;
-      continue;
+  // Check depth iteratively before recursive conversion and collect reference definitions.
+  const definitions = new Map<string, Definition>();
+  const usedDefinitions = new Set<string>();
+  const stack: { node: Nodes; depth: number }[] = [{ node: root, depth: 0 }];
+  let count = 0;
+  while (stack.length) {
+    const { node, depth } = stack.pop()!;
+    if (++count > MAX_NODES || depth > MAX_DEPTH) throw new Error("Markdown exceeds the 10,000-node or 100-level conversion limit.");
+    if (node.type === "definition") {
+      // Stack visits siblings in source order: CommonMark uses the first definition.
+      if (!definitions.has(node.identifier)) definitions.set(node.identifier, node);
     }
-
-    // Fenced code block
-    if (line.trimStart().startsWith("```")) {
-      const lang = line.trim().slice(3).trim();
-      const codeLines: string[] = [];
-      i++;
-      while (i < lines.length && !lines[i].trimStart().startsWith("```")) {
-        codeLines.push(lines[i]);
-        i++;
-      }
-      i++; // skip closing ```
-      nodes.push({
-        type: "code_block",
-        ...(lang ? { attrs: { lang } } : {}),
-        content: [{ type: "text", text: codeLines.join("\n") }],
-      });
-      continue;
-    }
-
-    // Horizontal rule
-    if (HR_RE.test(line.trim())) {
-      nodes.push({ type: "horizontal_rule" });
-      i++;
-      continue;
-    }
-
-    // Heading. Match the left-trimmed line so an indented `  # h` (valid up to
-    // 3 leading spaces in CommonMark) is consumed here — this MUST agree with
-    // startsBlock's trimmed test, or such a line would be flagged as a block
-    // start yet consumed by nothing, stalling the loop.
-    const headingMatch = line.trimStart().match(HEADING_RE);
-    if (headingMatch) {
-      const level = headingMatch[1].length;
-      nodes.push({
-        type: "heading",
-        attrs: { level },
-        content: parseInline(headingMatch[2]),
-      });
-      i++;
-      continue;
-    }
-
-    // Blockquote
-    if (line.trimStart().startsWith("> ")) {
-      const quoteLines: string[] = [];
-      while (i < lines.length && lines[i].trimStart().startsWith("> ")) {
-        quoteLines.push(lines[i].replace(/^>\s?/, ""));
-        i++;
-      }
-      nodes.push({
-        type: "blockquote",
-        content: [
-          {
-            type: "paragraph",
-            content: parseInline(quoteLines.join(" ")),
-          },
-        ],
-      });
-      continue;
-    }
-
-    // List (ordered, unordered, and nested — one contiguous run)
-    if (LIST_ITEM_RE.test(line)) {
-      const raws: ListItemRaw[] = [];
-      while (i < lines.length && LIST_ITEM_RE.test(lines[i])) {
-        const m = lines[i].match(LIST_ITEM_RE)!;
-        raws.push({
-          indent: indentWidth(m[1]),
-          ordered: /\d/.test(m[2]),
-          text: m[3],
-        });
-        i++;
-      }
-      nodes.push(...buildListNodes(raws));
-      continue;
-    }
-
-    // Table (GFM) — Substack has no table node, so preserve it verbatim in a
-    // code_block instead of mangling the pipes into a paragraph.
-    if (startsTable(lines, i)) {
-      const tableLines: string[] = [];
-      while (i < lines.length && looksLikeTableRow(lines[i])) {
-        tableLines.push(lines[i].replace(/\s+$/, ""));
-        i++;
-      }
-      nodes.push({
-        type: "code_block",
-        content: [{ type: "text", text: tableLines.join("\n") }],
-      });
-      continue;
-    }
-
-    // Image (standalone line). Left-trimmed for the same reason as headings:
-    // it must agree with startsBlock so an indented image line is consumed.
-    const imgMatch = line.trimStart().match(IMAGE_LINE_RE);
-    if (imgMatch) {
-      nodes.push(buildImageNode(imgMatch[1], imgMatch[2]));
-      i++;
-      continue;
-    }
-
-    // Default: paragraph — collect consecutive lines until the next block.
-    const paraLines: string[] = [];
-    while (
-      i < lines.length &&
-      !startsBlock(lines[i]) &&
-      !startsTable(lines, i)
-    ) {
-      paraLines.push(lines[i]);
-      i++;
-    }
-
-    if (paraLines.length > 0) {
-      const text = paraLines.join(" ");
-      const inlineContent = parseInline(text);
-      if (inlineContent.length > 0) {
-        nodes.push({
-          type: "paragraph",
-          content: inlineContent,
-        });
-      }
-    } else {
-      // Safety net: a line was flagged as a block start (startsBlock/startsTable)
-      // but no dispatch branch above consumed it. Advance unconditionally so
-      // the main loop can never stall, whatever future edits do to the two
-      // sets of predicates.
-      i++;
+    if (node.type === "linkReference" || node.type === "imageReference") usedDefinitions.add(node.identifier);
+    if ("children" in node) {
+      for (let i = node.children.length - 1; i >= 0; i--) stack.push({ node: node.children[i], depth: depth + 1 });
     }
   }
-
-  const doc: PMNode = {
-    type: "doc",
-    content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
+  const unsupported_nodes: UnsupportedMarkdownNode[] = [];
+  const raw = (node: Nodes): string => markdown.slice(node.position?.start.offset ?? 0, node.position?.end.offset ?? markdown.length);
+  const report = (node: Nodes, reason: string): void => {
+    if (unsupported_nodes.length >= 100) throw new Error("Markdown has more than 100 unsupported constructs. Simplify it before converting.");
+    unsupported_nodes.push({ type: node.type, reason, line: node.position?.start.line ?? 1, column: node.position?.start.column ?? 1 });
   };
-
-  return JSON.stringify(doc);
+  const fallback = (node: Nodes, reason: string, inline = false, marks: PMMark[] = []): PMNode[] => {
+    report(node, reason);
+    return inline ? textNodes(raw(node), marks) : [{ type: "code_block", content: textNodes(raw(node)) }];
+  };
+  const inline = (nodes: Nodes[], marks: PMMark[] = []): PMNode[] => nodes.flatMap((node): PMNode[] => {
+    switch (node.type) {
+      case "text": return textNodes(node.value.replace(/\r?\n/g, " "), marks);
+      case "break": return [{ type: "hard_break" }];
+      case "inlineCode": return textNodes(node.value, [...marks, { type: "code" }]);
+      case "strong": return inline(node.children, [...marks, { type: "bold" }]);
+      case "emphasis": return inline(node.children, [...marks, { type: "italic" }]);
+      case "delete": return inline(node.children, [...marks, { type: "strikethrough" }]);
+      case "link":
+      case "linkReference": {
+        const link = node.type === "link" ? node : definitions.get(node.identifier);
+        if (!link || !safeUrl(link.url)) return fallback(node, "Link requires an absolute HTTP(S) or mailto URL without credentials.", true, marks);
+        if (link.title) report(node, "Link title is retained in source_markdown; the verified link mapping has no title attribute.");
+        return inline(node.children, [...marks, { type: "link", attrs: { href: link.url } }]);
+      }
+      case "image":
+      case "imageReference": {
+        const image = node.type === "image" ? node : definitions.get(node.identifier);
+        if (!image || !safeUrl(image.url, true)) return fallback(node, "Image requires an absolute HTTPS URL without credentials.", true, marks);
+        const href = marks.find(mark => mark.type === "link")?.attrs?.href;
+        if (marks.some(mark => mark.type !== "link")) report(node, "Text formatting around images has no verified image mapping.");
+        return [buildImageNode(node.alt ?? "", image.url, image.title ?? null, typeof href === "string" ? href : null)];
+      }
+      default: return fallback(node, "No verified inline editor mapping; Markdown retained literally.", true, marks);
+    }
+  });
+  // Images are block nodes in Substack. Split paragraphs/headings around them,
+  // preserving surrounding text and linked-image destinations in reading order.
+  const textBlocks = (node: Extract<Nodes, { type: "paragraph" | "heading" }>): PMNode[] => {
+    const result: PMNode[] = [];
+    let run: PMNode[] = [];
+    const flush = (): void => {
+      if (run.length) result.push({ type: node.type, ...(node.type === "heading" ? { attrs: { level: node.depth } } : {}), content: run });
+      run = [];
+    };
+    for (const child of inline(node.children)) {
+      if (child.type === "captionedImage") { flush(); result.push(child); }
+      else run.push(child);
+    }
+    flush();
+    return result.length ? result : [{ type: node.type, ...(node.type === "heading" ? { attrs: { level: node.depth } } : {}) }];
+  };
+  let paywalls = 0;
+  const blocks = (nodes: Nodes[], topLevel = false): PMNode[] => nodes.flatMap((node): PMNode[] => {
+    switch (node.type) {
+      case "paragraph":
+      case "heading": return textBlocks(node);
+      case "blockquote": return [{ type: "blockquote", content: blocks(node.children) }];
+      case "list": return [{ type: node.ordered ? "ordered_list" : "bullet_list", ...(node.ordered ? { attrs: { order: node.start ?? 1 } } : {}), content: blocks(node.children) }];
+      case "listItem": {
+        if (node.checked !== null && node.checked !== undefined) return [{ type: "list_item", content: [{ type: "paragraph" }, ...fallback(node, "Task-list checkboxes have no verified editor mapping; item source retained.")] }];
+        const content = blocks(node.children);
+        // The legacy list_item schema requires a leading paragraph.
+        if (content[0]?.type !== "paragraph") content.unshift({ type: "paragraph" });
+        return [{ type: "list_item", content }];
+      }
+      case "code":
+        if (node.meta) return fallback(node, "Code-fence metadata has no verified editor mapping; complete fence retained.");
+        return [{ type: "code_block", ...(node.lang ? { attrs: { lang: node.lang } } : {}), content: textNodes(node.value) }];
+      case "thematicBreak": return [{ type: "horizontal_rule" }];
+      case "definition":
+        if (usedDefinitions.has(node.identifier) && definitions.get(node.identifier) === node) return [];
+        return fallback(node, "Unused or duplicate reference definition retained as Markdown.");
+      case "html":
+        if (node.value.trim() === "<!-- paywall -->") {
+          if (target !== "draft" || !topLevel) return fallback(node, "Paywall markers are supported only at the top level of long-form drafts.");
+          if (++paywalls > 1) throw new Error("Only one paywall marker is allowed in a draft.");
+          return [{ type: "paywall" }];
+        }
+        return fallback(node, "Raw HTML has no verified editor mapping; retained as code.");
+      default: return fallback(node, "No verified block editor mapping; original Markdown retained as code.");
+    }
+  });
+  const content = blocks(root.children, true);
+  const document = { type: "doc", content: content.length ? content : [{ type: "paragraph" }] };
+  // AST limits do not count nodes generated by images, captions and nested marks.
+  const output = [{ node: document as PMNode, depth: 0 }];
+  count = 0;
+  while (output.length) {
+    const { node, depth } = output.pop()!;
+    if (++count > MAX_NODES || depth > MAX_DEPTH) throw new Error("Converted Markdown exceeds the 10,000-node or 100-level output limit.");
+    if (node.content) for (const child of node.content) output.push({ node: child, depth: depth + 1 });
+  }
+  if (JSON.stringify(document).length > 2_000_000) throw new Error("Converted Markdown exceeds the 2,000,000-character output limit.");
+  return { document, unsupported_nodes, source_markdown: markdown };
 }
 
-/**
- * Returns the raw ProseMirror content array (for Notes, which wrap it in their own doc envelope).
- */
+/** Compatibility helpers preserve literal fallbacks. Write callers must inspect diagnostics. */
+export function markdownToProseMirror(markdown: string): string {
+  return JSON.stringify(convertMarkdown(markdown).document);
+}
 export function markdownToProseMirrorContent(markdown: string): PMNode[] {
-  const doc = JSON.parse(markdownToProseMirror(markdown));
-  return doc.content;
+  return convertMarkdown(markdown).document.content;
 }
-
-/**
- * Parse inline markdown (bold, italic, links, inline code) into ProseMirror text nodes with marks.
- */
-export function parseInline(text: string): PMNode[] {
-  const nodes: PMNode[] = [];
-
-  // Regex for inline patterns: bold, italic, links, inline code, images
-  const inlineRegex =
-    /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(\[([^\]]+)\]\(([^)]+)\))|(`([^`]+)`)|(!?\[([^\]]*)\]\(([^)]+)\))/g;
-
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = inlineRegex.exec(text)) !== null) {
-    // Text before match
-    if (match.index > lastIndex) {
-      const before = text.slice(lastIndex, match.index);
-      if (before) nodes.push({ type: "text", text: before });
-    }
-
-    if (match[1]) {
-      // Bold: **text**
-      nodes.push({
-        type: "text",
-        text: match[2],
-        marks: [{ type: "bold" }],
-      });
-    } else if (match[3]) {
-      // Italic: *text*
-      nodes.push({
-        type: "text",
-        text: match[4],
-        marks: [{ type: "italic" }],
-      });
-    } else if (match[5] && !match[5].startsWith("!")) {
-      // Link: [text](url)
-      nodes.push({
-        type: "text",
-        text: match[6],
-        marks: [{ type: "link", attrs: { href: match[7] } }],
-      });
-    } else if (match[8]) {
-      // Inline code: `code`
-      nodes.push({
-        type: "text",
-        text: match[9],
-        marks: [{ type: "code" }],
-      });
-    }
-
-    lastIndex = match.index + match[0].length;
-  }
-
-  // Remaining text
-  if (lastIndex < text.length) {
-    const remaining = text.slice(lastIndex);
-    if (remaining) nodes.push({ type: "text", text: remaining });
-  }
-
-  return nodes;
+export function parseInline(markdown: string): PMNode[] {
+  const conversion = convertMarkdown(markdown);
+  // This compatibility helper returns inline text only. Preserve block syntax
+  // literally instead of leaking a block image into an inline-only container.
+  if (conversion.document.content.length === 1 && conversion.document.content[0].type === "paragraph") return conversion.document.content[0].content ?? [];
+  return textNodes(markdown);
 }

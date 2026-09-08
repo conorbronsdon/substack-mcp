@@ -1,0 +1,144 @@
+{
+  "provenance": "Hand-authored expected schema; mapping facts from the Substack editor bundle inspected 2026-09-07. This is an offline fixture, not a live-render assertion.",
+  "markdown": "## Rich draft\n\n7. **Bold and *italic***\n   - ~~Old text~~\n8. Next\n\n[![Caption](https://substackcdn.com/image/fetch/asset_800x600.png \"Image title\")](https://example.com/read)\n\n<!-- paywall -->\n\nPaid paragraph.",
+  "document": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "heading",
+        "attrs": {
+          "level": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Rich draft"
+          }
+        ]
+      },
+      {
+        "type": "ordered_list",
+        "attrs": {
+          "order": 7
+        },
+        "content": [
+          {
+            "type": "list_item",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Bold and ",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "text": "italic",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      },
+                      {
+                        "type": "italic"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "bullet_list",
+                "content": [
+                  {
+                    "type": "list_item",
+                    "content": [
+                      {
+                        "type": "paragraph",
+                        "content": [
+                          {
+                            "type": "text",
+                            "text": "Old text",
+                            "marks": [
+                              {
+                                "type": "strikethrough"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "list_item",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Next"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "captionedImage",
+        "content": [
+          {
+            "type": "image2",
+            "attrs": {
+              "src": "https://substackcdn.com/image/fetch/asset_800x600.png",
+              "srcNoWatermark": null,
+              "fullscreen": false,
+              "imageSize": "normal",
+              "height": 600,
+              "width": 800,
+              "resizeWidth": 800,
+              "bytes": null,
+              "alt": "Caption",
+              "title": "Image title",
+              "type": "image/png",
+              "href": "https://example.com/read",
+              "belowTheFold": false,
+              "topImage": false,
+              "internalRedirect": null
+            }
+          },
+          {
+            "type": "caption",
+            "content": [
+              {
+                "type": "text",
+                "text": "Caption"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "paywall"
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "Paid paragraph."
+          }
+        ]
+      }
+    ]
+  }
+}

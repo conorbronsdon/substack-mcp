@@ -256,7 +256,7 @@ export async function applyDraftUpdate(client: DraftChangeClient, input: DraftAp
   try { requireEditable(after); }
   catch { return finish("conflict", "readback_state_changed", "Readback shows published, scheduled or sent-state indicators. Inspect Substack; no corrective write or retry was attempted."); }
   const mismatched = normalized.fields.filter(key => after[editable[key]] !== normalized.payload[editable[key]]);
-  if (mismatched.length) return finish("conflict", "readback_mismatch", "Readback differs from the proposed fields. Another edit or upstream normalization may be responsible. Inspect Substack; no corrective write or retry was attempted.", mismatched);
+  if (mismatched.length) return finish("conflict", "readback_mismatch", "Readback differs from the proposed fields; the cause is not established. Inspect Substack; no corrective write or retry was attempted.", mismatched);
   return finish("verified", "readback_matches", requestStatus === "accepted"
     ? "The changed fields match the requested values in one readback. This does not establish an atomic update or prevent later changes."
     : "The requested fields match readback, but the write response was not confirmed. This verifies observed state, not which request produced it. No retry was attempted.");

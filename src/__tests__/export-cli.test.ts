@@ -1,10 +1,15 @@
-import { mkdtemp, readFile, readdir, writeFile, mkdir, rm, symlink } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, writeFile, mkdir, rm, symlink, link } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { runExport, writeExportFiles } from "../export-cli.js";
 import { exportDraft } from "../api/draft-export.js";
 import type { PublicationCredentials } from "../auth/resolve-publications.js";
+
+vi.mock("node:fs/promises", async importOriginal => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...actual, link: vi.fn(actual.link) };
+});
 
 const source = '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Hello"}]}]}';
 const draft = { id: 42, publication_id: 7, draft_title: "Draft", audience: "everyone", draft_body: source };
@@ -74,6 +79,19 @@ describe("export files", () => {
     expect(attempts.filter(value => value.status === "rejected")).toHaveLength(1);
     expect([a, b]).toContainEqual(JSON.parse(await readFile(path, "utf8")));
     expect(await readdir(dir)).toEqual(["draft.json"]);
+  });
+  it("retains the complete source bundle and a safe error code when the Markdown write fails", async () => {
+    const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    const dir = await scratch(), path = join(dir, "draft.md"), result = await bundle();
+    vi.mocked(link).mockImplementation(async (from, to) => {
+      if (String(to) === path) throw Object.assign(new Error("private filesystem details"), { code: "ENOSPC" });
+      await actual.link(from, to);
+    });
+    try {
+      await expect(writeExportFiles(result, path, "markdown", false)).rejects.toThrow("could not be saved (ENOSPC)");
+      expect(JSON.parse(await readFile(`${path}.source.json`, "utf8"))).toEqual(result);
+      expect(await readdir(dir)).toEqual(["draft.md.source.json"]);
+    } finally { vi.mocked(link).mockImplementation(actual.link); }
   });
 });
 

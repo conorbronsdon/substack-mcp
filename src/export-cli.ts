@@ -69,7 +69,11 @@ export async function writeExportFiles(result: DraftExport, path: string, format
   // first: it also contains the exact generated Markdown if the second write fails.
   await writeAtomic(source, bundle, force);
   try { await writeAtomic(output, result.markdown!, force); }
-  catch { throw new Error("The original-source bundle was saved, but the Markdown file could not be saved. Inspect the .source.json file; no automatic retry was attempted."); }
+  catch (error) {
+    const rawCode = (error as NodeJS.ErrnoException)?.code;
+    const code = typeof rawCode === "string" && /^E[A-Z0-9_]{1,24}$/.test(rawCode) ? rawCode : "UNKNOWN";
+    throw new Error(`The original-source bundle was saved, but the Markdown file could not be saved (${code}). Inspect the .source.json file; no automatic retry was attempted.`, { cause: error });
+  }
   return [output, source];
 }
 

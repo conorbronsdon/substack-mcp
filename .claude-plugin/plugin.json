@@ -1,7 +1,7 @@
 {
   "name": "substack-mcp",
   "version": "1.0.0",
-  "description": "Read Substack content and manage long-form drafts; Notes publish immediately.",
+  "description": "Safe creator operations for Substack: rich drafts, Notes, analytics, and consented subscribers. Long-form posts stay draft-only; Notes publish immediately.",
   "author": {
     "name": "Conor Bronsdon",
     "url": "https://github.com/conorbronsdon"

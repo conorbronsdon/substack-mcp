@@ -26,3 +26,9 @@ jobs:
           docker build --build-arg VERSION="$VERSION" --build-arg REVISION="$REVISION" -t substack-mcp:check .
       - name: Verify image ownership and both transports
         run: node scripts/test-container.mjs substack-mcp:check "$(git rev-parse HEAD)"
+      - name: Reject an image with the wrong source identity
+        run: |
+          if node scripts/test-container.mjs substack-mcp:check 0000000000000000000000000000000000000000; then
+            echo "Identity control incorrectly accepted a mismatched source revision"
+            exit 1
+          fi

@@ -1,4 +1,5 @@
 // Explicitly opt-in, read-only live contract evidence. No private result content is logged.
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import packageMetadata from '../package.json' with { type: 'json' };
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -11,13 +12,14 @@ if (process.env.SUBSTACK_CONTRACT_PROBE !== '1' || process.argv.slice(2).join(' 
   console.error('Disabled. Build first; set SUBSTACK_CONTRACT_PROBE=1 and explicitly pass --read-only. For multiple configured publications also set SUBSTACK_PROBE_PUBLICATION to a configured key. This performs authenticated reads, never writes.');
   process.exitCode = 2;
 } else {
+  const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
   const report = { format_version: 1, captured_at: new Date().toISOString(), version: packageMetadata.version,
     node: process.version, client: 'MCP TypeScript SDK', transport: 'in_memory', live: true,
     write_attempts: 0, user_identity: 'not_verified', account_eligibility: 'not_independently_verified', checks: [], ok: false };
   let server, client;
   try {
-    report.source_revision = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-    if (!/^[a-f0-9]{40}$/.test(report.source_revision) || execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).trim()) throw new Error('A clean committed source is required');
+    report.source_revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: sourceRoot, encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    if (!/^[a-f0-9]{40}$/.test(report.source_revision) || execFileSync('git', ['status', '--porcelain', '--untracked-files=normal'], { cwd: sourceRoot, encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).trim()) throw new Error('A clean committed source is required');
     const publications = resolvePublications();
     const key = process.env.SUBSTACK_PROBE_PUBLICATION;
     const selected = key ? publications.find(p => p.key === key) : publications.length === 1 ? publications[0] : undefined;
@@ -29,9 +31,14 @@ if (process.env.SUBSTACK_CONTRACT_PROBE !== '1' || process.argv.slice(2).join(' 
     client = new Client({ name: 'substack-contract-probe', version: packageMetadata.version });
     const [ct, st] = InMemoryTransport.createLinkedPair();
     await Promise.all([client.connect(ct), server.connect(st)]);
+    const catalog = (await client.listTools()).tools;
+    report.checks.push({ name: 'tool_discovery', ok: ['get_publication', 'list_drafts', 'get_subscriber_count'].every(name => catalog.some(tool => tool.name === name)) });
     for (const [name, args] of [['get_publication', {}], ['list_drafts', { offset: 0, limit: 1 }], ['get_subscriber_count', {}]]) {
       const response = await client.callTool({ name, arguments: args }, undefined, { timeout: 45000 });
-      report.checks.push({ name, ok: response.isError !== true });
+      const block = response.content?.[0];
+      const value = block?.type === 'text' ? JSON.parse(block.text) : undefined;
+      const matches = name === 'list_drafts' ? Array.isArray(value) : value && typeof value === 'object' && JSON.stringify(value) === JSON.stringify(response.structuredContent);
+      report.checks.push({ name, ok: response.isError !== true && Boolean(matches) });
     }
     report.ok = report.checks.every(check => check.ok);
   } catch { report.checks.push({ name: 'setup_or_read', ok: false }); }

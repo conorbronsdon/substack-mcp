@@ -24,7 +24,7 @@
       "command": "export_draft({ draft_id: 42 })",
       "lines": [
         "status: partial",
-        "conversion findings: 1 (native image layout)",
+        "conversion findings: 1",
         "Editable Markdown + exact source + hash + editor link",
         "Inspect losses before reusing the Markdown."
       ]

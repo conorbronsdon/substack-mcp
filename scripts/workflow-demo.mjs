@@ -33,7 +33,7 @@ try{
  const found=await call('search_posts',{query:'Weekly',status:'drafts'});assert.equal(found.posts[0].id,42);
  frame('Find the draft','search_posts({ query: "Weekly", status: "drafts" })',[`Found: ${found.posts[0].draft_title}`,`returned: ${found.returned}  |  has_more: ${found.has_more}`]);
  const exported=await call('export_draft',{draft_id:42});assert.equal(exported.source_prosemirror,draft.draft_body);assert.equal(exported.status,'partial');assert.ok(exported.unsupported_nodes.length);
- frame('Export with the original source','export_draft({ draft_id: 42 })',[`status: ${exported.status}`,`conversion findings: ${exported.unsupported_nodes.length} (native image layout)`, 'Editable Markdown + exact source + hash + editor link','Inspect losses before reusing the Markdown.']);
+ frame('Export with the original source','export_draft({ draft_id: 42 })',[`status: ${exported.status}`,`conversion findings: ${exported.unsupported_nodes.length}`, 'Editable Markdown + exact source + hash + editor link','Inspect losses before reusing the Markdown.']);
  const changes={draft_id:42,body:fixture.markdown+'\n\nReviewed conclusion.'};
  const plan=await call('plan_draft_update',changes);assert.deepEqual(plan.changed_fields,['body']);assert.equal(puts,0);
  frame('Review the proposed change','plan_draft_update({ draft_id: 42, body: revisedMarkdown })',[`changed_fields: ${plan.changed_fields.join(', ')}`,`preflight checks passed: ${plan.preflight.checks_passed}`,'Receipt binds current state and exact proposed changes.','Planning writes nothing.']);

@@ -13,31 +13,40 @@ const candidate = `${image}:build-${run}-${attempt}`;
 const versioned = `${image}:${version}`;
 // A fresh candidate establishes package ownership before missing-manifest checks.
 docker('tag', `${image}:build`, candidate); docker('push', candidate);
-let exists = true;
-try { docker('manifest', 'inspect', versioned); }
+// Verify public candidate access before creating or moving any release alias.
+const anonymous = join(temp, `docker-anonymous-${run}-${attempt}`); makeDirectory(anonymous);
+const inspect = ref => JSON.parse(docker('manifest', 'inspect', ref));
+const verifyPublic = (ref, expected) => {
+  let observed;
+  try { observed = JSON.parse(docker('--config', anonymous, 'manifest', 'inspect', ref)); }
+  catch { throw new Error('Candidate published but anonymous access failed. Verify the GHCR package is public, then rerun Publish; publication stopped; inspect existing tags before retrying.'); }
+  assert.deepEqual(observed, expected);
+};
+const candidateManifest = inspect(candidate);
+assert.ok(candidateManifest.config?.digest, 'Expected a single-platform image manifest');
+assert.equal(JSON.parse(docker('image', 'inspect', candidate))[0].Id, candidateManifest.config.digest);
+verifyPublic(candidate, candidateManifest);
+let existing;
+try { existing = inspect(versioned); }
 catch (error) {
   if (!/manifest unknown|no such manifest/i.test(String(error.stderr))) throw new Error('Cannot determine existing container release; stop without moving version tags.');
-  exists = false;
 }
-if (exists) {
+if (existing) {
   docker('pull', versioned);
   const info = JSON.parse(docker('image', 'inspect', versioned))[0];
+  assert.equal(info.Id, existing.config?.digest, 'Pulled image differs from the inspected release manifest');
   assert.equal(info.Config.Labels['org.opencontainers.image.version'], version);
   assert.equal(info.Config.Labels['org.opencontainers.image.revision'], revision);
   verifyImage(versioned, revision);
+  verifyPublic(versioned, existing);
 } else {
   docker('tag', candidate, versioned); docker('push', versioned);
 }
-const manifest = JSON.parse(docker('manifest', 'inspect', versioned));
-assert.ok(manifest.config?.digest, 'Expected a single-platform image manifest');
-// Full-SHA and latest aliases point to the same already-verified version image.
+const manifest = inspect(versioned);
+assert.deepEqual(manifest, existing ?? candidateManifest);
+verifyPublic(versioned, manifest);
+// Full-SHA and latest aliases point to the same already-verified public version.
 for (const tag of [`sha-${revision}`, 'latest']) { docker('tag', versioned, `${image}:${tag}`); docker('push', `${image}:${tag}`); }
-// Public discovery is a release gate. This isolated config has no auth helpers.
-const anonymous = join(temp, `docker-anonymous-${run}-${attempt}`); makeDirectory(anonymous);
-let publicManifest;
-try { publicManifest = JSON.parse(docker('--config', anonymous, 'manifest', 'inspect', versioned)); }
-catch { throw new Error('Image published but anonymous access failed. Verify the GHCR package is public, then rerun Publish; existing version images are preserved.'); }
-assert.deepEqual(publicManifest, manifest);
 return { image: versioned, revision, architecture: 'linux/amd64', public: true, config_digest: manifest.config.digest };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -53,12 +53,13 @@ The Publish workflow verifies npm, MCP Registry and GitHub identities first,
 then builds and tests the container from that original release commit. Older
 releases without container verification scripts are skipped. A failed container
 stage can be retried through Publish without republishing an existing npm release.
-Per-run build tags may remain for diagnostics; they are not supported release tags.
+OCI signing/SBOM attestations and build-tag retention are follow-ups; labels are
+identity metadata, not cryptographic attestations. Per-run build tags remain for diagnostics; they are not supported release tags.
 
 GHCR package visibility is separate from repository visibility. The first publish
 can create a private package. Set the project's GHCR package to public, then rerun
-Publish; the final check uses an empty Docker configuration to verify anonymous
-manifest access. A successful authenticated push alone is not a public release.
+Publish. The candidate is checked through an empty Docker configuration before
+release aliases are promoted, and the selected version is checked again. A successful authenticated push alone is not a public release.
 The workflow uses only its scoped GitHub token and removes its Docker login on exit.
 
 Reference: https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility

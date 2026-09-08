@@ -1,0 +1,12 @@
+{
+  "name": "substack-mcp",
+  "version": "0.9.0",
+  "description": "Read Substack content and manage long-form drafts; Notes publish immediately.",
+  "author": {
+    "name": "Conor Bronsdon",
+    "url": "https://github.com/conorbronsdon"
+  },
+  "homepage": "https://github.com/conorbronsdon/substack-mcp",
+  "repository": "https://github.com/conorbronsdon/substack-mcp",
+  "license": "MIT"
+}

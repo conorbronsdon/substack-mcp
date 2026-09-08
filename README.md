@@ -333,6 +333,10 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
+[Claude Code and Codex plugin setup](docs/plugins.md) is available alongside
+manual MCP configuration. The repository marketplace and local plugin are
+separate from curated-directory acceptance or hosted ChatGPT support.
+
 #### Claude Code
 
 Add to your `.mcp.json`:

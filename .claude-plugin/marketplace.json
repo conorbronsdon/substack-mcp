@@ -1,0 +1,15 @@
+{
+  "name": "substack-mcp",
+  "owner": {
+    "name": "Conor Bronsdon"
+  },
+  "plugins": [
+    {
+      "name": "substack-mcp",
+      "source": "./",
+      "description": "Read Substack content and manage long-form drafts; Notes publish immediately.",
+      "version": "0.9.0"
+    }
+  ],
+  "description": "Substack creator tools and a shared draft-review workflow, maintained with the server."
+}

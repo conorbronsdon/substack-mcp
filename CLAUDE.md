@@ -31,11 +31,10 @@ npm test        # vitest run
 ```
 
 ## Testing
-4 test suites:
-- `client.test.ts` — API client auth validation
-- `errors.test.ts` — Error handling and wrapping
-- `markdown-to-prosemirror.test.ts` — Markdown to ProseMirror AST conversion
-- `annotations.test.ts` — Annotation mapping + completeness (every registered tool classified)
+Tests live in `src/__tests__/`; `npm test` discovers the current suites.
+`npm run test:package` verifies the installed npm artifact and sample workflow.
+`npm run test:release` exercises release metadata and recovery controls.
+Output contract snapshots cover single- and multiple-publication schemas.
 
 ## Agent workflow
 - Always work on a branch. Never push directly to main.

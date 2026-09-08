@@ -23,5 +23,6 @@
     "defaultPrompt": [
       "List my recent Substack posts."
     ]
-  }
+  },
+  "skills": "./skills/"
 }

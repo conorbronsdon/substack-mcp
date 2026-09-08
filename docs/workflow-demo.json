@@ -1,0 +1,72 @@
+{
+  "version": "0.8.0",
+  "disclosure": "OFFLINE SAMPLE DATA / actual MCP handlers / no live API calls",
+  "frames": [
+    {
+      "title": "Create a rich draft",
+      "command": "create_draft({ title, body: markdown })",
+      "lines": [
+        "Sample publication / draft 42",
+        "Numbered lists, nested formatting, linked image, paywall",
+        "Long-form post remains unpublished."
+      ]
+    },
+    {
+      "title": "Find the draft",
+      "command": "search_posts({ query: \"Weekly\", status: \"drafts\" })",
+      "lines": [
+        "Found: Weekly signals",
+        "returned: 1  |  has_more: false"
+      ]
+    },
+    {
+      "title": "Export with the original source",
+      "command": "export_draft({ draft_id: 42 })",
+      "lines": [
+        "status: partial",
+        "conversion findings: 1 (native image layout)",
+        "Editable Markdown + exact source + hash + editor link",
+        "Inspect losses before reusing the Markdown."
+      ]
+    },
+    {
+      "title": "Review the proposed change",
+      "command": "plan_draft_update({ draft_id: 42, body: revisedMarkdown })",
+      "lines": [
+        "changed_fields: body",
+        "preflight checks passed: true",
+        "Receipt binds current state and exact proposed changes.",
+        "Planning writes nothing."
+      ]
+    },
+    {
+      "title": "Detect an intervening edit",
+      "command": "update_draft({ ...changes, receipt: oldReceipt })",
+      "lines": [
+        "code: stale_draft",
+        "An editor changed the title after planning.",
+        "No PUT was sent. Read again and make a fresh plan."
+      ]
+    },
+    {
+      "title": "Apply the fresh plan",
+      "command": "update_draft({ ...changes, receipt: freshReceipt })",
+      "lines": [
+        "status: verified  |  write_attempts: 1",
+        "Readback matches the requested body.",
+        "The editor's revised title is preserved.",
+        "Separate GET and PUT still have a race window."
+      ]
+    },
+    {
+      "title": "Finish in Substack",
+      "command": "preflight_draft({ draft_id: 42 })",
+      "lines": [
+        "checks_passed: true",
+        "images: 1  |  paywalls: 1",
+        "Review rendering, audience and access in the editor.",
+        "Only the human publishes the long-form post."
+      ]
+    }
+  ]
+}

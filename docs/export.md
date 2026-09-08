@@ -98,6 +98,11 @@ and leaves the source bundle available; it contains the generated Markdown for
 recovery. No automatic retry or Substack mutation occurs. With `--force`, retain
 your own backups if you need older exports.
 
+If a destination was saved but its temporary file could not be removed, the CLI
+reports that distinct cleanup failure and stops. Inspect the output directory
+before retrying: a destination and a temporary copy can both remain. Cleanup
+failure does not mean that the saved destination is absent.
+
 Exit codes are 0 for a completed export (including explicit partial/unavailable
 JSON results), 1 for a configuration/network/filesystem failure, and 2 for invalid
 arguments. `export --help` works offline without credentials. File-output mode

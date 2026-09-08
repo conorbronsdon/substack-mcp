@@ -182,8 +182,9 @@ export function prosemirrorToMarkdown(source: string): MarkdownExport {
         }
         const output: Block[] = [{ type: "paragraph", children: [result] }];
         const captions = content.slice(1) as Node[];
-        const equivalentCaption = captions.length === 1 && children(captions[0]).length === 1 && node(children(captions[0])[0]) &&
-          (children(captions[0])[0] as Node).type === "text" && (children(captions[0])[0] as Node).text === alt && !(children(captions[0])[0] as Node).marks;
+        const captionText = captions.length === 1 && children(captions[0]).length === 1 ? children(captions[0])[0] : undefined;
+        const equivalentCaption = node(captionText) && captionText.type === "text" && captionText.text === alt &&
+          (captionText.marks === undefined || (Array.isArray(captionText.marks) && captionText.marks.length === 0));
         if ((!alt && captions.length) || (alt && !equivalentCaption)) report(at, type, "Caption differs from image alt text; Markdown reimport cannot preserve their independence.");
         for (let i = 0; i < captions.length; i++) {
           const caption = captions[i]; check(caption, `${at}/content/${i + 1}`);

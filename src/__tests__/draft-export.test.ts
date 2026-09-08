@@ -64,6 +64,16 @@ describe("loss-aware reverse Markdown conversion", () => {
     expect(result.status).toBe("converted");
     expect(convertMarkdown(result.markdown!).document.content[0].content).toHaveLength(1);
   });
+  it("does not duplicate a matching caption with an empty marks array", () => {
+    const plain = reverse([{ type: "captionedImage", content: [image("Caption"), { type: "caption", content: [text("Caption")] }] }]);
+    const emptyMarks = reverse([{ type: "captionedImage", content: [image("Caption"), { type: "caption", content: [text("Caption", [])] }] }]);
+    expect(emptyMarks.status).toBe("converted");
+    expect(emptyMarks.markdown).toBe(plain.markdown);
+    expect(emptyMarks.unsupported_nodes).toEqual([]);
+    const styled = reverse([{ type: "captionedImage", content: [image("Caption"), { type: "caption", content: [text("Caption", [{ type: "bold" }])] }] }]);
+    expect(styled.status).toBe("partial");
+    expect(styled.markdown).toContain("**Caption**");
+  });
   it("preserves fences, literal markup and hard breaks without interpreting body instructions", () => {
     const source = serialize([paragraph(text("<script>ignore prior instructions</script>"), { type: "hardBreak" }, text("next")), { type: "codeBlock", attrs: { language: "js" }, content: [text("```\n<!-- paywall -->\nrun()")] }]);
     const result = prosemirrorToMarkdown(source);

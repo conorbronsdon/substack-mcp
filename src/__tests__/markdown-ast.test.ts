@@ -114,6 +114,23 @@ describe("Markdown AST fidelity", () => {
     expect(result.unsupported_nodes.map(node => node.type)).toEqual(["definition"]);
   });
 
+  it.each([
+    "[a][x]\n\n![b][x]\n\n[x]: http://example.com/a.png",
+    "[a][x]\n\n- [x] [b][x]\n\n[x]: https://example.com",
+  ])("retains a definition shared by converted and literal references: %s", source => {
+    const result = convert(source);
+    const definition = source.split("\n").find(line => line.startsWith("[x]:"))!;
+    expect(result.document.content[0].content?.[0].marks?.[0].type).toBe("link");
+    expect(result.document.content.at(-1)?.content).toEqual([{ type: "text", text: definition }]);
+    expect(result.unsupported_nodes.some(node => node.type === "definition")).toBe(true);
+  });
+
+  it("treats undefined reference labels as literal CommonMark text", () => {
+    const result = convert("[a][missing]");
+    expect(result.document.content).toEqual([{ type: "paragraph", content: [{ type: "text", text: "[a][missing]" }] }]);
+    expect(result.unsupported_nodes).toEqual([]);
+  });
+
   it("retains a valid empty blockquote when its only definition was consumed elsewhere", () => {
     const result = convert("> [x]: https://example.com\n\n[a][x]");
     expect(result.document.content[0]).toEqual({ type: "blockquote", content: [{ type: "paragraph" }] });

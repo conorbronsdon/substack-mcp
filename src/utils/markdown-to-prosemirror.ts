@@ -97,6 +97,7 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
   // Check depth iteratively before recursive conversion and collect reference definitions.
   const definitions = new Map<string, Definition>();
   const usedDefinitions = new Set<Definition>();
+  const literalReferences = new Set<string>();
   const pendingDefinitions = new Map<PMNode, Definition>();
   const stack: { node: Nodes; depth: number }[] = [{ node: root, depth: 0 }];
   let count = 0;
@@ -119,6 +120,12 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
   };
   const fallback = (node: Nodes, reason: string, inline = false, marks: PMMark[] = []): PMNode[] => {
     report(node, reason);
+    const pending = [node];
+    while (pending.length) {
+      const child = pending.pop()!;
+      if (child.type === "linkReference" || child.type === "imageReference") literalReferences.add(child.identifier);
+      if ("children" in child) pending.push(...child.children);
+    }
     return inline ? textNodes(raw(node), marks) : [{ type: "code_block", content: textNodes(raw(node)) }];
   };
   const inline = (nodes: Nodes[], marks: PMMark[] = []): PMNode[] => nodes.flatMap((node): PMNode[] => {
@@ -202,7 +209,7 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
   });
   const resolveDefinitions = (nodes: PMNode[]): PMNode[] => nodes.flatMap(node => {
     const definition = pendingDefinitions.get(node);
-    if (definition) return usedDefinitions.has(definition) ? [] : fallback(definition, "Unused, unconverted or duplicate reference definition retained as Markdown.");
+    if (definition) return usedDefinitions.has(definition) && !literalReferences.has(definition.identifier) ? [] : fallback(definition, "Unused, unconverted or duplicate reference definition retained as Markdown.");
     if (node.content) node.content = resolveDefinitions(node.content);
     if (node.type === "blockquote" && !node.content?.length) node.content = [{ type: "paragraph" }];
     return [node];

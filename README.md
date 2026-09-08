@@ -27,6 +27,8 @@ This server imposes no Bestseller-status check. Use an authenticated account wit
   <img width="380" height="200" src="https://glama.ai/mcp/servers/conorbronsdon/substack-mcp/badge" alt="substack-mcp MCP server" />
 </a>
 
+For 1.0 setup coverage and account eligibility, see [compatibility](docs/compatibility.md). Maintainers can use the [release checklist](docs/release-checklist.md) and [distribution inventory](docs/distribution.md).
+
 ## Tools
 
 Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/concepts/tools#tool-annotations), set **explicitly** rather than left to MCP's defaults (an omitted `destructiveHint` or `openWorldHint` defaults to `true`). Reads carry `readOnlyHint: true`. Draft updates replace existing fields and carry `destructiveHint: true`; additive writes carry `destructiveHint: false`. Draft writes are private (`openWorldHint: false`); `upload_image` carries `openWorldHint: true` because it returns a publicly-fetchable CDN URL; and the Note tools carry `openWorldHint: true` for immediate public publish. Annotations are untrusted hints, so the authoritative wording lives in each tool's description.

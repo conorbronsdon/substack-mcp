@@ -6,15 +6,19 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases before
 `0.6.0` are recorded in the [GitHub Releases](https://github.com/conorbronsdon/substack-mcp/releases)
 and the git tag history (`v0.1.0`–`v0.5.0`).
 
-## [Unreleased]
+## [1.0.0] - 2026-09-08
 
 ### Added
+- Release checklist, named-client compatibility evidence and distribution inventory.
 - Versioned container release verification for Linux amd64, with source/version ownership labels, a minimal build context, stdio and authenticated HTTP checks, preserved matching release images on recovery, and explicit anonymous GHCR access verification.
 - Claude Code plugin and repository marketplace, sharing the creator workflow skill and exact-version npm launcher with the existing Codex plugin. Manifest versions are synchronized and tested with release metadata. Local plugin support is distinct from hosted ChatGPT or curated-directory admission.
 - Opt-in read-only live contract probes with clean source revision, client/transport and credential-safe coverage reports. Doctor includes installed version and runtime; startup authentication reports read access without inferring an account ID from a post byline.
 - Typed object results with matching text JSON across all object-returning MCP tools; legacy array outputs remain unchanged. Shared response validation and size limits, schema snapshots, and a documented 1.x compatibility policy. Numeric read IDs and pagination now reject unsafe or invalid values before API requests.
 - Explicit named session profiles, exclusive creation and legacy migration with rollback. `substack-mcp login` retains the legacy login binary, captures only publication-scoped cookies and checks authenticated read access before saving. Login requires a supplied account user ID rather than inferring one from a post byline.
 - Shared-handler CLI reads: `drafts list/get`, `analytics post` and `subscribers count/get`, with explicit publication selection, versioned JSON envelopes and bounded output. `drafts export` aliases the existing export command. Offline `status` reports installed version, runtime and credential-safe configuration diagnostics.
+
+### Fixed
+- Updated the development-only tsx dependency to remove the remaining esbuild advisory; the full dependency audit reports no known vulnerabilities at release preparation.
 
 ## [0.9.0] - 2026-09-08
 

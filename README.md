@@ -15,7 +15,7 @@ Safe creator operations for Substack, via MCP. Prepare rich drafts, publish Note
 
 ---
 
-![Create, search, export, plan and review a draft with substack-mcp](https://raw.githubusercontent.com/conorbronsdon/substack-mcp/main/docs/workflow-demo.gif)
+![Create, search, export, plan and review a draft with substack-mcp](https://raw.githubusercontent.com/conorbronsdon/substack-mcp/ce36ba4bd0683a77c7b0bb50f9e62c30f635dc5b/docs/workflow-demo.gif)
 
 The demo runs actual MCP handlers against offline sample data. No live API calls or publication occur. Follow the [draft workflow](docs/workflow.md) to create, find, export and review a post.
 

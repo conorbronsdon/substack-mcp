@@ -33,6 +33,25 @@ function fixture(overrides: Record<string, unknown> = {}) {
 }
 
 describe("read-only draft plans", () => {
+  it("rejects reference expansion beyond the readback body limit before any API call", async () => {
+    const { client } = fixture();
+    const body = '[x][ref] '.repeat(1000) + '\n\n[ref]: https://example.com/' + 'a'.repeat(3000);
+    expect(body.length).toBeLessThan(200_000);
+    expect(() => convertMarkdown(body)).toThrow("2,000,000-character output limit");
+    await expect(planDraftUpdate(client, { draft_id: 42, body }, "example")).rejects.toMatchObject({ code: "conversion_failed" });
+    expect(client.getPublication).not.toHaveBeenCalled();
+    expect(client.getDraft).not.toHaveBeenCalled();
+    expect(client.writeDraft).not.toHaveBeenCalled();
+  });
+  it("reports bounded schema field paths without leaking rejected values", async () => {
+    const { client } = fixture({ audience: { private: "sensitive marker" }, draft_bylines: [{ id: 9 }] });
+    let error: DraftChangeError | undefined;
+    try { await planDraftUpdate(client, input, "example"); } catch (caught) { error = caught as DraftChangeError; }
+    expect(error?.code).toBe("invalid_draft");
+    expect(error?.invalid_fields).toEqual(["/audience", "/draft_bylines/0/is_guest"]);
+    expect(JSON.stringify(error)).not.toContain("sensitive marker");
+    expect(client.writeDraft).not.toHaveBeenCalled();
+  });
   it("describes the exact proposed native body and preflight without writing", async () => {
     const { client } = fixture();
     const plan = await planDraftUpdate(client, input, "example");
@@ -313,7 +332,7 @@ describe("single-attempt draft readback outcomes", () => {
     });
     const result = await applyDraftUpdate(f.client, { ...input, receipt: plan.receipt }, "example");
     expect(result).toMatchObject({ status: "conflict", code: "readback_mismatch", mismatched_fields: ["body"] });
-    expect(result.message).toContain("normalization"); expect(f.client.writeDraft).toHaveBeenCalledTimes(1);
+    expect(result.message).toContain("cause is not established"); expect(f.client.writeDraft).toHaveBeenCalledTimes(1);
   });
   it("a repeated application of an old receipt cannot reapply a committed change", async () => {
     const { client } = fixture(); const plan = await planDraftUpdate(client, input, "example");

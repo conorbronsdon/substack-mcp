@@ -13,6 +13,8 @@ that previously called `update_draft` directly must adopt the two-step flow.
 Both tools require `publication` when multiple publications are configured.
 Unknown fields, unsafe IDs, missing identity/state and mismatched publication
 IDs are rejected. The draft must explicitly report `is_published: false`.
+Schema errors include bounded `invalid_fields` paths without rejected values,
+so upstream field changes can be diagnosed without printing private content.
 Known scheduled/sent indicators are rejected. Missing scheduling fields are
 listed in the plan; their absence does not prove a draft is unscheduled.
 

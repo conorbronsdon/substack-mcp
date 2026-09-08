@@ -91,7 +91,7 @@ const messages = {
 } as const;
 export class DraftChangeError extends Error {
   readonly unsupported_nodes: UnsupportedMarkdownNode[];
-  constructor(readonly code: keyof typeof messages, diagnostics: UnsupportedMarkdownNode[] = []) {
+  constructor(readonly code: keyof typeof messages, diagnostics: UnsupportedMarkdownNode[] = [], readonly invalid_fields: string[] = []) {
     super(messages[code]); this.name = "DraftChangeError"; this.unsupported_nodes = diagnostics;
   }
 }
@@ -153,7 +153,7 @@ function normalize(input: DraftChangesInput) {
     try { conversion = convertMarkdown(changes.body); }
     catch { throw new DraftChangeError("conversion_failed"); }
     const checkedDiagnostics = z.array(diagnostic).max(100).safeParse(conversion.unsupported_nodes);
-    if (!checkedDiagnostics.success) throw new DraftChangeError("conversion_failed");
+    if (!checkedDiagnostics.success || Buffer.byteLength(JSON.stringify(checkedDiagnostics.data), "utf8") > 32 * 1024) throw new DraftChangeError("conversion_failed");
     diagnostics = checkedDiagnostics.data;
     if (diagnostics.length && !changes.allow_unsupported) throw new DraftChangeError("unsupported_markdown", diagnostics);
     payload.draft_body = JSON.stringify(conversion.document);
@@ -163,7 +163,8 @@ function normalize(input: DraftChangesInput) {
 }
 function parseSnapshot(raw: unknown, draftId: number, publicationId: number): Snapshot {
   const parsed = snapshotSchema.safeParse(raw);
-  if (!parsed.success || parsed.data.id !== draftId) throw new DraftChangeError("invalid_draft");
+  if (!parsed.success) throw new DraftChangeError("invalid_draft", [], [...new Set(parsed.error.issues.slice(0, 16).map(issue => "/" + issue.path.join("/").slice(0, 128)))]);
+  if (parsed.data.id !== draftId) throw new DraftChangeError("invalid_draft", [], ["/id"]);
   if (parsed.data.publication_id !== publicationId) throw new DraftChangeError("publication_mismatch");
   return parsed.data;
 }
@@ -255,7 +256,7 @@ export async function applyDraftUpdate(client: DraftChangeClient, input: DraftAp
   try { requireEditable(after); }
   catch { return finish("conflict", "readback_state_changed", "Readback shows published, scheduled or sent-state indicators. Inspect Substack; no corrective write or retry was attempted."); }
   const mismatched = normalized.fields.filter(key => after[editable[key]] !== normalized.payload[editable[key]]);
-  if (mismatched.length) return finish("conflict", "readback_mismatch", "Readback differs from the proposed fields. Another edit or upstream normalization may be responsible. Inspect Substack; no corrective write or retry was attempted.", mismatched);
+  if (mismatched.length) return finish("conflict", "readback_mismatch", "Readback differs from the proposed fields; the cause is not established. Inspect Substack; no corrective write or retry was attempted.", mismatched);
   return finish("verified", "readback_matches", requestStatus === "accepted"
     ? "The changed fields match the requested values in one readback. This does not establish an atomic update or prevent later changes."
     : "The requested fields match readback, but the write response was not confirmed. This verifies observed state, not which request produced it. No retry was attempted.");

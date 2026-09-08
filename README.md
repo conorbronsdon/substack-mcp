@@ -41,7 +41,8 @@ Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/
 | `list_publication_tags` | Read tag definitions, including hidden tags by default, with bounded local pagination |
 | `get_post_tags` | Resolve post tag associations; preserves unresolved IDs and reports empty-result identity uncertainty. Draft coverage is currently live-verified only for empty responses |
 | `search_posts` | Search a publication archive by query and status; bounded pages with continuation metadata |
-| `preflight_draft` | Read-only checks for title, audience, body structure, images, and paywalls |
+| `export_draft` | Editable Markdown, exact original body, conversion diagnostics, preflight and editor link |
+| `preflight_draft` | Read-only checks for title, audience, body structure, images, and paywalls, with an editor link |
 | `list_drafts` | List draft posts |
 | `get_post` | Get full content of a published post by ID |
 | `get_draft` | Get full content of a draft by ID |
@@ -63,7 +64,7 @@ controls matching and indexing: this is not a guaranteed full-text scan. Use
 concurrent edits can move results between pages.
 
 `preflight_draft` accepts `draft_id`, reads it once, and returns `checks_passed`,
-findings with severity/code/message, and content counts. It checks title,
+findings with severity/code/message, content counts and an editor link. It checks title,
 audience, JSON/body shape, image wrappers and HTTPS sources, and paywall count
 and edge placement. Unknown nodes and external images produce review warnings.
 Bodies over two million characters, 10,000 nodes, or depth 100 are not fully
@@ -402,6 +403,20 @@ API failures are mapped to a typed error hierarchy (`SubstackAPIError` base, wit
 
 Substack error response bodies are inconsistent — sometimes JSON (`{"error": "..."}` or `{"errors": [...]}`), sometimes plain text, and sometimes a large Cloudflare HTML block page. `extractErrorDetail` handles all three: it tries `JSON.parse` first, falls back to the raw text (trimmed and capped at ~500 characters so a multi-KB HTML page doesn't become the whole error message), and only uses a generic fallback string if the body is empty.
 
+## Draft export
+
+Use `export_draft` for a read-only Markdown/JSON bundle, or run:
+
+```sh
+substack-mcp export 42 --output draft-export.json
+substack-mcp export 42 --format markdown --output draft.md
+```
+
+Markdown exports retain the exact original body in a `.source.json` sidecar.
+Inspect `unsupported_nodes` before reuse. Existing files require `--force`.
+See [export and CLI behavior](docs/export.md) for publication selection, limits,
+partial exports and file recovery.
+
 ## Markdown support
 
 Drafts accept CommonMark/GFM Markdown: headings, nested bold/italic/strikethrough,
@@ -428,7 +443,7 @@ changes and the distinction between offline fixtures and live editor checks.
 
 ## Development
 
-Before releasing, run `npm run test:package`. It installs the built tarball with production dependencies in a clean temporary directory, checks both executable entrypoints, and verifies the MCP version and all 17 registered tools without real credentials.
+Before releasing, run `npm run test:package`. It installs the built tarball with production dependencies in a clean temporary directory, checks both executable entrypoints, and verifies the MCP version and the complete registered tool catalog without real credentials.
 
 ```bash
 git clone https://github.com/conorbronsdon/substack-mcp.git

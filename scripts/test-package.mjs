@@ -18,6 +18,7 @@ const npm = (args, cwd) => execFileSync(process.execPath, [process.env.npm_execp
   env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toLowerCase() !== 'npm_config_allow_scripts')),
 });
 const expectedTools = [
+  'export_draft',
   'add_free_subscriber', 'create_draft', 'create_note', 'create_note_with_link',
   'get_draft', 'get_post', 'get_post_analytics', 'get_post_comments', 'get_sections',
   'get_subscriber', 'get_subscriber_count', 'list_drafts', 'list_published_posts',
@@ -28,7 +29,7 @@ const expectedTools = [
 ].sort();
 
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
-  'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/authoring.md',
+  'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/authoring.md', 'docs/export.md',
   'dist/index.js', 'dist/login.js'];
 let transport;
 try {
@@ -62,6 +63,8 @@ try {
   });
   const cli = resolve(installed, installedPkg.bin['substack-mcp']);
   assert.match(execFileSync(process.execPath, [cli, '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /Usage: substack-mcp/);
+  assert.match(execFileSync(process.execPath, [cli, 'export', '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /source\.json/);
+  assert.throws(() => execFileSync(process.execPath, [cli, 'export', '-1'], { env, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
   const doctorEnv = { ...env, SUBSTACK_PUBLICATION_URL: 'https://example.invalid', SUBSTACK_USER_ID: '1' };
   const diagnosis = JSON.parse(execFileSync(process.execPath, [cli, 'doctor', '--json'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
   assert.equal(diagnosis.ok, true);

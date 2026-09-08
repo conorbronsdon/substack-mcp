@@ -19,7 +19,11 @@ if (process.env.SUBSTACK_CONTRACT_PROBE !== '1' || process.argv.slice(2).join(' 
   let server, client;
   try {
     report.source_revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: sourceRoot, encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-    if (!/^[a-f0-9]{40}$/.test(report.source_revision) || execFileSync('git', ['status', '--porcelain', '--untracked-files=normal'], { cwd: sourceRoot, encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).trim()) throw new Error('A clean committed source is required');
+    if (!/^[a-f0-9]{40}$/.test(report.source_revision)) throw new Error('Invalid source revision');
+    const gitOptions = { cwd: sourceRoot, encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] };
+    execFileSync('git', ['diff', '--quiet'], gitOptions);
+    execFileSync('git', ['diff', '--cached', '--quiet'], gitOptions);
+    if (execFileSync('git', ['ls-files', '--others', '--exclude-standard'], gitOptions).trim()) throw new Error('Untracked source files');
     const publications = resolvePublications();
     const key = process.env.SUBSTACK_PROBE_PUBLICATION;
     const selected = key ? publications.find(p => p.key === key) : publications.length === 1 ? publications[0] : undefined;

@@ -9,6 +9,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
+- Typed object results with matching text JSON across all object-returning MCP tools; legacy array outputs remain unchanged. Shared response validation and size limits, schema snapshots, and a documented 1.x compatibility policy. Numeric read IDs and pagination now reject unsafe or invalid values before API requests.
 - Shared-handler CLI reads: `drafts list/get`, `analytics post` and `subscribers count/get`, with explicit publication selection, versioned JSON envelopes and bounded output. `drafts export` aliases the existing export command. Offline `status` reports installed version, runtime and credential-safe configuration diagnostics.
 
 ## [0.9.0] - 2026-09-08

@@ -17,7 +17,7 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "prepublishOnly": "npm run check:release && npm run lint && npm test && npm run test:package",
-    "version": "npm run sync:release && npm run check:release && git add package-lock.json server.json .codex-plugin/plugin.json .mcp.json",
+    "version": "npm run sync:release && npm run check:release && git add package-lock.json server.json .codex-plugin/plugin.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .mcp.json",
     "lint:cloud": "wrangler types --config cloud/wrangler.jsonc cloud/worker-configuration.d.ts && tsc -p cloud/tsconfig.json && tsc -p cloud/test/tsconfig.json",
     "build:cloud": "wrangler deploy --config cloud/wrangler.jsonc --dry-run",
     "test:cloud": "vitest run --config cloud/vitest.config.ts",
@@ -75,6 +75,7 @@
     "docs/export.md",
     "docs/draft-changes.md",
     "docs/workflow.md",
-    "docs/tool-contract.md"
+    "docs/tool-contract.md",
+    "docs/plugins.md"
   ]
 }

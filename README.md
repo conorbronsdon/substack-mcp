@@ -15,7 +15,7 @@ Safe creator operations for Substack, via MCP. Prepare rich drafts, publish Note
 
 ---
 
-![Create, search, export, plan and review a draft with substack-mcp](https://raw.githubusercontent.com/conorbronsdon/substack-mcp/ce36ba4bd0683a77c7b0bb50f9e62c30f635dc5b/docs/workflow-demo.gif)
+![Create, search, export, plan and review a draft with substack-mcp](https://raw.githubusercontent.com/conorbronsdon/substack-mcp/4091ae0f64a5db7e9670aa9bdbe4693a32fadb23/docs/workflow-demo.gif)
 
 The demo runs actual MCP handlers against offline sample data. No live API calls or publication occur. Follow the [draft workflow](docs/workflow.md) to create, find, export and review a post.
 
@@ -26,6 +26,8 @@ This server imposes no Bestseller-status check. Use an authenticated account wit
 <a href="https://glama.ai/mcp/servers/conorbronsdon/substack-mcp">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/conorbronsdon/substack-mcp/badge" alt="substack-mcp MCP server" />
 </a>
+
+For 1.0 setup coverage and account eligibility, see [compatibility](docs/compatibility.md). Maintainers can use the [release checklist](docs/release-checklist.md) and [distribution inventory](docs/distribution.md).
 
 ## Tools
 

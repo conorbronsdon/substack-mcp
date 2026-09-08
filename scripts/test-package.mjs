@@ -30,7 +30,8 @@ const expectedTools = [
 
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
   'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/authoring.md', 'docs/export.md', 'docs/draft-changes.md',
-  'docs/workflow.md', 'docs/tool-contract.md', 'docs/plugins.md', 'docs/containers.md', 'dist/index.js', 'dist/login.js'];
+  'docs/workflow.md', 'docs/tool-contract.md', 'docs/plugins.md', 'docs/containers.md',
+  'docs/compatibility.md', 'docs/release-checklist.md', 'docs/distribution.md', 'dist/index.js', 'dist/login.js'];
 let transport;
 try {
   const [packed] = JSON.parse(npm(['pack', '--json', '--ignore-scripts', '--pack-destination', scratch], process.cwd()));

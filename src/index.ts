@@ -176,6 +176,11 @@ async function main() {
 
 async function run() {
   const args = process.argv.slice(2);
+  if (args[0] === "profiles") {
+    const { runProfiles } = await import("./profiles-cli.js");
+    process.exitCode = await runProfiles(args.slice(1));
+    return;
+  }
   if (args[0] === "drafts") {
     const { runDrafts } = await import("./draft-cli.js");
     process.exitCode = await runDrafts(args.slice(1));

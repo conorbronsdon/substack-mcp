@@ -311,7 +311,8 @@ export class SubstackClient {
     );
   }
 
-  async updateDraft(
+  /** One-shot transport adapter. Use planDraftUpdate/applyDraftUpdate for draft changes. */
+  async writeDraft(
     id: number,
     updates: DraftUpdatePayload,
   ): Promise<SubstackDraft> {

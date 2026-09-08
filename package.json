@@ -72,6 +72,7 @@
     "docs/cloud-calendar-sync.md",
     "docs/subscribers.md",
     "docs/authoring.md",
-    "docs/export.md"
+    "docs/export.md",
+    "docs/draft-changes.md"
   ]
 }

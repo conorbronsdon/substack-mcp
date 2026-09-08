@@ -15,6 +15,18 @@ import { preflightDraft } from "./utils/draft-preflight.js";
 import { exportDraft, exportDraftInput, exportDraftOutput, draftEditorUrl } from "./api/draft-export.js";
 import { publicationOutput } from "./api/publication.js";
 import { listTagsInput, postTagsInput, listTagsOutput, postTagsOutput } from "./api/tags.js";
+import { planDraftUpdate, applyDraftUpdate, draftChangesInput, draftApplyInput, draftPlanOutput, draftApplyOutput, DraftChangeError } from "./api/draft-changes.js";
+
+async function draftChangeResponse(run: () => Promise<Record<string, unknown>>) {
+  try {
+    const result = await run();
+    return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+  } catch (error) {
+    if (!(error instanceof DraftChangeError)) throw error;
+    const result = { code: error.code, message: error.message, unsupported_nodes: error.unsupported_nodes, write_attempts: 0 };
+    return { isError: true, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+  }
+}
 
 export interface PublicationConfig {
   /** Tool-facing `publication` enum value, e.g. "kevin-muldoon". */
@@ -527,69 +539,21 @@ export function createServer(publications: PublicationConfig[]): McpServer {
     },
   );
 
-  server.registerTool(
-    "update_draft",
-    {
-      description: "Update an existing draft post. Only works on unpublished drafts. Accepts markdown body.",
-      inputSchema: {
-        draft_id: z.number().describe("The draft ID to update"),
-        title: z.string().optional().describe("New title"),
-        subtitle: z.string().optional().describe("New subtitle"),
-        body: z.string().optional().describe("New body in markdown format"),
-        audience: z
-          .enum(["everyone", "only_paid", "founding", "only_free"])
-          .optional()
-          .describe("Who can see this post"),
-        allow_unsupported: z.boolean().optional().default(false).describe("Acknowledge conversion diagnostics and retain unsupported Markdown literally in this private draft"),
-        ...publicationField(),
-      },
-      annotations: buildAnnotations("update_draft"),
-    },
-    async ({
-      draft_id,
-      title,
-      subtitle,
-      body,
-      audience,
-      publication,
-      allow_unsupported,
-    }: {
-      draft_id: number;
-      title?: string;
-      subtitle?: string;
-      body?: string;
-      audience?: "everyone" | "only_paid" | "founding" | "only_free";
-      publication?: string;
-      allow_unsupported: boolean;
-    }) => {
-      const conversion = body !== undefined ? convertMarkdown(body) : undefined;
-      if (conversion?.unsupported_nodes.length && !allow_unsupported) return conversionError(conversion);
-      const updates: Record<string, unknown> = {};
-      if (title !== undefined) updates.draft_title = title;
-      if (subtitle !== undefined) updates.draft_subtitle = subtitle;
-      if (conversion) updates.draft_body = JSON.stringify(conversion.document);
-      if (audience !== undefined) updates.audience = audience;
+  server.registerTool("plan_draft_update", {
+    description: "Read an unpublished draft and review proposed Markdown/metadata changes, bounded previews, conversion losses and preflight. Returns a receipt binding the observed state and exact payload for update_draft. No writes. Hashes check consistency, not human approval; stale detection is best-effort, not atomic.",
+    inputSchema: draftChangesInput.extend(publicationField()).strict(),
+    outputSchema: draftPlanOutput,
+    annotations: buildAnnotations("plan_draft_update"),
+  }, async ({ publication, ...input }) =>
+    draftChangeResponse(() => planDraftUpdate(clientFor(publication), draftChangesInput.parse(input), publication ?? pubKeys[0])));
 
-      const draft = await clientFor(publication).updateDraft(draft_id, updates);
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                id: draft.id,
-                title: draft.draft_title,
-                unsupported_nodes: conversion?.unsupported_nodes ?? [],
-                message: "Draft updated successfully.",
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
-    },
-  );
+  server.registerTool("update_draft", {
+    description: "Apply the exact changes reviewed with plan_draft_update; requires its receipt. Rechecks publication, unpublished state and fingerprint before one PUT, then reads back. Rejects known stale or changed payloads. A read/write race remains. Inspect unverified/conflict outcomes in Substack; never automatically retry. Accepts Markdown; does not publish or schedule.",
+    inputSchema: draftApplyInput.extend(publicationField()).strict(),
+    outputSchema: draftApplyOutput,
+    annotations: buildAnnotations("update_draft"),
+  }, async ({ publication, ...input }) =>
+    draftChangeResponse(() => applyDraftUpdate(clientFor(publication), draftApplyInput.parse(input), publication ?? pubKeys[0])));
 
   server.registerTool(
     "upload_image",

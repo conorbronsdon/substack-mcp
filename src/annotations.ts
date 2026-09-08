@@ -11,8 +11,7 @@
  * IMPORTANT — MCP hints default to the UNSAFE direction. Per the spec
  * (schema 2025-06-18), an omitted `destructiveHint` defaults to `true` and an
  * omitted `openWorldHint` defaults to `true`. So we set readOnlyHint, destructiveHint, and openWorldHint
- * explicitly on writes; leaving one off would make a reversible private draft
- * edit read to a conformant client as destructive and open-world. Annotations
+ * explicitly on writes, distinguishing replacement from creation. Annotations
  * are also untrusted hints — the authoritative consent surface is the tool
  * description, so descriptions carry the load-bearing wording (e.g. that
  * `upload_image` returns a publicly-fetchable URL).
@@ -33,6 +32,8 @@ export type ToolKind =
    * nothing becomes reachable outside your account.
    */
   | "draft-write"
+  /** Replaces existing private draft fields. */
+  | "draft-update"
   /**
    * Additive write that returns a PUBLICLY FETCHABLE (but unlisted) CDN URL.
    * The image bytes are served without authentication to anyone holding the
@@ -51,10 +52,9 @@ export type ToolKind =
 /**
  * Exhaustive tool-name → kind registry.
  *
- * This server has NO destructive tools (no deletes) by design — every write
- * is additive, so all writes set `destructiveHint: false` explicitly. If a
- * destructive tool is ever added, set `destructiveHint: true` for it per the
- * MCP spec.
+ * Updating a draft replaces existing data and carries destructiveHint:true.
+ * Creation and additive operations carry destructiveHint:false. No delete or
+ * long-form publish tools are exposed.
  */
 export const TOOL_KINDS = {
   // Reads
@@ -64,6 +64,7 @@ export const TOOL_KINDS = {
   get_publication: "read",
   search_posts: "read",
   preflight_draft: "read",
+  plan_draft_update: "read",
   get_subscriber_count: "read",
   list_subscribers: "read",
   get_subscriber: "read",
@@ -78,7 +79,7 @@ export const TOOL_KINDS = {
   list_scheduled_posts: "read",
   // Additive writes to private draft state (nothing reachable outside account)
   create_draft: "draft-write",
-  update_draft: "draft-write",
+  update_draft: "draft-update",
   // Additive write returning a publicly-fetchable CDN URL
   upload_image: "public-upload",
   // Immediate public publishes (Substack Notes)
@@ -102,7 +103,7 @@ export interface ToolAnnotationHints {
  *
  * - Reads: `readOnlyHint: true` (destructive/open-world hints are not
  *   meaningful for a read).
- * - Every write is additive, so `destructiveHint: false`.
+ * - Draft updates replace data; other current writes are additive.
  * - `openWorldHint` is `true` only when the tool's output becomes reachable
  *   by outside parties: a public Note, or a publicly-fetchable CDN image URL.
  *   Private draft writes are `false`.
@@ -111,6 +112,8 @@ export function buildAnnotations(name: ToolName): ToolAnnotationHints {
   switch (TOOL_KINDS[name]) {
     case "read":
       return { readOnlyHint: true };
+    case "draft-update":
+      return { readOnlyHint: false, destructiveHint: true, openWorldHint: false, idempotentHint: false };
     case "draft-write":
       return {
         readOnlyHint: false,

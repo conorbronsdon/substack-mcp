@@ -23,13 +23,13 @@ const expectedTools = [
   'get_draft', 'get_post', 'get_post_analytics', 'get_post_comments', 'get_sections',
   'get_subscriber', 'get_subscriber_count', 'list_drafts', 'list_published_posts',
   'list_scheduled_posts', 'list_subscribers', 'update_draft', 'upload_image',
-  'search_posts', 'preflight_draft',
+  'search_posts', 'preflight_draft', 'plan_draft_update',
   'get_publication',
   'list_publication_tags', 'get_post_tags',
 ].sort();
 
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
-  'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/authoring.md', 'docs/export.md',
+  'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/authoring.md', 'docs/export.md', 'docs/draft-changes.md',
   'dist/index.js', 'dist/login.js'];
 let transport;
 try {
@@ -65,6 +65,8 @@ try {
   assert.match(execFileSync(process.execPath, [cli, '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /Usage: substack-mcp/);
   assert.match(execFileSync(process.execPath, [cli, 'export', '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /source\.json/);
   assert.throws(() => execFileSync(process.execPath, [cli, 'export', '-1'], { env, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
+  assert.match(execFileSync(process.execPath, [cli, 'drafts', '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /drafts apply/);
+  assert.throws(() => execFileSync(process.execPath, [cli, 'drafts', 'apply'], { env, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
   const doctorEnv = { ...env, SUBSTACK_PUBLICATION_URL: 'https://example.invalid', SUBSTACK_USER_ID: '1' };
   const diagnosis = JSON.parse(execFileSync(process.execPath, [cli, 'doctor', '--json'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
   assert.equal(diagnosis.ok, true);

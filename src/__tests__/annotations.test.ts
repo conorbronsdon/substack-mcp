@@ -26,6 +26,7 @@ const READ_TOOLS: ToolName[] = [
   "get_publication",
   "search_posts",
   "preflight_draft",
+  "plan_draft_update",
   "get_subscriber_count",
   "list_subscribers",
   "get_subscriber",
@@ -39,7 +40,7 @@ const READ_TOOLS: ToolName[] = [
   "list_scheduled_posts",
 ];
 
-const DRAFT_WRITE_TOOLS: ToolName[] = ["create_draft", "update_draft"];
+const DRAFT_WRITE_TOOLS: ToolName[] = ["create_draft"];
 
 const PUBLIC_UPLOAD_TOOLS: ToolName[] = ["upload_image"];
 const SUBSCRIBER_WRITE_TOOLS: ToolName[] = ["add_free_subscriber"];
@@ -47,6 +48,9 @@ const SUBSCRIBER_WRITE_TOOLS: ToolName[] = ["add_free_subscriber"];
 const PUBLISH_TOOLS: ToolName[] = ["create_note", "create_note_with_link"];
 
 describe("buildAnnotations mapping", () => {
+  it("draft replacement is destructive and never hints automatic retries", () => {
+    expect(buildAnnotations("update_draft")).toEqual({ readOnlyHint: false, destructiveHint: true, openWorldHint: false, idempotentHint: false });
+  });
   it("read -> { readOnlyHint: true } and nothing else", () => {
     const a = buildAnnotations("get_post");
     expect(a).toEqual({ readOnlyHint: true });
@@ -131,7 +135,7 @@ describe("tool annotation classifications", () => {
     }
   });
 
-  it("no write tool is destructive (this server has no deletes by design)", () => {
+  it("additive write tools are explicitly non-destructive", () => {
     // Writes set destructiveHint explicitly to false — never left to MCP's
     // unsafe default of true. Reads omit it (not meaningful for a read).
     for (const name of [
@@ -154,6 +158,7 @@ describe("tool annotation classifications", () => {
 
   it("the classification groups above cover the whole registry", () => {
     const grouped = [
+      "update_draft",
       ...READ_TOOLS,
       ...DRAFT_WRITE_TOOLS,
       ...SUBSCRIBER_WRITE_TOOLS,

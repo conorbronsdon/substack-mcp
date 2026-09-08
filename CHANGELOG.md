@@ -9,6 +9,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
+- Explicit named session profiles, exclusive creation and legacy migration with rollback. `substack-mcp login` retains the legacy login binary, captures only publication-scoped cookies and checks authenticated read access before saving. Login requires a supplied account user ID rather than inferring one from a post byline.
 - Shared-handler CLI reads: `drafts list/get`, `analytics post` and `subscribers count/get`, with explicit publication selection, versioned JSON envelopes and bounded output. `drafts export` aliases the existing export command. Offline `status` reports installed version, runtime and credential-safe configuration diagnostics.
 
 ## [0.9.0] - 2026-09-08

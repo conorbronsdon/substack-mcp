@@ -6,7 +6,7 @@ import { publicationOrigin, validateCredentials } from "./auth/validate-credenti
 export async function doctor(checkAuth = false, resolve = resolvePublications) {
   let publications: ReturnType<typeof resolvePublications>;
   try { publications = resolve(); }
-  catch { return { ok: false, code: "invalid_configuration", publications: [], guidance: "Check named publication triplets and duplicate publication keys. No credential values are printed." }; }
+  catch { return { ok: false, code: "invalid_configuration", publications: [], guidance: "Check publication triplets, duplicate keys and selected profiles. SUBSTACK_PROFILES cannot be combined with publication credential variables. No credential values are printed." }; }
   const reports = [];
   for (const p of publications) {
     const origin = publicationOrigin(p.publicationUrl);
@@ -38,7 +38,7 @@ export async function doctor(checkAuth = false, resolve = resolvePublications) {
   }
   return { ok: reports.every(p => p.configuration === "valid" && (!checkAuth || p.authentication === "authenticated_read_succeeded")),
     mode: checkAuth ? "authenticated_read" : "configuration_only", publications: reports,
-    guidance: "Use an HTTPS publication origin and a positive numeric user ID. For expired sessions run substack-mcp-login. Authenticated reads do not verify the configured user ID or write permissions." };
+    guidance: "Use an HTTPS publication origin and a positive numeric user ID. For expired sessions run substack-mcp login; use --profile for a named session. Authenticated reads do not verify the configured user ID or write permissions." };
 }
 
 export async function runDoctor(args: string[]) {

@@ -176,6 +176,11 @@ async function main() {
 
 async function run() {
   const args = process.argv.slice(2);
+  if (args[0] === "login") {
+    const { runLogin } = await import("./login.js");
+    process.exitCode = await runLogin(args.slice(1));
+    return;
+  }
   if (args[0] === "profiles") {
     const { runProfiles } = await import("./profiles-cli.js");
     process.exitCode = await runProfiles(args.slice(1));
@@ -211,7 +216,7 @@ async function run() {
     return runDoctor(args.slice(1));
   }
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) {
-    console.log("Usage: substack-mcp [serve | status [--json] | doctor [--json] [--check-auth] | export <draft-id> [options] | drafts list/get/export/plan/apply [options] | analytics post <id> | subscribers count/get]\nWith no command, starts the MCP server. doctor checks configuration without network access; --check-auth adds a bounded read per publication. export saves Markdown and original JSON without changing Substack; run export --help. For reviewed updates, run drafts --help. Read commands: drafts list/get, analytics post, subscribers count/get; add --publication when needed. status is offline. Login: substack-mcp-login.");
+    console.log("Usage: substack-mcp [serve | login [options] | profiles list/migrate [options] | status [--json] | doctor [--json] [--check-auth] | export <draft-id> [options] | drafts list/get/export/plan/apply [options] | analytics post <id> | subscribers count/get]\nWith no command, starts the MCP server. doctor checks configuration without network access; --check-auth adds a bounded read per publication. export saves Markdown and original JSON without changing Substack; run export --help. For reviewed updates, run drafts --help. Read commands: drafts list/get, analytics post, subscribers count/get; add --publication when needed. status is offline. Login: substack-mcp login (substack-mcp-login remains an alias). Named sessions: profiles --help.");
     return;
   }
   if (args.length && !(args.length === 1 && args[0] === "serve")) {

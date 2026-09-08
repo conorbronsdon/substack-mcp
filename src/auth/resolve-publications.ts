@@ -39,8 +39,9 @@
  * pair one publication's URL with another's session cookie, per field, in
  * whatever order the environment happens to enumerate.
  *
- * Browser-login sessions stay out of scope for named publications: only the
- * single-publication fallback above can ever pull from a stored session.
+ * SUBSTACK_PROFILES explicitly selects stored named sessions and rejects any
+ * simultaneous publication credential variables. Missing or invalid selected
+ * profiles fail closed; stored profiles are never activated by discovery.
  */
 import { resolveCredentials, type ResolvedCredentials } from "./resolve-credentials.js";
 import { loadSession, type StoredSession } from "./session-store.js";

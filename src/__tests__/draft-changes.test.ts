@@ -170,7 +170,7 @@ describe("read-only draft plans", () => {
   });
   it("returns a static conversion error without exposing source or reading the API", async () => {
     const { client } = fixture();
-    const secret = "private-draft-material";
+    const secret = "example-draft-material";
     const error = await planDraftUpdate(client, { draft_id: 42, body: "> ".repeat(102) + secret }, "example").catch(error => error) as DraftChangeError;
     expect(error.code).toBe("conversion_failed"); expect(error.message).not.toContain(secret);
     expect(client.getPublication).not.toHaveBeenCalled();

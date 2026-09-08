@@ -13,7 +13,7 @@ vi.mock("node:fs", async importOriginal => {
   return { ...actual, linkSync: vi.fn(actual.linkSync) };
 });
 let dir: string;
-const sample = { publicationUrl: "https://example.substack.com", sessionToken: "private-test-token", userId: "42" };
+const sample = { publicationUrl: "https://example.substack.com", sessionToken: "example-profile-token", userId: "42" };
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "substack-profile-test-")); vi.stubEnv("SUBSTACK_MCP_HOME", dir); });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); expect(dir.startsWith(join(tmpdir(), "substack-profile-test-"))).toBe(true); rmSync(dir, { recursive: true, force: true }); });
 describe("named profile storage", () => {

@@ -20,8 +20,8 @@ Oversized results return `isError` with `result_too_large`; they are never silen
 truncated. Malformed projected results return `invalid_tool_output`, excluding
 private upstream values. Thrown handler errors also produce bounded, static
 guidance; HTTP status/source and validated Retry-After are retained without
-upstream messages or private endpoint details. Typed Markdown conversion failures
-return `code: "markdown_conversion_failed"` and `write_attempts: 0`, indicating
+upstream messages or private endpoint details. For `create_draft`, `create_note`
+and `create_note_with_link`, typed Markdown conversion failures return `code: "markdown_conversion_failed"` and `write_attempts: 0`, indicating
 that no write was attempted. Other write failures require reconciliation.
 Malformed legacy array rows now fail validation; preserving the array shape does
 not promise to pass through malformed upstream data. Error responses do not masquerade as schema-conforming

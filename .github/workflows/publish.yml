@@ -29,6 +29,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.repository == 'conorbronsdon/substack-mcp'
     timeout-minutes: 20
+    outputs:
+      version: ${{ steps.registry.outputs.version }}
+      target: ${{ steps.registry.outputs.target }}
+      container: ${{ steps.container.outputs.enabled }}
     env:
       GH_TOKEN: ${{ github.token }}
       RECONCILED_RELEASE_COMMIT: ${{ inputs.reconciled_commit }}
@@ -110,3 +114,53 @@ jobs:
         env:
           RELEASE_TARGET: ${{ steps.plan.outputs.target }}
         run: node scripts/release-state.mjs verify
+
+      - name: Determine original release container support
+        id: container
+        env:
+          RELEASE_TARGET: ${{ steps.registry.outputs.target }}
+        run: |
+          if git cat-file -e "$RELEASE_TARGET:scripts/test-container.mjs" && git cat-file -e "$RELEASE_TARGET:scripts/publish-container.mjs" && git cat-file -e "$RELEASE_TARGET:Dockerfile"; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  container:
+    needs: publish
+    if: needs.publish.outputs.container == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VERSION: ${{ needs.publish.outputs.version }}
+      RELEASE_TARGET: ${{ needs.publish.outputs.target }}
+      IMAGE: ghcr.io/conorbronsdon/substack-mcp
+      DOCKER_CONFIG: ${{ runner.temp }}/release-docker-config
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.publish.outputs.target }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Verify original source and build
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_TARGET"
+          test "$(node -p "require('./package.json').version")" = "$VERSION"
+          npm ci --ignore-scripts
+          docker build --build-arg VERSION="$VERSION" --build-arg REVISION="$RELEASE_TARGET" -t "$IMAGE:build" .
+          node scripts/test-container.mjs "$IMAGE:build" "$RELEASE_TARGET"
+      - name: Authenticate only after image verification
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_ACTOR: ${{ github.actor }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_ACTOR" --password-stdin
+      - name: Publish and verify versioned image
+        run: node scripts/publish-container.mjs
+      - name: Remove runner registry authentication
+        if: always()
+        run: docker logout ghcr.io

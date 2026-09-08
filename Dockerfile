@@ -38,13 +38,16 @@ COPY --from=builder /app/dist ./dist
 #   SUBSTACK_SESSION_TOKEN   — the `connect.sid` cookie value (`substack.sid`
 #                              on a *.substack.com domain)
 #   SUBSTACK_USER_ID         — numeric Substack user id
-# All three are optional at startup. The server starts without them and answers
-# introspection (initialize, tools/list); each tool call then returns
-# isError: true until the credentials are set. The message points at the failing
-# request path rather than naming the missing variable, which is worth tightening
-# in the server itself. The browser-login flow that writes
-# ~/.substack-mcp/session.json binds its key to the OS account and hostname, so
-# a stored session is not portable into a container — use the env vars here.
+# All three credentials are required and validated before transport startup.
+# Machine-bound stored sessions are not portable into a container; use env vars.
+
+ARG VERSION=development
+ARG REVISION=unknown
+LABEL org.opencontainers.image.source="https://github.com/conorbronsdon/substack-mcp" \
+      org.opencontainers.image.title="Substack MCP" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.revision=$REVISION
 
 USER node
 EXPOSE 8080

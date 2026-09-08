@@ -14,7 +14,7 @@
     "lint": "tsc --noEmit -p tsconfig.lint.json",
     "test": "vitest run src/__tests__",
     "probe:contract": "node scripts/probe-contract.mjs --read-only",
-    "test:release": "node --test scripts/check-release-order.controls.mjs scripts/check-release-metadata.controls.mjs scripts/release-state.controls.mjs scripts/probe-contract.controls.mjs",
+    "test:release": "node --test scripts/check-release-order.controls.mjs scripts/check-release-metadata.controls.mjs scripts/release-state.controls.mjs scripts/probe-contract.controls.mjs scripts/publish-container.controls.mjs",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "prepublishOnly": "npm run check:release && npm run lint && npm test && npm run test:package",
@@ -77,6 +77,7 @@
     "docs/draft-changes.md",
     "docs/workflow.md",
     "docs/tool-contract.md",
-    "docs/plugins.md"
+    "docs/plugins.md",
+    "docs/containers.md"
   ]
 }

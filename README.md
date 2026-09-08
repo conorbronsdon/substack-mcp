@@ -587,3 +587,5 @@ the same fields and returned receipt. Published or known stale drafts are
 rejected. The read/write race remains; check readback outcomes and review in
 Substack. The CLI shares this flow through `drafts plan` and `drafts apply`.
 See [draft changes and migration](docs/draft-changes.md) for examples and limits.
+
+Versioned GHCR images and transport verification: [container distribution](docs/containers.md).

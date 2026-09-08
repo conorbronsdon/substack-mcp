@@ -499,8 +499,8 @@ describe("HTTP tool result contract", () => {
     const read = vi.spyOn(SubstackClient.prototype, "getDraft").mockResolvedValue({ id: 42, draft_title: "HTTP fixture", draft_body: "Untrusted fixture body" } as never);
     const client = new Client({ name: "http-contract-test", version: "1" });
     try {
-      await listen({ token: "synthetic-http-contract-token" });
-      const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl()}/mcp`), { requestInit: { headers: { Authorization: "Bearer synthetic-http-contract-token" } } });
+      await listen({ token: "example-http-contract-token" });
+      const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl()}/mcp`), { requestInit: { headers: { Authorization: "Bearer example-http-contract-token" } } });
       await client.connect(transport);
       const response = await client.callTool({ name: "get_draft", arguments: { draft_id: 42 } });
       expect(response.isError).not.toBe(true);

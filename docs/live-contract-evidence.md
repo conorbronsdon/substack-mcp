@@ -3,13 +3,17 @@
 From a clean committed repository checkout, install dependencies and configure
 your own publication credentials or selected profiles. Ordinary CI never runs
 live probes. Set `SUBSTACK_CONTRACT_PROBE=1`, then run `npm run probe:contract`.
-This builds the current source and makes authenticated reads. With multiple
+The entrypoint itself builds the current source before loading it, including
+direct script invocation, and makes authenticated reads. With multiple
 configured publications also set `SUBSTACK_PROBE_PUBLICATION` to one configured
 key. Missing/unknown selection stops without falling back to another account.
 
 The probe verifies the authenticated draft-list response, publication context,
 one draft-list page and subscriber-count result through the MCP TypeScript SDK.
-It writes no draft, image, subscriber or Note and has no cleanup step. It uses
+A process-wide fetch guard blocks non-GET requests before transport and records
+blocked attempts separately. It writes no draft, image, subscriber or Note and
+has no cleanup step. Automated release controls verify opt-in, account selection
+and the GET-only request gate. It uses
 in-memory MCP transport; this is real endpoint evidence, not Claude Desktop,
 Codex or HTTP-client onboarding evidence. Network calls retain shared deadlines
 and response limits. No response body, publication origin, email, token, account

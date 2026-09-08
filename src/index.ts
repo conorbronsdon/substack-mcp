@@ -10,7 +10,7 @@ import { startHttpServer, type HttpTransportOptions } from "./transport/http.js"
  * Wire every way this process can be asked to stop to one clean shutdown.
  *
  * SIGTERM/SIGINT: nothing installs a handler by default, and the kernel ignores
- * default-disposition signals for PID 1 â€” so in a container `docker stop` waits
+ * default-disposition signals for PID 1 — so in a container `docker stop` waits
  * out its full 10s grace period and then SIGKILLs. Handling the signal
  * in-process keeps the image free of an init wrapper.
  *
@@ -19,7 +19,7 @@ import { startHttpServer, type HttpTransportOptions } from "./transport/http.js"
  * loop drains, which any still-pending request can hold open for the length
  * of its network timeout. Closing explicitly makes the ordinary shutdown
  * immediate either way. The HTTP transport has no stdin session to end, so
- * `watchStdin` is left off there â€” SIGTERM/SIGINT are its only stop signal.
+ * `watchStdin` is left off there — SIGTERM/SIGINT are its only stop signal.
  *
  * Idempotent by design: a second trigger arriving mid-shutdown is dropped, and
  * a `close()` that never settles is capped by a forced exit.
@@ -57,7 +57,7 @@ function resolveTimeoutMs(raw: string | undefined): number | undefined {
   if (raw === undefined || raw === "") return undefined;
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    console.error(`Warning: ignoring invalid SUBSTACK_REQUEST_TIMEOUT_MS="${raw}" â€” using the default.`);
+    console.error(`Warning: ignoring invalid SUBSTACK_REQUEST_TIMEOUT_MS="${raw}" — using the default.`);
     return undefined;
   }
   return parsed;
@@ -76,7 +76,7 @@ function parseList(raw: string | undefined): string[] | undefined {
 /**
  * Translate the `MCP_HTTP_*` env vars into a transport policy.
  *
- * Unset means the transport's own loopback-only defaults apply â€” the listener
+ * Unset means the transport's own loopback-only defaults apply — the listener
  * fails closed, and reaching it under any other name is an explicit act
  * (`MCP_HTTP_ALLOWED_HOSTS`), not something a default hands out.
  */
@@ -90,7 +90,7 @@ export function resolveHttpOptions(port: number, env: NodeJS.ProcessEnv = proces
     } else {
       // Same policy as SUBSTACK_REQUEST_TIMEOUT_MS: garbage warns and falls
       // back rather than silently removing the limit.
-      console.error(`Warning: ignoring invalid MCP_HTTP_MAX_BODY_BYTES="${rawMax}" â€” using the default.`);
+      console.error(`Warning: ignoring invalid MCP_HTTP_MAX_BODY_BYTES="${rawMax}" — using the default.`);
     }
   }
 
@@ -140,7 +140,7 @@ async function main() {
     const port = Number(process.env.MCP_HTTP_PORT) || 8080;
     const host = process.env.MCP_HTTP_HOST ?? "0.0.0.0";
     // Stateless: each request gets its own McpServer, so there's no single
-    // instance to close on shutdown â€” only the underlying http.Server.
+    // instance to close on shutdown — only the underlying http.Server.
     const httpServer = startHttpServer(() => createServer(publications), port, host, resolveHttpOptions(port));
     installShutdownHandlers(() => new Promise((resolve) => httpServer.close(() => resolve())), false);
   } else {

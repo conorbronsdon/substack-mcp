@@ -158,7 +158,7 @@ describe("MCP publication isolation", () => {
   it("requires publication on every tool and routes both new reads without writes", async () => {
     const fetchMock = vi.fn(async (url: string) => new Response(JSON.stringify(url.includes("/drafts/42") ? draft : { posts: [], total: 0 })));
     vi.stubGlobal("fetch", fetchMock);
-    const server = createServer(["a", "b"].map(key => ({ key, label: key, client: new SubstackClient(`https://${key}.substack.com`, "test-only", "1") })));
+    const server = createServer(["a", "b"].map(key => ({ key, label: key, client: new SubstackClient(`https://${key}.substack.com`, "example-session-token", "1") })));
     const [ct, st] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test", version: "1" });
     await Promise.all([client.connect(ct), server.connect(st)]);

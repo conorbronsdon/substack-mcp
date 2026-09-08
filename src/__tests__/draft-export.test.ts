@@ -179,7 +179,7 @@ describe("MCP draft export", () => {
       return new Response(JSON.stringify(value));
     });
     vi.stubGlobal("fetch", fetchMock);
-    const server = createServer(["a", "b"].map(key => ({ key, label: key, client: new SubstackClient(`https://${key}.substack.com`, "test-only", "1") })));
+    const server = createServer(["a", "b"].map(key => ({ key, label: key, client: new SubstackClient(`https://${key}.substack.com`, "example-session-token", "1") })));
     const [ct, st] = InMemoryTransport.createLinkedPair(); const mcp = new Client({ name: "export-test", version: "1" });
     await Promise.all([mcp.connect(ct), server.connect(st)]);
     try {

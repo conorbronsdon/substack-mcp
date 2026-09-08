@@ -13,7 +13,7 @@ import { runDrafts } from "../draft-cli.js";
 import { convertMarkdown, MAX_MARKDOWN_CHARS } from "../utils/markdown-to-prosemirror.js";
 import type { DraftChangePlan } from "../api/draft-changes.js";
 
-const credentials = { key: "example", label: "Example", publicationUrl: "https://example.substack.com", sessionToken: "test-only", userId: "1", source: "env" as const, missing: [] };
+const credentials = { key: "example", label: "Example", publicationUrl: "https://example.substack.com", sessionToken: "example-session-token", userId: "1", source: "env" as const, missing: [] };
 const nativeFetch = globalThis.fetch;
 const dirs: string[] = [];
 afterEach(async () => {
@@ -37,7 +37,7 @@ function fixture() {
     if (written && mode === "readback_failure") return new Response("Unavailable", { status: 503 });
     return Response.json(state);
   }));
-  const publications = () => [{ key: "example", label: "Example", client: new SubstackClient(credentials.publicationUrl, "test-only", "1") }];
+  const publications = () => [{ key: "example", label: "Example", client: new SubstackClient(credentials.publicationUrl, "example-session-token", "1") }];
   return { requests, publications, edit: () => { state.draft_title = "Editor changed it"; }, mode: (value: typeof mode) => { mode = value; }, title: () => state.draft_title };
 }
 async function withMcp(run: (client: Client) => Promise<void>, publications: ReturnType<ReturnType<typeof fixture>["publications"]>) {
@@ -106,7 +106,7 @@ describe("MCP draft plan/apply", () => {
     }, f.publications());
   });
   it("requires explicit multi-publication selection before any API calls", async () => {
-    const f = fixture(), pubs = [...f.publications(), { key: "other", label: "Other", client: new SubstackClient("https://other.substack.com", "test-only", "1") }];
+    const f = fixture(), pubs = [...f.publications(), { key: "other", label: "Other", client: new SubstackClient("https://other.substack.com", "example-session-token", "1") }];
     await withMcp(async mcp => {
       for (const publication of [undefined, "missing"]) expect((await mcp.callTool({ name: "plan_draft_update", arguments: { draft_id: 42, title: "After", ...(publication ? { publication } : {}) } })).isError).toBe(true);
       expect(f.requests).toEqual([]);
@@ -153,7 +153,7 @@ describe("draft CLI", () => {
     expect(await runDrafts(["apply", "--input", input, "--plan", planPath], () => [credentials], output)).toBe(mode === "normal" ? 0 : mode === "conflict" ? 4 : 3);
     expect(JSON.parse(output.out.mock.calls[0][0]).status).toBe(mode === "normal" ? "verified" : mode === "conflict" ? "conflict" : "unverified");
     expect(f.requests.filter(r => r.method === "PUT")).toHaveLength(1);
-    expect(output.out.mock.calls[0][0]).not.toContain("test-only");
+    expect(output.out.mock.calls[0][0]).not.toContain("example-session-token");
   });
   it("rejects changed files and ambiguous publication selection without writing", async () => {
     const f = fixture(), dir = await scratch(), input = join(dir, "changes.json"), planPath = join(dir, "plan.json"), output = io();

@@ -13,6 +13,7 @@
     "sync:release": "node scripts/sync-release-metadata.mjs",
     "lint": "tsc --noEmit -p tsconfig.lint.json",
     "test": "vitest run src/__tests__",
+    "probe:contract": "npm run build && node scripts/probe-contract.mjs --read-only",
     "test:release": "node --test scripts/check-release-order.controls.mjs scripts/check-release-metadata.controls.mjs scripts/release-state.controls.mjs",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",

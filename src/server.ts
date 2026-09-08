@@ -23,7 +23,7 @@ async function draftChangeResponse(run: () => Promise<Record<string, unknown>>) 
     return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
   } catch (error) {
     if (!(error instanceof DraftChangeError)) throw error;
-    const result = { code: error.code, message: error.message, unsupported_nodes: error.unsupported_nodes, write_attempts: 0 };
+    const result = { code: error.code, message: error.message, unsupported_nodes: error.unsupported_nodes, invalid_fields: error.invalid_fields, write_attempts: 0 };
     return { isError: true, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
   }
 }
@@ -548,7 +548,7 @@ export function createServer(publications: PublicationConfig[]): McpServer {
     draftChangeResponse(() => planDraftUpdate(clientFor(publication), draftChangesInput.parse(input), publication ?? pubKeys[0])));
 
   server.registerTool("update_draft", {
-    description: "Apply the exact changes reviewed with plan_draft_update; requires its receipt. Rechecks publication, unpublished state and fingerprint before one PUT, then reads back. Rejects known stale or changed payloads. A read/write race remains. Inspect unverified/conflict outcomes in Substack; never automatically retry. Accepts Markdown; does not publish or schedule.",
+    description: "Apply the exact changes reviewed with plan_draft_update; requires its unsigned consistency receipt, not proof of human approval. Rechecks publication, unpublished state and fingerprint before one PUT, then reads back. Rejects known stale or changed payloads. A read/write race remains. Inspect unverified/conflict outcomes in Substack; never automatically retry. Accepts Markdown; does not publish or schedule.",
     inputSchema: draftApplyInput.extend(publicationField()).strict(),
     outputSchema: draftApplyOutput,
     annotations: buildAnnotations("update_draft"),

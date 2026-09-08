@@ -60,7 +60,7 @@ export async function runDrafts(args: string[], load = resolvePublications,
     return result.status === "verified" ? 0 : result.status === "conflict" ? 4 : 3;
   } catch (error) {
     const result = error instanceof DraftChangeError
-      ? { code: error.code, message: error.message, unsupported_nodes: error.unsupported_nodes, write_attempts: 0 }
+      ? { code: error.code, message: error.message, unsupported_nodes: error.unsupported_nodes, invalid_fields: error.invalid_fields, write_attempts: 0 }
       : { code: "draft_command_failed", message: "Draft command failed; final state is not established. Check configuration with doctor and inspect Substack before any further write. Do not retry automatically." };
     io.error(JSON.stringify(result));
     return 1;

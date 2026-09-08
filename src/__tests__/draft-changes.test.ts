@@ -33,6 +33,15 @@ function fixture(overrides: Record<string, unknown> = {}) {
 }
 
 describe("read-only draft plans", () => {
+  it("reports bounded schema field paths without leaking rejected values", async () => {
+    const { client } = fixture({ audience: { private: "sensitive marker" }, draft_bylines: [{ id: 9 }] });
+    let error: DraftChangeError | undefined;
+    try { await planDraftUpdate(client, input, "example"); } catch (caught) { error = caught as DraftChangeError; }
+    expect(error?.code).toBe("invalid_draft");
+    expect(error?.invalid_fields).toEqual(["/audience", "/draft_bylines/0/is_guest"]);
+    expect(JSON.stringify(error)).not.toContain("sensitive marker");
+    expect(client.writeDraft).not.toHaveBeenCalled();
+  });
   it("describes the exact proposed native body and preflight without writing", async () => {
     const { client } = fixture();
     const plan = await planDraftUpdate(client, input, "example");

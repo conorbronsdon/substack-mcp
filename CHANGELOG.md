@@ -8,6 +8,8 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-08
+
 ### Changed
 - Markdown conversion uses a CommonMark/GFM AST, retaining nested formatting, ordered-list starting numbers, linked images and captions, and explicit draft paywalls. Unsupported constructs produce located diagnostics; draft writes require explicit fallback acknowledgment, and Notes stop before attachment creation or publication. Conversion has documented size and structure limits.
 - Authenticated API requests no longer follow redirects. Configure a direct HTTPS API origin; public subscriber-count pages retain up to three cookie-free HTTPS redirect hops.
@@ -24,7 +26,8 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 - `plan_draft_update` and `drafts plan/apply`: bounded review plans, publication/unpublished-state checks, payload and snapshot binding, best-effort stale detection and explicit readback outcomes. **Migration:** `update_draft` now requires the receipt from planning and the same proposed changes. Draft replacement is annotated as destructive. No atomic-write or automatic-retry guarantee.
 - `export_draft` and `substack-mcp export`: read-only Markdown/JSON export with original serialized source, explicit conversion losses, source hash, publication identity scope and editor link. CLI files require explicit overwrite and retain a source bundle for Markdown. New output is schema-declared with matching structured/text representations. Preflight also returns an editor link.
 - `list_publication_tags` and `get_post_tags`: publication-bound tag reads, hidden-tag handling, unresolved IDs and bounded local snapshot pagination. These tools never assign or remove tags.
-- `get_publication`: projected publication metadata with normalized host matching, explicit absent fields, structured MCP output and a text fallback. Does not infer account identity or permissions. A read-only live check passed on one custom-domain publication; broader 0.9 contract validation remains pending.
+- `get_publication`: projected publication metadata with normalized host matching, explicit absent fields, structured MCP output and a text fallback. Does not infer account identity or permissions. Live checks cover one custom-domain publication; malformed responses and publication isolation have fixture coverage.
+- A reproducible sample workflow and animated demo covering rich draft creation, search, export, stale-plan rejection and verified readback. Updated setup positioning and social preview artwork.
 
 ## [0.8.0] - 2026-09-07
 

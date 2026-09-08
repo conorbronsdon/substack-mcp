@@ -28,7 +28,7 @@ const expectedTools = [
 ].sort();
 
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
-  'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md',
+  'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/authoring.md',
   'dist/index.js', 'dist/login.js'];
 let transport;
 try {

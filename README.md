@@ -404,18 +404,20 @@ Substack error response bodies are inconsistent — sometimes JSON (`{"error": "
 
 ## Markdown support
 
-The `create_draft` and `update_draft` tools accept markdown and convert it to Substack's native format. Supported:
+Drafts accept CommonMark/GFM Markdown: headings, nested bold/italic/strikethrough,
+links and reference links, images with captions and linked destinations, nested
+lists with starting numbers, code, blockquotes, rules and hard breaks. A standalone
+`<!-- paywall -->` block adds one paywall to a long-form draft.
 
-- Paragraphs, headings (h1–h6)
-- **Bold**, *italic*, `inline code`
-- [Links](https://example.com)
-- Images
-- Bullet and numbered lists, including **nested lists** (arbitrary depth, mixed ordered/unordered)
-- Code blocks (with language)
-- Blockquotes
-- Horizontal rules
+Unsupported content returns `unsupported_nodes` before a write. After reviewing
+those diagnostics, draft callers can explicitly set `allow_unsupported: true`
+to retain literal fallbacks. Tables remain Markdown inside code blocks; native
+tables, footnotes, callouts and arbitrary embeds are not advertised as supported.
+Notes reject unsupported conversion before either publication or attachment
+creation and have no fallback override.
 
-**Tables:** Substack's post editor has no table node, so a markdown table cannot be rendered natively. Rather than mangle the pipes into a paragraph, a detected GFM table is preserved verbatim inside a code block — the content survives so you can reformat it (as an image or embed) in Substack's editor.
+See [Markdown authoring](docs/authoring.md) for mappings, limits, compatibility
+changes and the distinction between offline fixtures and live editor checks.
 
 ## Important notes
 

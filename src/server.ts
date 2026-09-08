@@ -8,7 +8,7 @@ import {
 } from "./api/client.js";
 import { buildAnnotations } from "./annotations.js";
 import { consentEvidenceSchema, type ConsentEvidence } from "./api/subscribers.js";
-import { markdownToProseMirror, markdownToProseMirrorContent } from "./utils/markdown-to-prosemirror.js";
+import { convertMarkdown, type MarkdownConversion } from "./utils/markdown-to-prosemirror.js";
 import { fileToDataUri } from "./utils/image.js";
 import { searchInput } from "./api/search.js";
 import { preflightDraft } from "./utils/draft-preflight.js";
@@ -21,6 +21,19 @@ export interface PublicationConfig {
   /** Human-readable label, e.g. "Kevin Muldoon" — used in descriptions/errors only. */
   label: string;
   client: SubstackClient;
+}
+
+function conversionError(conversion: MarkdownConversion, note = false) {
+  return {
+    isError: true,
+    content: [{ type: "text" as const, text: JSON.stringify({
+      code: "unsupported_markdown",
+      message: note
+        ? "No Note or attachment was created. Remove unsupported Markdown before publishing."
+        : "No draft was written. Review unsupported_nodes, then simplify the Markdown or explicitly set allow_unsupported=true to retain literal fallbacks.",
+      unsupported_nodes: conversion.unsupported_nodes,
+    }) }],
+  };
 }
 
 export function createServer(publications: PublicationConfig[]): McpServer {
@@ -454,6 +467,7 @@ export function createServer(publications: PublicationConfig[]): McpServer {
           .optional()
           .default("everyone")
           .describe("Who can see this post"),
+        allow_unsupported: z.boolean().optional().default(false).describe("Acknowledge conversion diagnostics and retain unsupported Markdown literally in this private draft"),
         ...publicationField(),
       },
       annotations: buildAnnotations("create_draft"),
@@ -464,14 +478,18 @@ export function createServer(publications: PublicationConfig[]): McpServer {
       subtitle,
       audience,
       publication,
+      allow_unsupported,
     }: {
       title: string;
       body?: string;
       subtitle?: string;
       audience: "everyone" | "only_paid" | "founding" | "only_free";
       publication?: string;
+      allow_unsupported: boolean;
     }) => {
-      const prosemirrorBody = body ? markdownToProseMirror(body) : undefined;
+      const conversion = body !== undefined ? convertMarkdown(body) : undefined;
+      if (conversion?.unsupported_nodes.length && !allow_unsupported) return conversionError(conversion);
+      const prosemirrorBody = conversion ? JSON.stringify(conversion.document) : undefined;
       const draft = await clientFor(publication).createDraft(
         title,
         prosemirrorBody,
@@ -486,6 +504,7 @@ export function createServer(publications: PublicationConfig[]): McpServer {
               {
                 id: draft.id,
                 title: draft.draft_title,
+                unsupported_nodes: conversion?.unsupported_nodes ?? [],
                 message: "Draft created successfully. Open Substack to review and publish.",
               },
               null,
@@ -510,6 +529,7 @@ export function createServer(publications: PublicationConfig[]): McpServer {
           .enum(["everyone", "only_paid", "founding", "only_free"])
           .optional()
           .describe("Who can see this post"),
+        allow_unsupported: z.boolean().optional().default(false).describe("Acknowledge conversion diagnostics and retain unsupported Markdown literally in this private draft"),
         ...publicationField(),
       },
       annotations: buildAnnotations("update_draft"),
@@ -521,6 +541,7 @@ export function createServer(publications: PublicationConfig[]): McpServer {
       body,
       audience,
       publication,
+      allow_unsupported,
     }: {
       draft_id: number;
       title?: string;
@@ -528,11 +549,14 @@ export function createServer(publications: PublicationConfig[]): McpServer {
       body?: string;
       audience?: "everyone" | "only_paid" | "founding" | "only_free";
       publication?: string;
+      allow_unsupported: boolean;
     }) => {
+      const conversion = body !== undefined ? convertMarkdown(body) : undefined;
+      if (conversion?.unsupported_nodes.length && !allow_unsupported) return conversionError(conversion);
       const updates: Record<string, unknown> = {};
       if (title !== undefined) updates.draft_title = title;
       if (subtitle !== undefined) updates.draft_subtitle = subtitle;
-      if (body !== undefined) updates.draft_body = markdownToProseMirror(body);
+      if (conversion) updates.draft_body = JSON.stringify(conversion.document);
       if (audience !== undefined) updates.audience = audience;
 
       const draft = await clientFor(publication).updateDraft(draft_id, updates);
@@ -544,6 +568,7 @@ export function createServer(publications: PublicationConfig[]): McpServer {
               {
                 id: draft.id,
                 title: draft.draft_title,
+                unsupported_nodes: conversion?.unsupported_nodes ?? [],
                 message: "Draft updated successfully.",
               },
               null,
@@ -616,10 +641,12 @@ export function createServer(publications: PublicationConfig[]): McpServer {
       annotations: buildAnnotations("create_note"),
     },
     async ({ body, publication }: { body: string; publication?: string }) => {
+      const conversion = convertMarkdown(body, "note");
+      if (conversion.unsupported_nodes.length) return conversionError(conversion, true);
       const bodyJson = {
         type: "doc" as const,
         attrs: { schemaVersion: "v1" as const },
-        content: markdownToProseMirrorContent(body),
+        content: conversion.document.content,
       };
       const note = await clientFor(publication).createNote(bodyJson);
       return {
@@ -655,12 +682,14 @@ export function createServer(publications: PublicationConfig[]): McpServer {
     },
     async ({ body, url, publication }: { body: string; url: string; publication?: string }) => {
       const client = clientFor(publication);
-      const attachment = await client.createNoteAttachment(url);
+      const conversion = convertMarkdown(body, "note");
+      if (conversion.unsupported_nodes.length) return conversionError(conversion, true);
       const bodyJson = {
         type: "doc" as const,
         attrs: { schemaVersion: "v1" as const },
-        content: markdownToProseMirrorContent(body),
+        content: conversion.document.content,
       };
+      const attachment = await client.createNoteAttachment(url);
       const note = await client.createNote(bodyJson, [attachment.id]);
       return {
         content: [

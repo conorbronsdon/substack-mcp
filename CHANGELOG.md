@@ -9,6 +9,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Changed
+- Markdown conversion uses a CommonMark/GFM AST, retaining nested formatting, ordered-list starting numbers, linked images and captions, and explicit draft paywalls. Unsupported constructs produce located diagnostics; draft writes require explicit fallback acknowledgment, and Notes stop before attachment creation or publication. Conversion has documented size and structure limits.
 - Authenticated API requests no longer follow redirects. Configure a direct HTTPS API origin; public subscriber-count pages retain up to three cookie-free HTTPS redirect hops.
 - Missing or malformed credentials now stop server startup before transport connection. All configured publications must be valid; none are silently dropped. Use `doctor` for diagnostics and `substack-mcp-login` for first-time setup. This replaces the previous missing-credential warning followed by unusable tools.
 

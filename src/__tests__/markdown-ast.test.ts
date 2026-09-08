@@ -94,6 +94,32 @@ describe("Markdown AST fidelity", () => {
     expect(content(source)).toEqual([{ type: "code_block", content: [{ type: "text", text: source }] }]);
   });
 
+  it.each([
+    "[a][x]\n\n[x]: javascript:alert%281%29",
+    "[x]: javascript:alert%281%29\n\n[a][x]",
+    "- [x] [a][ref]\n\n[ref]: https://example.com",
+    "| A | B |\n|---|---|\n| [a][ref] | b |\n\n[ref]: https://example.com",
+  ])("retains definitions whose references were not converted: %s", source => {
+    const result = convert(source);
+    const definition = source.split("\n").find(line => /^\[[^\]]+\]:/.test(line))!;
+    expect(JSON.stringify(result.document)).toContain(definition);
+    expect(result.unsupported_nodes.some(node => node.type === "definition")).toBe(true);
+  });
+
+  it("resolves references defined before use, and preserves duplicate definitions", () => {
+    const source = "[x]: https://example.com/first\n\n[a][x]\n\n[x]: https://example.com/second";
+    const result = convert(source);
+    expect(result.document.content[0].content?.[0].marks).toEqual([{ type: "link", attrs: { href: "https://example.com/first" } }]);
+    expect(result.document.content[1].content).toEqual([{ type: "text", text: "[x]: https://example.com/second" }]);
+    expect(result.unsupported_nodes.map(node => node.type)).toEqual(["definition"]);
+  });
+
+  it("retains a valid empty blockquote when its only definition was consumed elsewhere", () => {
+    const result = convert("> [x]: https://example.com\n\n[a][x]");
+    expect(result.document.content[0]).toEqual({ type: "blockquote", content: [{ type: "paragraph" }] });
+    expect(result.unsupported_nodes).toEqual([]);
+  });
+
   it("rejects duplicate paywalls and reports nested or Note paywalls", () => {
     expect(() => convert("<!-- paywall -->\n\n<!-- paywall -->")).toThrow("Only one paywall");
     expect(convert("> <!-- paywall -->").unsupported_nodes[0].reason).toContain("top level");
@@ -123,6 +149,17 @@ async function withMcp(run: (mcp: Client, api: SubstackClient) => Promise<void>)
 
 describe("Markdown conversion through MCP", () => {
   const table = "| A | B |\n|---|---|\n| x | y |";
+  it.each(["create_draft", "update_draft", "create_note", "create_note_with_link"])("returns an MCP error for hard conversion failures without writing: %s", async name => {
+    await withMcp(async (mcp, api) => {
+      const writes = [vi.spyOn(api, "createDraft"), vi.spyOn(api, "updateDraft"), vi.spyOn(api, "createNote"), vi.spyOn(api, "createNoteAttachment")];
+      for (const body of ["x".repeat(MAX_MARKDOWN_CHARS + 1), "> ".repeat(102) + "x"]) {
+        const result = await mcp.callTool({ name, arguments: { title: "Test", draft_id: 42, body, url: "https://example.com", allow_unsupported: true } });
+        expect(result.isError).toBe(true);
+        expect((result.content as { text: string }[])[0].text).toMatch(/exceeds/);
+      }
+      for (const spy of writes) expect(spy).not.toHaveBeenCalled();
+    });
+  });
   it.each(["create_draft", "update_draft"])("requires explicit fallback acknowledgment for %s", async name => {
     await withMcp(async (mcp, api) => {
       const create = vi.spyOn(api, "createDraft").mockResolvedValue({ id: 42, draft_title: "Test" } as never);

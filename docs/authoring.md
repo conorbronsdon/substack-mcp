@@ -46,7 +46,7 @@ explicitly retry with `allow_unsupported: true` to store the fallback in a priva
 draft. A successful response still includes the diagnostics.
 
 Tables retain their exact Markdown in a code block because this converter has
-no verified native table mapping. Raw HTML, footnote definitions, unused or
+no verified native table mapping. Raw HTML, footnote definitions, unused, unconverted or
 duplicate reference definitions, and code fences with extra metadata also
 retain source as code. Footnote references and unsupported inline constructs
 remain literal Markdown. Task-list items retain their source as code inside
@@ -67,7 +67,8 @@ advertised as supported. An ordinary URL remains a link, not an embed.
 
 Conversion accepts at most 200,000 JavaScript string characters, 10,000 parsed
 or generated nodes, 100 nesting levels, 100 diagnostics, and 2,000,000 serialized
-output characters. Exceeding a limit fails before a write. Parsing is synchronous;
+output characters. Exceeding a limit returns an MCP tool error before a write; hard parse/limit errors
+do not use the fallback-diagnostic code. Parsing is synchronous;
 these are size/structure limits, not a wall-clock deadline.
 
 ## Evidence and live checks

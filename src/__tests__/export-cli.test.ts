@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, writeFile, mkdir, rm, symlink, link } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, writeFile, mkdir, rm, symlink, link, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, expect, vi, afterEach } from "vitest";
@@ -8,7 +8,7 @@ import type { PublicationCredentials } from "../auth/resolve-publications.js";
 
 vi.mock("node:fs/promises", async importOriginal => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
-  return { ...actual, link: vi.fn(actual.link) };
+  return { ...actual, link: vi.fn(actual.link), unlink: vi.fn(actual.unlink) };
 });
 
 const source = '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Hello"}]}]}';
@@ -92,6 +92,44 @@ describe("export files", () => {
       expect(JSON.parse(await readFile(`${path}.source.json`, "utf8"))).toEqual(result);
       expect(await readdir(dir)).toEqual(["draft.md.source.json"]);
     } finally { vi.mocked(link).mockImplementation(actual.link); }
+  });
+  it.each(["source", "markdown"])("reports saved files accurately when %s temporary-file cleanup fails", async stage => {
+    const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    const dir = await scratch(), path = join(dir, "draft.md"), result = await bundle();
+    vi.mocked(unlink).mockImplementation(async temporary => {
+      const isSource = String(temporary).includes(".source.json.");
+      if (isSource === (stage === "source")) throw Object.assign(new Error("private filesystem details"), { code: "EACCES" });
+      await actual.unlink(temporary);
+    });
+    try {
+      await expect(writeExportFiles(result, path, "markdown", false)).rejects.toThrow("was saved; temporary-file cleanup failed (EACCES)");
+      expect(JSON.parse(await readFile(`${path}.source.json`, "utf8"))).toEqual(result);
+      if (stage === "markdown") expect(await readFile(path, "utf8")).toBe(result.markdown);
+      else await expect(readFile(path)).rejects.toMatchObject({ code: "ENOENT" });
+      expect((await readdir(dir)).filter(name => name.endsWith(".tmp"))).toHaveLength(1);
+    } finally { vi.mocked(unlink).mockImplementation(actual.unlink); }
+  });
+  it("reports both the failed write and remaining temporary file when cleanup also fails", async () => {
+    const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    const dir = await scratch(), path = join(dir, "draft.md"), result = await bundle();
+    vi.mocked(link).mockImplementation(async (from, to) => {
+      if (String(to) === path) throw Object.assign(new Error("private write details"), { code: "ENOSPC" });
+      await actual.link(from, to);
+    });
+    vi.mocked(unlink).mockImplementation(async temporary => {
+      if (!String(temporary).includes(".source.json.")) throw Object.assign(new Error("private cleanup details"), { code: "EACCES" });
+      await actual.unlink(temporary);
+    });
+    try {
+      let message = "";
+      try { await writeExportFiles(result, path, "markdown", false); } catch (error) { message = (error as Error).message; }
+      expect(message).toContain("was not saved (ENOSPC); temporary-file cleanup failed (EACCES)");
+      const temporary = (await readdir(dir)).find(name => name.endsWith(".tmp"))!;
+      expect(message).toContain(temporary);
+      expect(message).not.toContain("private write details");
+      expect(JSON.parse(await readFile(`${path}.source.json`, "utf8"))).toEqual(result);
+      await expect(readFile(path)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally { vi.mocked(link).mockImplementation(actual.link); vi.mocked(unlink).mockImplementation(actual.unlink); }
   });
 });
 

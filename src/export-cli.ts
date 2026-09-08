@@ -9,6 +9,12 @@ import { exportDraft, type DraftExport } from "./api/draft-export.js";
 const usage = "Usage: substack-mcp export <draft-id> [--publication key] [--format json|markdown] [--output path] [--force]\nDefaults to a JSON bundle on stdout. Markdown requires --output and also saves <path>.source.json with the exact original body and diagnostics. Existing files are never replaced without --force.";
 type Options = { id: number; publication?: string; format: "json" | "markdown"; output?: string; force: boolean };
 
+function errorCode(error: unknown): string {
+  const code = (error as NodeJS.ErrnoException)?.code;
+  return typeof code === "string" && /^E[A-Z0-9_]{1,24}$/.test(code) ? code : "UNKNOWN";
+}
+class ExportCleanupError extends Error {}
+
 function parse(args: string[]): Options {
   if (!/^\d+$/.test(args[0] ?? "") || !Number.isSafeInteger(Number(args[0])) || Number(args[0]) <= 0) throw new Error("Provide a positive safe-integer draft ID.");
   const result: Options = { id: Number(args[0]), format: "json", force: false };
@@ -45,14 +51,23 @@ async function checkTarget(path: string, force: boolean): Promise<void> {
 async function writeAtomic(path: string, text: string, force: boolean): Promise<void> {
   const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
   const file = await open(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
+  let published = false;
+  let writeError: unknown;
   try {
     try { await file.writeFile(text, "utf8"); await file.sync(); }
     finally { await file.close(); }
     if (force) { await checkTarget(path, true); await rename(temporary, path); }
     else await link(temporary, path);
+    published = true;
+  } catch (error) {
+    writeError = error;
+    throw error;
   } finally {
     try { await unlink(temporary); } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        const outcome = published ? "was saved" : `was not saved (${errorCode(writeError)})`;
+        throw new ExportCleanupError(`Export destination ${JSON.stringify(path)} ${outcome}; temporary-file cleanup failed (${errorCode(error)}). Temporary file: ${JSON.stringify(temporary)}. Inspect these paths before retrying. No further export writes were attempted.`, { cause: published ? error : new AggregateError([writeError, error]) });
+      }
     }
   }
 }
@@ -70,9 +85,8 @@ export async function writeExportFiles(result: DraftExport, path: string, format
   await writeAtomic(source, bundle, force);
   try { await writeAtomic(output, result.markdown!, force); }
   catch (error) {
-    const rawCode = (error as NodeJS.ErrnoException)?.code;
-    const code = typeof rawCode === "string" && /^E[A-Z0-9_]{1,24}$/.test(rawCode) ? rawCode : "UNKNOWN";
-    throw new Error(`The original-source bundle was saved, but the Markdown file could not be saved (${code}). Inspect the .source.json file; no automatic retry was attempted.`, { cause: error });
+    if (error instanceof ExportCleanupError) throw error;
+    throw new Error(`The original-source bundle was saved, but the Markdown file could not be saved (${errorCode(error)}). Inspect the .source.json file; no automatic retry was attempted.`, { cause: error });
   }
   return [output, source];
 }

@@ -120,7 +120,7 @@ jobs:
         env:
           RELEASE_TARGET: ${{ steps.registry.outputs.target }}
         run: |
-          if git cat-file -e "$RELEASE_TARGET:scripts/test-container.mjs"; then
+          if git cat-file -e "$RELEASE_TARGET:scripts/test-container.mjs" && git cat-file -e "$RELEASE_TARGET:scripts/publish-container.mjs" && git cat-file -e "$RELEASE_TARGET:Dockerfile"; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -160,8 +160,6 @@ jobs:
           REGISTRY_ACTOR: ${{ github.actor }}
         run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_ACTOR" --password-stdin
       - name: Publish and verify versioned image
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: node scripts/publish-container.mjs
       - name: Remove runner registry authentication
         if: always()

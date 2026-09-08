@@ -19,7 +19,7 @@ const inspect = ref => JSON.parse(docker('manifest', 'inspect', ref));
 const verifyPublic = (ref, expected) => {
   let observed;
   try { observed = JSON.parse(docker('--config', anonymous, 'manifest', 'inspect', ref)); }
-  catch { throw new Error('Candidate published but anonymous access failed. Verify the GHCR package is public, then rerun Publish; publication stopped; inspect existing tags before retrying.'); }
+  catch { throw new Error(`Anonymous access failed for ${ref}. Verify the GHCR package is public, then rerun Publish; inspect existing tags before retrying.`); }
   assert.deepEqual(observed, expected);
 };
 const candidateManifest = inspect(candidate);

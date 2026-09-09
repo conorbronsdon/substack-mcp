@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { githubOutputs as attestationOutputs, prepareContainerAttestation, SPDX_PREDICATE_TYPE, tamperAttestationBundle } from './container-attestation.mjs';
 import { githubOutputs, publishContainer } from './publish-container.mjs';
 import pkg from '../package.json' with { type: 'json' };
@@ -135,4 +138,77 @@ test('publish workflow pins generation and verification to digest, source and si
   const downloadedBundleVerification = workflow.indexOf('gh attestation verify "$SUBJECT_REF" --bundle "$provenance_bundle"');
   const bundleTamper = workflow.indexOf('tamper-bundle "$provenance_bundle"');
   assert.ok(downloadedBundleVerification > 0 && bundleTamper > downloadedBundleVerification, 'The real bundle must pass before the tampered copy is rejected');
+  for (const identity of ['--source-digest "$WRONG_SOURCE_DIGEST"', '--signer-workflow "$WRONG_SIGNER_WORKFLOW"']) {
+    assert.ok(workflow.split('\n').some(line => line.includes('--bundle "$provenance_bundle"') && line.includes(identity)), 'Generation must test the known verified bundle against each wrong identity');
+  }
 });
+
+test('attestation verification is gated so a recovery run can never be permanently stuck', () => {
+  const workflow = readFileSync('.github/workflows/publish.yml', 'utf8').replaceAll('\r\n', '\n');
+  const steps = new Map(workflow.split('\n      - name: ').slice(1).map(block => [block.split('\n')[0], block]));
+  const minting = steps.get('Verify provenance, SBOM and rejection controls');
+  const recovery = steps.get('Verify preserved attestations without minting provenance');
+  assert.ok(minting && recovery, 'Expected separate minting and recovery verification steps');
+  // Only the run that minted attestations may require them; a recovery run
+  // rebuilds a different image and can never produce them for this digest.
+  assert.match(minting, /^\s+if: steps\.subject\.outputs\.generate == 'true'$/m);
+  assert.match(recovery, /^\s+if: steps\.subject\.outputs\.generate != 'true'$/m);
+  assert.ok(minting.includes('tamper-bundle'), 'The tamper control belongs to the minting run');
+  assert.ok(!recovery.includes('tamper-bundle'));
+  // Absent attestations are reported, but a wrong identity is never accepted.
+  assert.ok(recovery.includes('::warning::No verifiable $predicate attestation'));
+  for (const control of ['$WRONG_SOURCE_DIGEST', '$WRONG_SIGNER_WORKFLOW']) {
+    assert.ok(minting.includes(control) && recovery.includes(control), `Both runs must reject ${control}`);
+  }
+});
+
+// Execute the actual recovery shell with synthetic gh results. Production runs
+// on Ubuntu; no registry access or credentials are involved in these controls.
+for (const scenario of ['valid', 'missing-provenance', 'missing-sbom', 'unavailable', 'wrong-source', 'wrong-signer']) {
+  test(`recovery shell handles ${scenario}`, { skip: process.platform === 'win32' }, () => {
+    const workflow = readFileSync('.github/workflows/publish.yml', 'utf8').replaceAll('\r\n', '\n');
+    const block = workflow.split('      - name: Verify preserved attestations without minting provenance\n')[1].split('      - name: ')[0];
+    const shell = block.split('        run: |\n')[1].replace(/^          /gm, '');
+    const directory = mkdtempSync(join(tmpdir(), 'attestation-control-'));
+    const summary = join(directory, 'summary');
+    const calls = join(directory, 'calls');
+    try {
+      const mock = `
+        gh() {
+          printf '%s\\n' "$*" >> "$CALLS"
+          case "$SCENARIO:$*" in
+            unavailable:*) return 1 ;;
+            missing-provenance:*https://slsa.dev/provenance/v1*) return 1 ;;
+            missing-sbom:*https://spdx.dev/Document/v2.3*) return 1 ;;
+          esac
+          case "$*" in
+            *wrong-source*) [ "$SCENARIO" = wrong-source ]; return $? ;;
+            *wrong-signer*) [ "$SCENARIO" = wrong-signer ]; return $? ;;
+          esac
+          return 0
+        }
+      `;
+      const result = spawnSync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', mock + shell], {
+        encoding: 'utf8',
+        env: { ...process.env, SCENARIO: scenario, CALLS: calls, GITHUB_STEP_SUMMARY: summary,
+          SUBJECT_REF: 'oci://example-image@sha256:example-digest', GITHUB_REPOSITORY: 'example/repository',
+          SOURCE_DIGEST: 'example-source', WRONG_SOURCE_DIGEST: 'wrong-source',
+          SIGNER_WORKFLOW: 'example-signer', WRONG_SIGNER_WORKFLOW: 'wrong-signer',
+          SPDX_PREDICATE_TYPE: SPDX_PREDICATE_TYPE },
+      });
+      assert.ifError(result.error);
+      assert.equal(result.status, scenario.startsWith('wrong-') ? 1 : 0, result.stderr);
+      const invocations = readFileSync(calls, 'utf8').trim().split('\n');
+      if (!scenario.startsWith('wrong-')) {
+        assert.ok(invocations.some(call => call.includes(SPDX_PREDICATE_TYPE)), 'SBOM must be checked even without provenance');
+        assert.equal(invocations.length, scenario === 'valid' ? 6 : scenario === 'unavailable' ? 2 : 4);
+      }
+      if (scenario.startsWith('missing-') || scenario === 'unavailable') {
+        assert.match(result.stdout, /::warning::/);
+        assert.match(readFileSync(summary, 'utf8'), /Attestation UNVERIFIED/);
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}

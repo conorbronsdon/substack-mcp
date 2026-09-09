@@ -59,6 +59,15 @@ The provenance generation step runs only when the workflow commit is the verifie
 release source commit and the published digest equals the candidate built in that
 run. Historical recovery may verify an existing attestation, but it cannot mint
 new provenance from a different workflow commit or a different preserved image.
+Rebuilds are not guaranteed to be byte-identical, so a later Publish run cannot
+reliably attest a digest an earlier run left unattested. Recover a failed attest job with "Re-run
+failed jobs" on that original Publish run, which reuses the already verified
+candidate digest. A recovery run checks provenance and SBOM independently and reports unverifiable
+attestations as warnings and UNVERIFIED entries in the job summary instead of
+blocking release recovery. This includes missing or invalid evidence and service
+errors; a green recovery run does not certify that the image has valid
+attestations. Inspect the verification errors and require both consumer checks
+below to pass before treating the image as attested.
 Images built before this support may not have attestations. npm provenance is a
 separate attestation for the npm package and does not verify the container.
 
@@ -102,7 +111,10 @@ and identity. To inspect the provenance statement as additional evidence, add
 `verificationResult.statement.predicate.buildDefinition.resolvedDependencies`.
 Publish also downloads a real signed provenance bundle, alters its DSSE payload
 without changing its signature and requires verification to fail. Wrong source
-commit and wrong signer-workflow controls must fail against the real OCI bundles.
+commit and wrong signer-workflow controls must fail against that same positively
+verified downloaded bundle. These test identity constraints on a known bundle,
+not rejection of a separate artifact signed by a competing workflow. Recovery
+uses registry-based negative controls for each predicate that verifies.
 
 Reference: https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations
 

@@ -249,6 +249,7 @@ jobs:
           sbom-path: ${{ runner.temp }}/substack-mcp.spdx.json
           push-to-registry: true
       - name: Verify provenance, SBOM and rejection controls
+        if: steps.subject.outputs.generate == 'true'
         env:
           SUBJECT_REF: ${{ steps.subject.outputs.subject-ref }}
           SOURCE_DIGEST: ${{ steps.subject.outputs.source-digest }}
@@ -262,6 +263,8 @@ jobs:
 
           cd "$RUNNER_TEMP"
           gh attestation download "$SUBJECT_REF" --repo "$GITHUB_REPOSITORY" --predicate-type https://slsa.dev/provenance/v1
+          # gh names the bundle after the digest and only replaces the colon
+          # with a dash on Windows, so this holds while the job runs on Linux.
           provenance_bundle="$RUNNER_TEMP/${MANIFEST_DIGEST}.jsonl"
           tampered_bundle="$RUNNER_TEMP/tampered-provenance.jsonl"
           gh attestation verify "$SUBJECT_REF" --bundle "$provenance_bundle" --repo "$GITHUB_REPOSITORY" --source-digest "$SOURCE_DIGEST" --signer-workflow "$SIGNER_WORKFLOW"
@@ -270,14 +273,44 @@ jobs:
             echo "A signature-preserving payload modification unexpectedly passed verification." >&2
             exit 1
           fi
-          if gh attestation verify "$SUBJECT_REF" --bundle-from-oci --repo "$GITHUB_REPOSITORY" --source-digest "$WRONG_SOURCE_DIGEST" --signer-workflow "$SIGNER_WORKFLOW" >/dev/null 2>&1; then
+          if gh attestation verify "$SUBJECT_REF" --bundle "$provenance_bundle" --repo "$GITHUB_REPOSITORY" --source-digest "$WRONG_SOURCE_DIGEST" --signer-workflow "$SIGNER_WORKFLOW" >/dev/null 2>&1; then
             echo "Wrong source commit unexpectedly passed attestation verification." >&2
             exit 1
           fi
-          if gh attestation verify "$SUBJECT_REF" --bundle-from-oci --repo "$GITHUB_REPOSITORY" --source-digest "$SOURCE_DIGEST" --signer-workflow "$WRONG_SIGNER_WORKFLOW" >/dev/null 2>&1; then
+          if gh attestation verify "$SUBJECT_REF" --bundle "$provenance_bundle" --repo "$GITHUB_REPOSITORY" --source-digest "$SOURCE_DIGEST" --signer-workflow "$WRONG_SIGNER_WORKFLOW" >/dev/null 2>&1; then
             echo "Wrong signer workflow unexpectedly passed attestation verification." >&2
             exit 1
           fi
+      # A recovery run may rebuild a different image, so it cannot mint
+      # provenance for the preserved digest. Absent attestations must not block
+      # recovery of the npm, registry and GitHub release identities, so they are
+      # reported. Whatever does verify still has to reject wrong identities.
+      - name: Verify preserved attestations without minting provenance
+        if: steps.subject.outputs.generate != 'true'
+        env:
+          SUBJECT_REF: ${{ steps.subject.outputs.subject-ref }}
+          SOURCE_DIGEST: ${{ steps.subject.outputs.source-digest }}
+          WRONG_SOURCE_DIGEST: ${{ steps.subject.outputs.wrong-source-digest }}
+          SIGNER_WORKFLOW: ${{ steps.subject.outputs.signer-workflow }}
+          WRONG_SIGNER_WORKFLOW: ${{ steps.subject.outputs.wrong-signer-workflow }}
+          SPDX_PREDICATE_TYPE: ${{ steps.subject.outputs.spdx-predicate-type }}
+        run: |
+          for predicate in https://slsa.dev/provenance/v1 "$SPDX_PREDICATE_TYPE"; do
+            if ! gh attestation verify "$SUBJECT_REF" --bundle-from-oci --repo "$GITHUB_REPOSITORY" --source-digest "$SOURCE_DIGEST" --signer-workflow "$SIGNER_WORKFLOW" --predicate-type "$predicate"; then
+              echo "::warning::No verifiable $predicate attestation for $SUBJECT_REF. Inspect the verification error; absence, invalid evidence and service failures are not distinguished here."
+              printf 'Attestation UNVERIFIED: %s for %s. Recover a failed attest job with Re-run failed jobs on the original Publish run.\n' "$predicate" "$SUBJECT_REF" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            # These registry controls test policy plumbing, not a competing signer.
+            if gh attestation verify "$SUBJECT_REF" --bundle-from-oci --repo "$GITHUB_REPOSITORY" --source-digest "$WRONG_SOURCE_DIGEST" --signer-workflow "$SIGNER_WORKFLOW" --predicate-type "$predicate" >/dev/null 2>&1; then
+              echo "Wrong source commit unexpectedly passed attestation verification." >&2
+              exit 1
+            fi
+            if gh attestation verify "$SUBJECT_REF" --bundle-from-oci --repo "$GITHUB_REPOSITORY" --source-digest "$SOURCE_DIGEST" --signer-workflow "$WRONG_SIGNER_WORKFLOW" --predicate-type "$predicate" >/dev/null 2>&1; then
+              echo "Wrong signer workflow unexpectedly passed attestation verification." >&2
+              exit 1
+            fi
+          done
       - name: Remove runner registry authentication
         if: always()
         run: docker logout ghcr.io

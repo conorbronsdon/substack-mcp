@@ -59,6 +59,11 @@ The provenance generation step runs only when the workflow commit is the verifie
 release source commit and the published digest equals the candidate built in that
 run. Historical recovery may verify an existing attestation, but it cannot mint
 new provenance from a different workflow commit or a different preserved image.
+Because a rebuild is not byte-identical, a later Publish run can never attest a
+digest an earlier run left unattested. Recover a failed attest job with "Re-run
+failed jobs" on that original Publish run, which reuses the already verified
+candidate digest. A recovery run reports missing attestations as warnings
+instead of blocking recovery of the npm, registry and GitHub release identities.
 Images built before this support may not have attestations. npm provenance is a
 separate attestation for the npm package and does not verify the container.
 

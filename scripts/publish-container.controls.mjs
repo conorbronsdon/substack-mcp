@@ -136,3 +136,22 @@ test('publish workflow pins generation and verification to digest, source and si
   const bundleTamper = workflow.indexOf('tamper-bundle "$provenance_bundle"');
   assert.ok(downloadedBundleVerification > 0 && bundleTamper > downloadedBundleVerification, 'The real bundle must pass before the tampered copy is rejected');
 });
+
+test('attestation verification is gated so a recovery run can never be permanently stuck', () => {
+  const workflow = readFileSync('.github/workflows/publish.yml', 'utf8').replaceAll('\r\n', '\n');
+  const steps = new Map(workflow.split('\n      - name: ').slice(1).map(block => [block.split('\n')[0], block]));
+  const minting = steps.get('Verify provenance, SBOM and rejection controls');
+  const recovery = steps.get('Verify preserved attestations without minting provenance');
+  assert.ok(minting && recovery, 'Expected separate minting and recovery verification steps');
+  // Only the run that minted attestations may require them; a recovery run
+  // rebuilds a different image and can never produce them for this digest.
+  assert.match(minting, /^\s+if: steps\.subject\.outputs\.generate == 'true'$/m);
+  assert.match(recovery, /^\s+if: steps\.subject\.outputs\.generate != 'true'$/m);
+  assert.ok(minting.includes('tamper-bundle'), 'The tamper control belongs to the minting run');
+  assert.ok(!recovery.includes('tamper-bundle'));
+  // Absent attestations are reported, but a wrong identity is never accepted.
+  assert.ok(recovery.includes('::warning::No verifiable build provenance'));
+  for (const control of ['$WRONG_SOURCE_DIGEST', '$WRONG_SIGNER_WORKFLOW']) {
+    assert.ok(minting.includes(control) && recovery.includes(control), `Both runs must reject ${control}`);
+  }
+});

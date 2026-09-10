@@ -1,0 +1,31 @@
+name: SSOT
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ssot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Get the reviewed checker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: conorbronsdon/ssot-check
+          ref: f3289c400cd591cdcb6ce4016627a442d0804ce7 # v0.1.3
+          path: .ssot-tool
+          persist-credentials: false
+      - name: Check registered compatibility claims
+        run: python3 .ssot-tool/ssot_check.py check --manifest .ssot.yaml
+      - name: Warn about possible unregistered copies
+        run: python3 .ssot-tool/ssot_check.py discover --manifest .ssot.yaml --untracked-only --github-annotations
+      - name: Exercise drift and advisory controls
+        run: python3 scripts/check-ssot-controls.py .ssot-tool/ssot_check.py

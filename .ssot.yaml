@@ -1,0 +1,15 @@
+# Release manifests already have check:release; this pilot covers prose requirements.
+# History and synthetic examples are not current compatibility promises.
+ignore_paths:
+  - "CHANGELOG.md"
+  - "src/__tests__/**"
+  - ".ssot-tool/**"
+facts:
+  - name: minimum-node-major
+    type: integer
+    canonical:
+      file: package.json
+      pattern: '"node": ">=(\d+)\.0\.0"'
+    copies:
+      - file: README.md
+        pattern: 'Requires \*\*Node\.js (\d+) or newer\*\*'

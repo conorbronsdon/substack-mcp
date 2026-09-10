@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases before
 `0.6.0` are recorded in the [GitHub Releases](https://github.com/conorbronsdon/substack-mcp/releases)
 and the git tag history (`v0.1.0`–`v0.5.0`).
 
+## [Unreleased]
+
+### Added
+- SSOT CI checks for the documented Node minimum, advisory discovery, and
+  mutation controls for registered drift and intentional exclusions.
+
 ## [1.0.0] - 2026-09-08
 
 ### Added

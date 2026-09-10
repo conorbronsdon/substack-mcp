@@ -56,6 +56,8 @@ def main():
                     raise AssertionError(f"Mutation did not report drift: {locator}")
                 # Discovery exclusions must not disable an explicitly registered copy.
                 ignored = manifest_text.replace("ignore_paths:\n", f'ignore_paths:\n  - "{locator["file"]}"\n', 1)
+                if locator["file"] not in checker.parse_manifest(ignored).get("ignore_paths", []):
+                    raise AssertionError("Exclusion control did not add the target path")
                 (scratch / manifest_name).write_text(ignored, encoding="utf-8")
                 run(scratch, "check", 1)
                 (scratch / manifest_name).write_text(manifest_text, encoding="utf-8")
@@ -75,6 +77,7 @@ def main():
         scratch = Path(directory)
         (scratch / manifest_name).write_text(r"""ignore_paths:
   - "CHANGELOG.md"
+  - "history/**"
 facts:
   - name: example-price
     type: currency
@@ -88,14 +91,21 @@ facts:
         for name in ("current.md", "guide.md"):
             (scratch / name).write_text("Price: $100\n", encoding="utf-8")
         (scratch / "CHANGELOG.md").write_text("Historical price: $50\nOld price: $50\n", encoding="utf-8")
+        (scratch / "history/nested").mkdir(parents=True)
+        (scratch / "history/nested/old.md").write_text("Price: $50\n", encoding="utf-8")
+        (scratch / "history/other.md").write_text("Price: $50\n", encoding="utf-8")
         run(scratch)
         clean = run(scratch, "discover", 0, "--untracked-only", "--github-annotations")
         if "::warning" in clean:
             raise AssertionError(f"Tracked or historical values generated warnings: {clean}")
         (scratch / "new-page.md").write_text("Price: $100\n", encoding="utf-8")
+        (scratch / "history-current.md").write_text("Price: $100\n", encoding="utf-8")
         run(scratch)
         warning = run(scratch, "discover", 0, "--untracked-only", "--github-annotations")
-        if "::warning file=new-page.md" not in warning or "::warning file=CHANGELOG.md" in warning:
+        if ("::warning file=new-page.md" not in warning
+                or "::warning file=history-current.md" not in warning
+                or "::warning file=CHANGELOG.md" in warning
+                or "::warning file=history/" in warning):
             raise AssertionError(f"Expected only the unregistered current copy warning: {warning}")
     print(f"SSOT controls passed: {tested} real copy locators; drift, restore, missing copy/manifest, invalid manifest, exclusion, advisory discovery.")
 

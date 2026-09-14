@@ -114,6 +114,12 @@ export function prosemirrorToMarkdown(source: string): MarkdownExport {
     if (kind(value) === "hard_break") {
       check(value, at);
       if (value.content !== undefined || value.marks !== undefined) report(at, value.type, "Break children/marks are retained only in original source.");
+      // Markdown has no hard break at the start or end of a paragraph; it would reimport as a literal backslash.
+      const visible = (sibling: unknown) => node(sibling) && kind(sibling) !== "hard_break" && !(kind(sibling) === "text" && sibling.text === "");
+      if (!values.slice(0, index).some(visible) || !values.slice(index + 1).some(visible)) {
+        report(at, value.type, "A hard break at the start or end of a paragraph has no Markdown representation; omitted, original retained.");
+        return [];
+      }
       return [{ type: "break" }];
     }
     if (value.type === "footnoteAnchor") {

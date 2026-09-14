@@ -136,6 +136,20 @@ describe("loss-aware reverse Markdown conversion", () => {
     expect(restored.document).toEqual(fixture.document);
     expect(restored.unsupported_nodes).toEqual([]);
   });
+  it.each([
+    ["trailing", [text("One"), { type: "hard_break" }]],
+    ["leading", [{ type: "hard_break" }, text("One")]],
+    ["trailing in a footnote", null],
+  ])("reports and omits a %s hard break instead of exporting a literal backslash", (_name, inlineContent) => {
+    const content = inlineContent ? [paragraph(...inlineContent)]
+      : [paragraph({ type: "footnoteAnchor", attrs: { number: 1 } }), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("One"), { type: "hard_break" })] }];
+    const result = reverse(content);
+    expect(result.status).toBe("partial");
+    expect(result.unsupported_nodes).toContainEqual(expect.objectContaining({ type: "hard_break" }));
+    expect(result.markdown).not.toContain("\\\n");
+    expect(JSON.stringify(convertMarkdown(result.markdown!).document)).not.toContain("One\\\\");
+    expect(reverse([paragraph(text("One"), { type: "hard_break" }, text("Two"))]).status).toBe("converted");
+  });
   it("round-trips a footnote attached to text before an image without diagnostics", () => {
     const imported = convertMarkdown("A[^1] ![img](https://example.com/a.png) B\n\n[^1]: One").document;
     const exported = prosemirrorToMarkdown(JSON.stringify(imported));

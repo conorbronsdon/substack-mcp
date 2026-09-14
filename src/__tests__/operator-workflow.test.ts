@@ -35,7 +35,7 @@ describe("operator draft workflow commands", () => {
 
   it("stops unsupported Markdown before any request", async () => {
     const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
-    const path = file("footnote.md", ["A claim.[^1]", "", "[^1]: A source."].join("\n"));
+    const path = file("table.md", ["| A | B |", "|---|---|", "| x | y |"].join("\n"));
     const output = io();
     expect(await runOperator(["drafts", "create", path, "--title", "T"], () => [credentials], output)).toBe(1);
     expect(fetch).not.toHaveBeenCalled(); expect(output.out).not.toHaveBeenCalled();
@@ -59,7 +59,7 @@ describe("operator draft workflow commands", () => {
   it("writes literal fallbacks only when unsupported Markdown is explicitly allowed", async () => {
     const fetch = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => Response.json({ id: 78, draft_title: "T" }));
     vi.stubGlobal("fetch", fetch);
-    const path = file("allowed.md", ["A claim.[^1]", "", "[^1]: A source."].join("\n"));
+    const path = file("allowed.md", ["| A | B |", "|---|---|", "| x | y |"].join("\n"));
     const output = io();
     expect(await runOperator(["drafts", "create", path, "--title", "T", "--allow-unsupported"], () => [credentials], output)).toBe(0);
     expect(fetch).toHaveBeenCalledTimes(1);

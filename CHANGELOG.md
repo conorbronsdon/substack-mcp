@@ -8,6 +8,14 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+### Added
+- Native footnotes in long-form drafts (#104). A GFM reference `[^id]` in a top-level paragraph
+  becomes a `footnoteAnchor`, and its one-paragraph definition becomes a `footnote` block directly
+  after that paragraph. Numbers follow reference order, matching a structure captured from the
+  Substack editor. Repeated, nested, formatted and multi-paragraph forms keep their Markdown with
+  diagnostics. Draft export maps footnotes back and reports any layout that would not round-trip.
+  Notes still reject footnotes.
+
 ## [1.1.1] - 2026-09-14
 
 ### Fixed

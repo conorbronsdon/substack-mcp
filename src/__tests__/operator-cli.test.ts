@@ -93,7 +93,9 @@ describe("operator read commands", () => {
     const output = io(); expect(await runOperator(["drafts", "get", "42"], () => [credentials], output)).toBe(1);
     expect(output.out).not.toHaveBeenCalled();
     // A body this large trips the MCP result cap before the CLI's own output cap.
-    expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ code: "read_failed", category: "response_too_large", upstream_code: "result_too_large" });
+    expect(JSON.parse(output.error.mock.calls[0][0])).toEqual({ format_version: 1, ok: false, command: "drafts get", code: "read_failed", category: "response_too_large",
+      upstream_code: "result_too_large", message: expect.stringMatching(/No writes were attempted\.$/) });
+    expect(output.error.mock.calls[0][0]).not.toContain("xxxxxxxx");
   });
 });
 
@@ -103,7 +105,8 @@ describe("operator failure categories", () => {
     const output = io(); const exit = await runOperator(args, () => [credentials], output);
     expect(exit).toBe(1); expect(output.out).not.toHaveBeenCalled(); expect(output.error).toHaveBeenCalledTimes(1);
     const line = output.error.mock.calls[0][0] as string;
-    expect(line).not.toContain(credentials.sessionToken);
+    expect(line).not.toContain(credentials.sessionToken); expect(line).not.toContain("private-body-marker");
+    expect(Object.keys(JSON.parse(line)).every(key => ["format_version", "ok", "command", "code", "category", "upstream_code", "status", "status_source", "retry_after", "message"].includes(key))).toBe(true);
     return JSON.parse(line);
   };
 
@@ -115,19 +118,19 @@ describe("operator failure categories", () => {
     expect(JSON.stringify(result)).not.toContain("private-body-marker");
   });
   it("retains a valid Retry-After and drops an invalid one", async () => {
-    expect(await read(() => new Response(null, { status: 429, headers: { "retry-after": "120" } }))).toMatchObject({ category: "rate_limited", status: 429, retry_after: "120" });
-    const invalid = await read(() => new Response(null, { status: 429, headers: { "retry-after": "soon" } }));
+    expect(await read(() => new Response("private-body-marker", { status: 429, headers: { "retry-after": "120" } }))).toMatchObject({ category: "rate_limited", status: 429, retry_after: "120" });
+    const invalid = await read(() => new Response("private-body-marker", { status: 429, headers: { "retry-after": "soon" } }));
     expect(invalid.category).toBe("rate_limited"); expect(invalid).not.toHaveProperty("retry_after");
   });
   it("distinguishes not found, invalid requests and server errors", async () => {
-    expect((await read(() => new Response("{}", { status: 404 }))).category).toBe("not_found");
-    expect((await read(() => new Response("{}", { status: 400 }))).category).toBe("invalid_request");
-    expect((await read(() => new Response("{}", { status: 503 }))).category).toBe("upstream_unavailable");
+    expect((await read(() => Response.json({ error: "private-body-marker" }, { status: 404 }))).category).toBe("not_found");
+    expect((await read(() => Response.json({ error: "private-body-marker" }, { status: 400 }))).category).toBe("invalid_request");
+    expect((await read(() => new Response("private-body-marker", { status: 503 }))).category).toBe("upstream_unavailable");
   });
   it("classifies client-side response failures by code, not their synthetic 502 status", async () => {
-    const html = await read(() => new Response("<html>sign in</html>", { status: 200, headers: { "content-type": "text/html" } }));
+    const html = await read(() => new Response("<html>private-body-marker</html>", { status: 200, headers: { "content-type": "text/html" } }));
     expect(html).toMatchObject({ category: "response_invalid", upstream_code: "unexpected_html", status: 502, status_source: "client" });
-    expect((await read(() => new Response("not json", { status: 200 }))).upstream_code).toBe("malformed_json");
+    expect((await read(() => new Response("private-body-marker", { status: 200 }))).upstream_code).toBe("malformed_json");
     expect((await read(() => new Response(null, { status: 302, headers: { location: "https://elsewhere.example/" } }))).category).toBe("response_invalid");
   });
   it("classifies deadline failures as timeouts", async () => {

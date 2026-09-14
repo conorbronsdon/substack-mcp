@@ -9,6 +9,7 @@ analytics or crash reporting.
 | Destination | When | What is sent |
 | --- | --- | --- |
 | The Substack publication you configure | MCP tool calls, and CLI commands that read or write Substack data (`status`, `--help` and other local commands make no request) | Your Substack session cookie and the request needed for that operation: reading posts, drafts, statistics or subscribers; creating or updating drafts; uploading images; publishing Notes; adding consented free subscribers |
+| The public page of your publication, and any host it redirects to | The subscriber-count read, when Substack's API does not return a count | A plain HTTPS request with no cookie or credential. Up to 3 HTTPS redirects are followed, including to other hosts |
 | `substack.com` | `substack-mcp login` only | You sign in through a local browser window; the resulting session cookie for your publication is saved locally |
 | The image host you name, and any host it redirects to | `upload_image` with `image_url` only | A plain HTTPS download request, with no Substack cookie or credential. Up to 3 HTTPS redirects are followed, including to other hosts; private and reserved network addresses are refused. The image is then uploaded to Substack's CDN, where anyone with the returned link can fetch it |
 
@@ -28,7 +29,11 @@ governed by Substack's terms and privacy policy.
   from your OS account and machine; see [SECURITY.md](SECURITY.md) for its limits.
   Credentials supplied through environment variables are read at startup and are
   not written to disk.
-- **Files you ask for.** `export` writes the output paths you specify.
+- **Files you ask for.** `export` writes the output path you specify. Markdown
+  export also writes `<path>.source.json` beside it, containing the complete
+  export bundle including the original draft body. Each file is written through a
+  temporary file in the same directory; if cleanup fails, the CLI reports it and
+  the temporary copy can remain.
 - **Logs and errors.** Session tokens and cookies are not printed. Error output
   can include messages returned by Substack or by the network layer (for example
   when authentication fails at startup or an export fails), so review error output
@@ -47,9 +52,10 @@ These are off unless you set them up:
   own Cloudflare account. It sends your Google OAuth client credentials and
   refresh token to Google's token endpoint (`oauth2.googleapis.com`), reads booking
   emails and can send report emails through the Gmail API (`gmail.googleapis.com`),
-  and calls your Substack publication. It stores its consent ledger and run history
-  in the Worker's Durable Object storage and keeps your credentials as Cloudflare
-  secrets. See [docs/cloud-calendar-sync.md](docs/cloud-calendar-sync.md).
+  and calls your Substack publication. Its Durable Object storage holds the consent
+  ledger, run history, enabled and initialization state, and report delivery
+  records (attempt times, status and the Gmail message ID of sent reports). Your
+  credentials are kept as Cloudflare secrets. See [docs/cloud-calendar-sync.md](docs/cloud-calendar-sync.md).
 - **HTTP transport** (`MCP_TRANSPORT=http`) listens on the address you choose and
   acts with your Substack session for requests it accepts. By default it accepts
   only loopback `Host` and `Origin` values; set `MCP_HTTP_TOKEN` to require a bearer

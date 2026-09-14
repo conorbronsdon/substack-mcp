@@ -8,7 +8,11 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-14
+
 ### Added
+- CLI `analytics rank` runs `rank_posts` with `--metric`, `--direction`, `--offset` and `--limit`
+  (1–20), validated before any credentials are loaded.
 - `rank_posts` (#101) ranks posts by one metric from Substack's dashboard email statistics: views,
   opened, sent, open_rate, click_through_rate, signups, subscribes, estimated_value or post_date, in
   either direction. It makes one read of up to 20 rows, Substack's page limit, and reports total and
@@ -39,6 +43,14 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   unknown rather than absent. Not-found
   results add `scanned` and `feed_capped` (the feed's `isCapped` flag, uninterpreted), and found
   posts add `stats_available`. Existing fields are unchanged.
+
+### Fixed
+- Draft export no longer marks every editor-created draft `partial`: the editor's default
+  `textAlign: null` on paragraphs and headings is lossless. Other alignments and attributes are
+  still reported.
+- Draft export no longer writes a literal backslash for a hard break at the start or end of a
+  paragraph, which reimported as text. The break is omitted, the export is marked `partial`, and
+  the original remains in `source_prosemirror`.
 
 ## [1.1.1] - 2026-09-14
 

@@ -36,6 +36,9 @@ describe("operator read commands", () => {
     ["drafts", "list", "--offset", "-1"], ["drafts", "list", "--offset", "9007199254740942"], ["drafts", "list", "--json", "--json"],
     ["subscribers", "get", "bad-email"], ["subscribers", "add", "reader@example.com"],
     ["analytics", "post", "1", "--publish"],
+    ["analytics", "rank", "--limit", "21"], ["analytics", "rank", "--limit", "0"], ["analytics", "rank", "--offset", "-1"],
+    ["analytics", "rank", "--metric", "likes"], ["analytics", "rank", "--metric", "not_a_field"], ["analytics", "rank", "--direction", "sideways"],
+    ["analytics", "rank", "--section", "1"], ["analytics", "rank", "extra"], ["analytics", "rank", "--metric", "views", "--metric", "sent"],
   ])("rejects invalid arguments without resolving credentials: %j", async (...args) => {
     const output = io(), load = vi.fn();
     expect(await runOperator(args, load, output)).toBe(2);
@@ -46,6 +49,32 @@ describe("operator read commands", () => {
     const output = io(), load = vi.fn();
     expect(await runOperator(["analytics", "--help"], load, output)).toBe(0);
     expect(load).not.toHaveBeenCalled(); expect(output.out.mock.calls[0][0]).toContain("subscribers count");
+    expect(output.out.mock.calls[0][0]).toContain("analytics rank [--metric");
+  });
+  it("ranks one bounded statistics page through the shared rank_posts handler", async () => {
+    const row = { post_id: 7, title: "Post", post_date: "2026-09-01T12:00:00.000Z", type: "newsletter", views: 10, sent: 5, delivered: 5, opened: 2, open_rate: null, clicked: 0, click_through_rate: null, signups: 1, subscribes: 1, unsubscribes: 0, estimated_value: 0, likes: 0, comments: 0, restacks: 0, bylines: "private-byline" };
+    const fetch = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => Response.json({ rows: [row], total: 1 }));
+    vi.stubGlobal("fetch", fetch);
+    const output = io();
+    expect(await runOperator(["analytics", "rank", "--metric", "open_rate", "--direction", "asc", "--limit", "5"], () => [credentials], output)).toBe(0);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const url = new URL(String(fetch.mock.calls[0][0]));
+    expect(url.pathname).toBe("/api/v1/publication/stats/email_stats");
+    expect(Object.fromEntries(url.searchParams)).toEqual({ order_by: "open_rate", order_direction: "asc", limit: "5", offset: "0" });
+    expect(fetch.mock.calls[0][1]?.method ?? "GET").toBe("GET");
+    const result = JSON.parse(output.out.mock.calls[0][0]);
+    expect(result).toMatchObject({ format_version: 1, ok: true, command: "analytics rank", publication: "example",
+      data: { metric: "open_rate", direction: "asc", returned: 1, total: 1, rows: [{ rank: 1, post_id: 7, value: null, value_state: "null" }] } });
+    expect(output.out.mock.calls[0][0]).not.toContain("private-byline");
+  });
+  it("reports unavailable statistics as a failed read, not an empty ranking", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "private-detail" }), { status: 403, headers: { "content-type": "application/json" } })));
+    const output = io();
+    expect(await runOperator(["analytics", "rank"], () => [credentials], output)).toBe(1);
+    expect(output.out).not.toHaveBeenCalled();
+    const error = JSON.parse(output.error.mock.calls[0][0]);
+    expect(error).toMatchObject({ format_version: 1, ok: false, command: "analytics rank", code: "read_failed", upstream_code: "analytics_unavailable", status: 403 });
+    expect(output.error.mock.calls[0][0]).not.toContain("private-detail");
   });
   it("requires an explicit existing selector for multiple publications", async () => {
     const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);

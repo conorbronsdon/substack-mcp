@@ -442,7 +442,8 @@ lists with starting numbers, code, blockquotes, rules and hard breaks. A standal
 Unsupported content returns `unsupported_nodes` before a write. After reviewing
 those diagnostics, draft callers can explicitly set `allow_unsupported: true`
 to retain literal fallbacks. Tables remain Markdown inside code blocks; native
-tables, footnotes, callouts and arbitrary embeds are not advertised as supported.
+tables, callouts and arbitrary embeds are not advertised as supported. Footnotes
+in top-level paragraphs map to the editor's native footnotes in long-form drafts.
 Notes reject unsupported conversion before either publication or attachment
 creation and have no fallback override.
 

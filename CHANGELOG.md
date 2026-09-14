@@ -9,6 +9,12 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
+- Native footnotes in long-form drafts (#104). A GFM reference `[^id]` in a top-level paragraph
+  becomes a `footnoteAnchor`, and its one-paragraph definition becomes a `footnote` block directly
+  after that paragraph. Numbers follow reference order, matching a structure captured from the
+  Substack editor. Repeated, nested, formatted and multi-paragraph forms keep their Markdown with
+  diagnostics. Draft export maps footnotes back and reports any layout that would not round-trip.
+  Notes still reject footnotes.
 - `upload_image` accepts `image_url` (#55). The server downloads a PNG, JPEG, GIF, WebP or AVIF image
   over HTTPS, without Substack cookies, and uploads it through the existing path. Destinations are
   checked at connection time and after every redirect, so loopback, private, link-local, metadata and

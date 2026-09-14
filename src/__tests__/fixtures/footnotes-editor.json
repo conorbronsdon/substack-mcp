@@ -1,0 +1,20 @@
+{
+  "description": "Synthetic text. Structure captured from the Substack editor on 2026-09-14 after inserting a footnote before an existing one; paragraph textAlign attrs omitted.",
+  "markdown": "Earlier synthetic claim [^a]Synthetic footnote test sentence[^b]\n\n[^a]: Earlier synthetic definition\n\n[^b]: Synthetic footnote definition text\n",
+  "document": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "Earlier synthetic claim " },
+          { "type": "footnoteAnchor", "attrs": { "number": 1 } },
+          { "type": "text", "text": "Synthetic footnote test sentence" },
+          { "type": "footnoteAnchor", "attrs": { "number": 2 } }
+        ]
+      },
+      { "type": "footnote", "attrs": { "number": 1 }, "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Earlier synthetic definition" }] }] },
+      { "type": "footnote", "attrs": { "number": 2 }, "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Synthetic footnote definition text" }] }] }
+    ]
+  }
+}

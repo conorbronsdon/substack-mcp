@@ -1,5 +1,7 @@
 # Security
 
+For what data the server sends and stores, see [PRIVACY.md](PRIVACY.md).
+
 This server holds a live session credential, so it deserves more care than a read-only API client.
 
 `SUBSTACK_SESSION_TOKEN` is your `connect.sid` cookie. Anyone holding it can act as you on Substack for as long as it stays valid, which is roughly 90 days. It is read from the environment and never logged. The browser-login flow stores a session under `~/.substack-mcp/session.json` encrypted with a key derived from your OS account and hostname, so the file does not decrypt on another machine. If you think a token has leaked, log out of Substack to invalidate the session and mint a new one.

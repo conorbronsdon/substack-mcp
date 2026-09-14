@@ -29,7 +29,7 @@ const expectedTools = [
 ].sort();
 
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
-  'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/authoring.md', 'docs/export.md', 'docs/draft-changes.md',
+  'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/authoring.md', 'docs/export.md', 'docs/analytics-rankings.md', 'docs/remote-images.md', 'docs/draft-changes.md',
   'docs/workflow.md', 'docs/tool-contract.md', 'docs/plugins.md', 'docs/containers.md',
   'docs/compatibility.md', 'docs/release-checklist.md', 'docs/distribution.md', 'docs/typescript-api.md', 'docs/operator-cli.md', 'docs/http-transport.md', 'docs/errors.md', 'dist/index.js', 'dist/login.js'];
 let transport;

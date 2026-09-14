@@ -276,6 +276,29 @@ describe("upload_image with image_url through MCP", () => {
     });
   });
 
+  it("uploads a local image_path through MCP without fetching remotely", async () => {
+    const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = await mkdtemp(join(tmpdir(), "substack-image-path-"));
+    try {
+      const path = join(dir, "local.png");
+      await writeFile(path, PNG);
+      const fetchRemote = vi.fn();
+      await withMcp({ fetchRemoteImage: fetchRemote }, async (mcp, api) => {
+        const upload = vi.spyOn(api, "uploadImage").mockResolvedValue({ url: "https://substackcdn.com/image/local.png" } as never);
+        const result = await mcp.callTool({ name: "upload_image", arguments: { image_path: path } });
+        expect(result.isError).toBeFalsy();
+        expect(body(result)).toEqual({ image_url: "https://substackcdn.com/image/local.png" });
+        expect(upload).toHaveBeenCalledExactlyOnceWith(`data:image/png;base64,${PNG.toString("base64")}`);
+        expect(fetchRemote).not.toHaveBeenCalled();
+        const missing = await mcp.callTool({ name: "upload_image", arguments: { image_path: join(dir, "missing.png") } });
+        expect(missing.isError).toBe(true);
+        expect(upload).toHaveBeenCalledTimes(1);
+      });
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+
   it("keeps the public-CDN side effect in the tool description", async () => {
     await withMcp({}, async mcp => {
       const tool = (await mcp.listTools()).tools.find(t => t.name === "upload_image")!;

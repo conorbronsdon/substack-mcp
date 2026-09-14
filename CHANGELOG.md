@@ -8,6 +8,8 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-14
+
 ### Added
 - CLI `analytics rank` runs `rank_posts` with `--metric`, `--direction`, `--offset` and `--limit`
   (1–20), validated before any credentials are loaded.
@@ -41,6 +43,11 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   unknown rather than absent. Not-found
   results add `scanned` and `feed_capped` (the feed's `isCapped` flag, uninterpreted), and found
   posts add `stats_available`. Existing fields are unchanged.
+
+### Fixed
+- Draft export no longer marks every editor-created draft `partial`: the editor's default
+  `textAlign: null` on paragraphs and headings is lossless. Other alignments and attributes are
+  still reported.
 
 ## [1.1.1] - 2026-09-14
 

@@ -8,7 +8,7 @@
       "name": "substack-mcp",
       "source": "./",
       "description": "Safe creator operations for Substack: rich drafts, Notes, analytics, and consented subscribers. Long-form posts stay draft-only; Notes publish immediately.",
-      "version": "1.1.1"
+      "version": "1.2.0"
     }
   ],
   "description": "Safe Substack creator tools for drafts, Notes, analytics, and consented subscribers, maintained with the server."

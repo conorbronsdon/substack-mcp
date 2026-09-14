@@ -76,6 +76,7 @@ const drafts = await substack.callTool("list_drafts", { offset: 0, limit: 10 });
 Prepare a private draft after inspecting conversion losses, then check it:
 
 ```ts
+import { readFile } from "node:fs/promises";
 import { convertMarkdown, createToolClient } from "@conorbronsdon/substack-mcp/api";
 
 const markdown = await readFile("post.md", "utf8");

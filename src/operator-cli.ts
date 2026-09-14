@@ -206,17 +206,11 @@ export async function runOperator(args: string[], load = resolvePublications,
       io.error(JSON.stringify({ format_version: 1, ok: false, command, code: "publication_required", message: "Select a configured --publication key; required when multiple publications are configured." })); return 2;
     }
     const userAgent = process.env.SUBSTACK_USER_AGENT;
-<<<<<<< HEAD
     // Headers normalizes the value; fetch then rejects control characters that Headers accepts.
     // Checking both here reports configuration instead of an unknown failure inside the request.
     if (userAgent) validateHeaderValue("user-agent", new Headers({ "user-agent": userAgent }).get("user-agent") ?? "");
-    server = createServer([{ key: selected.key, label: selected.label, client: new SubstackClient(selected.publicationUrl, selected.sessionToken, selected.userId, userAgent, Number(process.env.SUBSTACK_REQUEST_TIMEOUT_MS) || undefined) }]);
-=======
-    // An invalid header value would otherwise fail later, inside a request, as an unknown error.
-    if (userAgent) new Headers({ "user-agent": userAgent });
     const substack = new SubstackClient(selected.publicationUrl, selected.sessionToken, selected.userId, userAgent, Number(process.env.SUBSTACK_REQUEST_TIMEOUT_MS) || undefined);
     server = createServer([{ key: selected.key, label: selected.label, client: substack }]);
->>>>>>> cdd6fb6 (feat(cli): add Markdown draft creation, archive search and preflight)
     configured = true;
     const [ct, st] = InMemoryTransport.createLinkedPair();
     await Promise.all([client.connect(ct), server.connect(st)]);

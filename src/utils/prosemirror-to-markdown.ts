@@ -22,6 +22,8 @@ const kind = (n: Node) => Object.hasOwn(aliases, n.type) ? aliases[n.type] : n.t
 const children = (n: Node): unknown[] => Array.isArray(n.content) ? n.content : [];
 const attrs = (n: Node): Record<string, unknown> => object(n.attrs) ? n.attrs : {};
 const literal = (value: string): PhrasingContent => ({ type: "text", value });
+// The editor stores textAlign: null (default alignment) on paragraphs and headings; only that value maps losslessly.
+const defaultAlignment = (a: Record<string, unknown>): string[] => Object.hasOwn(a, "textAlign") && a.textAlign === null ? ["textAlign"] : [];
 const safeUrl = (value: unknown, image = false): value is string => {
   if (typeof value !== "string" || /[\u0000-\u0020\u007f]/.test(value)) return false;
   try {
@@ -175,11 +177,11 @@ export function prosemirrorToMarkdown(source: string): MarkdownExport {
     if (Array.isArray(value.marks) && value.marks.length) report(at + "/marks", value.type, "Block marks are retained only in source_prosemirror.");
     switch (type) {
       case "paragraph":
-        check(value, at);
+        check(value, at, defaultAlignment(a));
         if (!content.length) report(at, type, "An empty paragraph has no distinct Markdown representation.");
         return [{ type: "paragraph", children: inline(content, at + "/content") }];
       case "heading":
-        check(value, at, ["level"]);
+        check(value, at, ["level", ...defaultAlignment(a)]);
         if (![1, 2, 3, 4, 5, 6].includes(Number(a.level)) || typeof a.level !== "number") return placeholder(at, type, "Invalid heading level retained in original source.");
         return [{ type: "heading", depth: a.level as 1 | 2 | 3 | 4 | 5 | 6, children: inline(content, at + "/content") }];
       case "blockquote":

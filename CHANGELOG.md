@@ -48,6 +48,9 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 - Draft export no longer marks every editor-created draft `partial`: the editor's default
   `textAlign: null` on paragraphs and headings is lossless. Other alignments and attributes are
   still reported.
+- Draft export no longer writes a literal backslash for a hard break at the start or end of a
+  paragraph, which reimported as text. The break is omitted, the export is marked `partial`, and
+  the original remains in `source_prosemirror`.
 
 ## [1.1.1] - 2026-09-14
 

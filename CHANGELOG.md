@@ -8,6 +8,8 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-14
+
 ### Added
 - SSOT CI checks for the documented Node minimum, advisory discovery, and
   mutation controls for registered drift and intentional exclusions.
@@ -23,6 +25,21 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   bounded UTF-8 file, writes one unpublished draft, returns its editor link and
   stops before any request on unsupported Markdown; ambiguous failures report
   `write_unverified`. No publish, schedule or delete commands were added.
+- Container releases are attested by immutable manifest digest, with recovery that
+  can verify but never mint provenance for an existing image.
+- HOL plugin security scan in CI.
+
+### Changed
+- README leads with installation, a bounded authenticated read and the draft review
+  workflow before the tool reference, with a compact contents line. Operator
+  diagnostics, the HTTP listener policy, typed errors and tool annotations moved to
+  `docs/operator-cli.md`, `docs/http-transport.md`, `docs/errors.md` and
+  `docs/tool-contract.md`; existing README anchors still resolve.
+- npm keywords describe the CLI and creator workflows.
+- The distribution inventory records verified directory identities, versions,
+  setup wording and correction routes as of September 14.
+- A supported TypeScript library API was evaluated and deferred; see
+  `docs/typescript-api.md`.
 
 ## [1.0.0] - 2026-09-08
 

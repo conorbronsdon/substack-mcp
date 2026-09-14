@@ -68,8 +68,8 @@ sent. Replace the version with the current npm release when submitting.
 > - Requirements: the Node.js version in the package's `engines` field
 > - License: MIT
 
-For LobeHub, additionally ask for the version and setup instructions to be
-refreshed from the current README.
+For LobeHub, send the text above and ask for the listed version and setup
+instructions to be refreshed from the current README.
 
 ## Launch measurement
 

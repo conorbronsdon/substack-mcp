@@ -906,6 +906,7 @@ exports[`stable output contracts > classifies any public schema drift as potenti
           "enum": [
             "archive_exhausted",
             "scan_bound_reached",
+            "feed_incomplete",
           ],
           "type": "string",
         },
@@ -4022,6 +4023,7 @@ exports[`stable output contracts > classifies any public schema drift as potenti
           "enum": [
             "archive_exhausted",
             "scan_bound_reached",
+            "feed_incomplete",
           ],
           "type": "string",
         },

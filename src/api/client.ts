@@ -57,7 +57,7 @@ export const ANALYTICS_SCAN_DEPTH = MAX_PAGE_SIZE * ANALYTICS_MAX_PAGES;
 /** Outcome of searching the published feed for one post's analytics. */
 export interface PostAnalyticsSearch {
   post: SubstackPost | null;
-  outcome: "found" | "archive_exhausted" | "scan_bound_reached";
+  outcome: "found" | "archive_exhausted" | "scan_bound_reached" | "feed_incomplete";
   /** Published posts examined before stopping. */
   scanned: number;
   /** The feed's `isCapped` flag from the last page read, uninterpreted; null when absent. */
@@ -273,12 +273,13 @@ export class SubstackClient {
   async getPublishedPosts(
     offset = 0,
     limit = 25,
-  ): Promise<{ posts: SubstackPost[]; total: number; capped: boolean | null }> {
+  ): Promise<{ posts: SubstackPost[]; total: number; reported_total: number | null; capped: boolean | null }> {
     const data = await this.request<{ posts: SubstackPost[]; total: number; offset: number; limit: number; isCapped?: unknown }>(
       `${this.publicationUrl}/api/v1/post_management/published?offset=${offset}&limit=${limit}&order_by=post_date&order_direction=desc`,
     );
     // isCapped is passed through uninterpreted; its meaning is not documented.
-    return { posts: data.posts || [], total: data.total || 0, capped: typeof data.isCapped === "boolean" ? data.isCapped : null };
+    const reported_total = typeof data.total === "number" && Number.isSafeInteger(data.total) && data.total >= 0 ? data.total : null;
+    return { posts: data.posts || [], total: data.total || 0, reported_total, capped: typeof data.isCapped === "boolean" ? data.isCapped : null };
   }
 
   async getDrafts(offset = 0, limit = 25): Promise<SubstackDraft[]> {
@@ -420,23 +421,33 @@ export class SubstackClient {
    * ANALYTICS_SCAN_DEPTH most recent published posts, awaited one page at a
    * time. A found post short-circuits.
    *
-   * `archive_exhausted` means a short page ended the feed, so every published
-   * post was searched. `scan_bound_reached` means the bound was hit first: an
-   * older post may exist, and its analytics are unknown here, not absent.
+   * Outcomes use the feed's reported `total` when Substack sends one:
+   * - `archive_exhausted`: every published post was searched (a short final
+   *   page with no contradicting total, or the scan reached the reported total).
+   * - `scan_bound_reached`: the bound was hit before the end; an older post may
+   *   exist, and its analytics are unknown here, not absent.
+   * - `feed_incomplete`: the feed returned a short page while its total says
+   *   more posts remain, so the search cannot claim the post is absent.
    */
   async findPostAnalytics(postId: number): Promise<PostAnalyticsSearch> {
     const pageSize = MAX_PAGE_SIZE;
     let scanned = 0;
     let feed_capped: boolean | null = null;
+    let total: number | null = null;
     for (let page = 0; page < ANALYTICS_MAX_PAGES; page++) {
-      const { posts, capped } = await this.getPublishedPosts(page * pageSize, pageSize);
+      const { posts, reported_total, capped } = await this.getPublishedPosts(page * pageSize, pageSize);
       feed_capped = capped;
+      total = reported_total;
       scanned += posts.length;
       const found = posts.find((p) => p.id === postId);
       if (found) return { post: found, outcome: "found", scanned, feed_capped };
-      if (posts.length < pageSize) return { post: null, outcome: "archive_exhausted", scanned, feed_capped };
+      if (posts.length < pageSize) {
+        const outcome = total !== null && scanned < total ? "feed_incomplete" : "archive_exhausted";
+        return { post: null, outcome, scanned, feed_capped };
+      }
     }
-    return { post: null, outcome: "scan_bound_reached", scanned, feed_capped };
+    const outcome = total !== null && scanned >= total ? "archive_exhausted" : "scan_bound_reached";
+    return { post: null, outcome, scanned, feed_capped };
   }
 
   async createNote(

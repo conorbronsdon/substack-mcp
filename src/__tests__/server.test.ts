@@ -129,6 +129,15 @@ describe("tool pagination limits (regression: #28)", () => {
     expect(missing.note).toContain("unknown here, not absent");
   });
 
+  it("get_post_analytics reports an incomplete feed instead of claiming the archive was searched", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ posts: [{ id: 1, title: "Only", stats: { views: 1 } }], total: 100 }))));
+    const client = await connect();
+    const payload = JSON.parse(((await client.callTool({ name: "get_post_analytics", arguments: { post_id: 999 } })).content as any[])[0].text);
+    expect(payload).toMatchObject({ found: false, search_result: "feed_incomplete", scanned: 1 });
+    expect(payload.note).toContain("search is incomplete");
+    expect(payload.note).not.toContain("were searched");
+  });
+
   it("get_post_analytics marks a found post without statistics", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ posts: [{ id: 7, title: "No stats" }, { id: 8, title: "Stats", stats: { views: 3 } }], total: 2 }))));
     const client = await connect();

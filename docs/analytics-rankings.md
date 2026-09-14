@@ -69,12 +69,13 @@ a date; its timezone is whatever the string states.
 
 `get_post_analytics` reads a single post's statistics from the published feed,
 searching the 500 most recent published posts. When the post is not found,
-`search_result` says why:
+`search_result` says why, using the feed's reported total when Substack sends one:
 
 | `search_result` | Meaning |
 | --- | --- |
 | `archive_exhausted` | The feed ended first, so every published post was searched |
 | `scan_bound_reached` | The 500-post bound was reached first. An older post may exist; its statistics are unknown here, not absent |
+| `feed_incomplete` | The feed returned fewer posts than its reported total, so the search cannot rule the post out; its statistics are unknown here |
 
 `scanned` is the number of posts examined. `feed_capped` passes through the
 feed's `isCapped` flag, uninterpreted, or `null` when Substack omits it. A found

@@ -313,6 +313,31 @@ describe("pagination limit cap (regression: #28)", () => {
     expect((await client.findPostAnalytics(2)).feed_capped).toBeNull();
   });
 
+  it("findPostAnalytics classifies the search with the feed's reported total", async () => {
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const feed = (pages: (offset: number) => { posts: unknown[]; total?: unknown }) => vi.stubGlobal("fetch", vi.fn(async (url: any) =>
+      new Response(JSON.stringify(pages(Number(new URL(String(url)).searchParams.get("offset") ?? 0))))));
+    const posts = (offset: number, count: number) => Array.from({ length: count }, (_, i) => ({ id: offset + i + 1, title: "Post" }));
+
+    // A short page while total says 80 more remain: never claim the archive was searched.
+    feed(offset => ({ posts: posts(offset, 20), total: 100 }));
+    expect(await client.findPostAnalytics(999)).toMatchObject({ post: null, outcome: "feed_incomplete", scanned: 20 });
+
+    // Exactly ANALYTICS_SCAN_DEPTH posts: ten full pages reach the reported total, so every post was searched.
+    stubPagedFeed(ANALYTICS_SCAN_DEPTH);
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "archive_exhausted", scanned: ANALYTICS_SCAN_DEPTH });
+    stubPagedFeed(ANALYTICS_SCAN_DEPTH + 1);
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "scan_bound_reached", scanned: ANALYTICS_SCAN_DEPTH });
+
+    // Without a reported total: a short page ends the feed, and full pages cannot prove exhaustion.
+    feed(offset => ({ posts: posts(offset, 7) }));
+    expect(await client.findPostAnalytics(999)).toMatchObject({ outcome: "archive_exhausted", scanned: 7 });
+    feed(offset => ({ posts: posts(offset, MAX_PAGE_SIZE) }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "scan_bound_reached", scanned: ANALYTICS_SCAN_DEPTH });
+    feed(offset => ({ posts: posts(offset, MAX_PAGE_SIZE), total: "500" }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "scan_bound_reached" });
+  });
+
   it("getPostAnalytics stops as soon as the post is found", async () => {
     const fetchMock = stubPagedFeed(10_000);
     const client = new SubstackClient("https://example.substack.com", "tok", "1");

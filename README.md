@@ -16,7 +16,7 @@ Create and manage your Substack newsletter from your AI assistant or terminal. P
 
 ---
 
-![Create, search, export, plan and review a draft with substack-mcp](https://raw.githubusercontent.com/conorbronsdon/substack-mcp/5de671a10336ed8aef69cac271b67b9ea6055690/docs/workflow-demo.gif)
+![Create, search, export, plan and review a draft with substack-mcp](https://raw.githubusercontent.com/conorbronsdon/substack-mcp/03538c21a3a4b4e4d7e3db7ed61b625db453e31a/docs/workflow-demo.gif)
 
 The demo runs actual MCP handlers against offline sample data. No live API calls or publication occur. Follow the [draft workflow](docs/workflow.md) to create, find, export and review a post.
 

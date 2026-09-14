@@ -16,6 +16,11 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   cancellation, output limit, configuration or unknown) with validated
   `upstream_code`, `status`, `status_source` and `retry_after` when available.
   `code: "read_failed"`, exit codes and successful output are unchanged.
+- CLI `drafts create <markdown-file>`, `posts search <query>` and
+  `drafts preflight <id>` through the shared MCP handlers. Creation reads a
+  bounded UTF-8 file, writes one unpublished draft, returns its editor link and
+  stops before any request on unsupported Markdown; ambiguous failures report
+  `write_unverified`. No publish, schedule or delete commands were added.
 
 ## [1.0.0] - 2026-09-08
 

@@ -84,6 +84,12 @@ try {
     assert.match(execFileSync(process.execPath, [cli, ...args], { env, encoding: 'utf8', timeout: 10_000 }), /Read-only JSON/);
   }
   assert.throws(() => execFileSync(process.execPath, [cli, 'drafts', 'get', '-1'], { env, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
+  for (const args of [['drafts', 'create', '--help'], ['posts', 'search', '--help'], ['drafts', 'preflight', '--help']]) {
+    assert.match(execFileSync(process.execPath, [cli, ...args], { env, encoding: 'utf8', timeout: 10_000 }), /drafts create <markdown-file>/);
+  }
+  for (const args of [['drafts', 'create', join(scratch, 'missing.md'), '--title', 'T'], ['posts', 'search', 'hello', '--limit', '51'], ['drafts', 'preflight', '0'], ['drafts', 'plan']]) {
+    assert.throws(() => execFileSync(process.execPath, [cli, ...args], { env, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
+  }
   assert.equal(diagnosis.ok, true);
   assert.equal(diagnosis.mode, 'configuration_only');
   assert.equal(diagnosis.publications[0].authentication, 'not_checked');

@@ -41,7 +41,8 @@ API body remains null; a malformed JSON body remains its original string.
 | `unavailable` | Markdown could not be produced; the original source and a diagnostic remain available |
 
 `unsupported_nodes` entries name a JSON-pointer-style path, node/mark type and
-reason. Unknown widgets and embeds get explicit Markdown placeholders. Their
+reason. The editor stores `textAlign: null` (default alignment) on paragraphs and
+headings; that value is lossless and not reported, while any other alignment is. Unknown widgets and embeds get explicit Markdown placeholders. Their
 content stays in the original body rather than being presented as a complete
 flattened export. Unsupported marks retain their text and report omitted
 formatting. Native image dimensions/layout attributes are reported; alt text,

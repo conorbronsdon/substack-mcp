@@ -127,6 +127,35 @@ describe("loss-aware reverse Markdown conversion", () => {
     expect(reverse([{ type: "paywall" }, { type: "paywall" }]).unsupported_nodes).toContainEqual(expect.objectContaining({ type: "paywall" }));
     expect(reverse([{ type: "ordered_list", attrs: { order: 1_000_000_000 }, content: [{ type: "list_item", content: [paragraph(text("A"))] }] }]).status).toBe("partial");
   });
+  it("treats the editor's default textAlign: null as lossless and still reports real alignment", () => {
+    const aligned = (align: unknown) => ({ attrs: { textAlign: align } });
+    const editorDoc = [
+      { type: "heading", attrs: { level: 2, textAlign: null }, content: [text("Title")] },
+      { ...paragraph(text("Body "), text("bold", [{ type: "bold" }])), ...aligned(null) },
+      { type: "blockquote", content: [{ ...paragraph(text("Quoted")), ...aligned(null) }] },
+    ];
+    const result = reverse(editorDoc);
+    expect(result.status).toBe("converted");
+    expect(result.unsupported_nodes).toEqual([]);
+    expect(result.markdown).toBe("## Title\n\nBody **bold**\n\n> Quoted\n");
+    for (const align of ["center", "right", ""]) {
+      const partial = reverse([{ ...paragraph(text("x")), ...aligned(align) }]);
+      expect(partial.status).toBe("partial");
+      expect(partial.unsupported_nodes).toContainEqual(expect.objectContaining({ path: "/content/0/attrs", type: "paragraph" }));
+    }
+    expect(reverse([{ type: "heading", attrs: { level: 2, textAlign: "center" }, content: [text("T")] }]).status).toBe("partial");
+    expect(reverse([{ ...paragraph(text("x")), attrs: { textAlign: null, indent: 1 } }]).status).toBe("partial");
+  });
+
+  it("exports a body captured from the editor, with textAlign: null, as converted", () => {
+    const fixture = JSON.parse(readFileSync(new URL("./fixtures/footnotes-editor.json", import.meta.url), "utf8"));
+    const withEditorDefaults = JSON.parse(JSON.stringify(fixture.document), (key, value) =>
+      value && typeof value === "object" && value.type === "paragraph" ? { ...value, attrs: { textAlign: null } } : value);
+    const result = prosemirrorToMarkdown(JSON.stringify(withEditorDefaults));
+    expect(result.status).toBe("converted");
+    expect(convertMarkdown(result.markdown!).document).toEqual(fixture.document);
+  });
+
   it("exports editor footnotes and reimports the identical structure", () => {
     const fixture = JSON.parse(readFileSync(new URL("./fixtures/footnotes-editor.json", import.meta.url), "utf8"));
     const result = prosemirrorToMarkdown(JSON.stringify(fixture.document));

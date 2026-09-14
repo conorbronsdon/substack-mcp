@@ -19,9 +19,11 @@ Several modules are unsafe as library entry points:
 - `dist/index.js` calls `run()` when loaded. It reads `process.argv` and starts
   the stdio MCP server or a CLI command.
 - `resolvePublications()` reads environment variables and stored session files.
-- `SubstackClient` performs no network I/O until a method is called, but its
-  methods return upstream response shapes. The documented projections, bounds
-  and failure codes are applied by the MCP tool handlers in `server.ts`.
+- `SubstackClient` performs no network I/O until a method is called. Its methods
+  mix raw upstream shapes (for example drafts with `draft_title` and
+  `draft_body`) with partially projected results (subscriber counts, publication
+  metadata). The complete documented output contract, including bounds and
+  failure codes, is enforced only at the MCP tool boundary.
 
 `createServer(publications)` builds an MCP server without connecting a transport.
 The operator CLI already calls tools through an in-memory client/server pair to
@@ -33,19 +35,22 @@ Add one subpath, `@conorbronsdon/substack-mcp/api`, backed by a new entry file
 with no import-time side effects:
 
 - `convertMarkdown(markdown, "draft" | "note")`: pure; returns the ProseMirror
-  document and `unsupported_nodes` diagnostics.
-- `preflightDraft(draft, draftId)`: pure; runs the static checks on a draft
-  object that was already read. It does not fetch anything or approve publishing.
+  document and `unsupported_nodes` diagnostics, so callers can preview
+  conversion losses before any write.
 - `createToolClient({ publicationUrl, sessionToken, userId, userAgent?, timeoutMs? })`:
   a thin façade over `createServer` and the in-memory transport. `callTool(name,
   args)` returns the tool's parsed JSON result, or throws a typed failure
   carrying the same `code`, `status`, `status_source` and `retry_after`
   projection the MCP boundary already emits.
 
-`SubstackClient` should not be exported. Its return values are raw upstream
-shapes; exporting it would turn undocumented Substack responses into a
-compatibility promise, or require a second projection layer that duplicates
-the tool handlers.
+Draft checks go through `callTool("preflight_draft", { draft_id })`. The internal
+`preflightDraft` helper is not exported: it reads the raw draft fields, not the
+projected `get_draft` result, so exposing it would need its own public input
+shape.
+
+`SubstackClient` should not be exported either. Its mixed raw and projected
+return values would become a compatibility promise, or need a second projection
+layer that duplicates the tool handlers.
 
 Adding any `exports` map also blocks deep imports of unlisted paths for package
 consumers. That is intended, but it is a visible change for anyone relying on
@@ -68,7 +73,7 @@ const substack = createToolClient({
 const drafts = await substack.callTool("list_drafts", { offset: 0, limit: 10 });
 ```
 
-Prepare a private draft after inspecting conversion losses:
+Prepare a private draft after inspecting conversion losses, then check it:
 
 ```ts
 import { convertMarkdown, createToolClient } from "@conorbronsdon/substack-mcp/api";
@@ -79,6 +84,7 @@ if (unsupported_nodes.length > 0) throw new Error("Review unsupported Markdown f
 
 const substack = createToolClient({ publicationUrl, sessionToken, userId });
 const draft = await substack.callTool("create_draft", { title: "Post title", body: markdown });
+const review = await substack.callTool("preflight_draft", { draft_id: draft.id });
 // Review the draft in Substack's editor. Long-form posts are never published here.
 ```
 
@@ -107,7 +113,8 @@ immediate-publication semantics.
 
 1. Add `exports` (`./api` and `./package.json`) and `types` to `package.json`,
    keeping `bin`.
-2. Add a side-effect-free `src/api.ts` that re-exports only the surface above.
+2. Add a side-effect-free `src/api.ts` that exports only `convertMarkdown` and
+   `createToolClient`.
 3. Extend `npm run test:package`: install the packed tarball in a clean
    temporary directory, import the subpath with no credentials or network
    access, assert no output on import, and type-check a small consumer file.

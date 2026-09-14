@@ -132,6 +132,26 @@ describe("fetchRemoteImage", () => {
     expect(await code(fetchRemoteImage(`${base}/missing`, local))).toBe("http_status");
   });
 
+  it("closes discarded redirect and error bodies instead of draining them", async () => {
+    const closed: string[] = [];
+    const endless = (status: number, headers: Record<string, string>, name: string) => (res: ServerResponse) => {
+      res.writeHead(status, headers);
+      const timer = setInterval(() => res.write(Buffer.alloc(16 * 1024)), 5);
+      res.on("close", () => { clearInterval(timer); closed.push(name); });
+    };
+    routes.set("/endless-redirect", endless(302, { location: "/final.png" }, "redirect"));
+    routes.set("/final.png", res => { res.writeHead(200, { "content-type": "image/png" }); res.end(PNG); });
+    routes.set("/endless-404", endless(404, {}, "404"));
+    expect((await fetchRemoteImage(`${base}/endless-redirect`, local)).mime).toBe("image/png");
+    expect(await code(fetchRemoteImage(`${base}/endless-404`, local))).toBe("http_status");
+    await vi.waitFor(() => expect(closed.sort()).toEqual(["404", "redirect"]), { timeout: 1_000, interval: 20 });
+  });
+
+  it("maps a malformed redirect Location to invalid_url", async () => {
+    routes.set("/bad-location", res => { res.writeHead(302, { location: "https://[" }); res.end(); });
+    expect(await code(fetchRemoteImage(`${base}/bad-location`, local))).toBe("invalid_url");
+  });
+
   it("enforces the byte cap for declared, chunked and dishonest lengths", async () => {
     const big = Buffer.concat([PNG, Buffer.alloc(2048)]);
     routes.set("/declared", res => { res.writeHead(200, { "content-type": "image/png", "content-length": big.length }); res.end(big); });

@@ -89,9 +89,9 @@ export interface RemoteImageOptions {
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 
-function checkUrl(value: string | URL, allowHttp: boolean, allowAddress: (address: string) => boolean): URL {
+function checkUrl(value: string, allowHttp: boolean, allowAddress: (address: string) => boolean, base?: URL): URL {
   let url: URL;
-  try { url = new URL(value); } catch { throw new RemoteImageError("invalid_url", "The image URL is not a valid absolute URL."); }
+  try { url = new URL(value, base); } catch { throw new RemoteImageError("invalid_url", "The image URL is not a valid absolute URL."); }
   if (url.protocol !== "https:" && !(allowHttp && url.protocol === "http:")) throw new RemoteImageError("invalid_url", "Image URLs must use https.");
   if (url.username || url.password) throw new RemoteImageError("invalid_url", "Image URLs must not contain credentials.");
   if (!allowHttp && url.port) throw new RemoteImageError("invalid_url", "Image URLs must use the default https port.");
@@ -115,8 +115,9 @@ function fetchHop(url: URL, lookup: LookupFunction, signal: AbortSignal, maxByte
     }, (response: IncomingMessage) => {
       const status = response.statusCode ?? 0;
       if (REDIRECTS.has(status) || status !== 200) {
-        response.resume();
+        // The body is not needed; close it rather than drain an unbounded stream.
         resolve({ status, location: typeof response.headers.location === "string" ? response.headers.location : undefined });
+        response.destroy();
         return;
       }
       const encoding = response.headers["content-encoding"];
@@ -176,7 +177,7 @@ export async function fetchRemoteImage(input: string, options: RemoteImageOption
       if (REDIRECTS.has(hop.status)) {
         if (!hop.location) throw new RemoteImageError("http_status", `The image host returned HTTP ${hop.status} without a Location.`);
         if (redirects >= maxRedirects) throw new RemoteImageError("too_many_redirects", `The image URL redirected more than ${maxRedirects} times.`);
-        url = checkUrl(new URL(hop.location, url), allowHttp, allowAddress);
+        url = checkUrl(hop.location, allowHttp, allowAddress, url);
         continue;
       }
       if (hop.status !== 200 || !hop.body) throw new RemoteImageError("http_status", `The image host returned HTTP ${hop.status}.`);
@@ -188,5 +189,7 @@ export async function fetchRemoteImage(input: string, options: RemoteImageOption
     }
   } finally {
     clearTimeout(timer);
+    // Tear down anything still attached to this download once it has settled.
+    controller.abort();
   }
 }

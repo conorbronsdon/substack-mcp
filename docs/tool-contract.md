@@ -66,3 +66,7 @@ nonnegative integers and comment limits are 1–100. Published/draft/scheduled l
 limits retain the documented clamp to 50 for larger positive safe integers.
 The 0.9 draft-update receipt requirement remains; see `draft-changes.md` for
 migration from 0.8. Bare server startup and text-only clients remain supported.
+
+## Tool annotations
+
+Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/concepts/tools#tool-annotations), set **explicitly** rather than left to MCP's defaults (an omitted `destructiveHint` or `openWorldHint` defaults to `true`). Reads carry `readOnlyHint: true`. Draft updates replace existing fields and carry `destructiveHint: true`; additive writes carry `destructiveHint: false`. Draft writes are private (`openWorldHint: false`); `upload_image` carries `openWorldHint: true` because it returns a publicly-fetchable CDN URL; and the Note tools carry `openWorldHint: true` for immediate public publish. Annotations are untrusted hints, so the authoritative wording lives in each tool's description.

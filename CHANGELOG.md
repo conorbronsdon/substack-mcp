@@ -16,8 +16,6 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   Substack's order and mark each ranked value as reported, null or absent, and nothing is filled in
   or recomputed. Rate denominators are documented as unknown. See
   [docs/analytics-rankings.md](docs/analytics-rankings.md).
-
-### Added
 - Native footnotes in long-form drafts (#104). A GFM reference `[^id]` in a top-level paragraph
   becomes a `footnoteAnchor`, and its one-paragraph definition becomes a `footnote` block directly
   after that paragraph. Numbers follow reference order, matching a structure captured from the

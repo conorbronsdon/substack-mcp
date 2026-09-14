@@ -146,9 +146,8 @@ describe("fetchRemoteImage", () => {
     const small = { ...local, maxBytes: 1024 };
     expect(await code(fetchRemoteImage(`${base}/declared`, small))).toBe("too_large");
     expect(await code(fetchRemoteImage(`${base}/chunked`, small))).toBe("too_large");
-    expect(["too_large", "network", "unsupported_type", "type_mismatch"]).toContain(await code(fetchRemoteImage(`${base}/dishonest`, small)));
-    // Whatever the outcome, no more than the cap is ever returned.
-    await fetchRemoteImage(`${base}/dishonest`, small).then(image => expect(image.bytes).toBeLessThanOrEqual(1024), () => undefined);
+    // Node's HTTP parser rejects bytes beyond the declared length, so the download fails rather than returning a truncated or oversized image.
+    expect(await code(fetchRemoteImage(`${base}/dishonest`, small))).toBe("network");
   });
 
   it("requires the declared type to match allowed image bytes", async () => {

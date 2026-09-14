@@ -57,7 +57,7 @@ function parse(args: string[]) {
     if (flag === "--publication") {
       if (!value || value.startsWith("--") || value.length > 128) throw new Error("invalid selection");
       publication = value;
-    } else if (command === "drafts list" && flag === "--offset") input.offset = integer(value, 0);
+    } else if (command === "drafts list" && flag === "--offset") input.offset = integer(value, 0, Number.MAX_SAFE_INTEGER - 50);
     else if (command === "drafts list" && flag === "--limit") input.limit = integer(value, 1, 50);
     else throw new Error("unknown option");
   }
@@ -139,7 +139,10 @@ export async function runOperator(args: string[], load = resolvePublications,
     if (!selected) {
       io.error(JSON.stringify({ format_version: 1, ok: false, command: options.command, code: "publication_required", message: "Select a configured --publication key; required when multiple publications are configured." })); return 2;
     }
-    server = createServer([{ key: selected.key, label: selected.label, client: new SubstackClient(selected.publicationUrl, selected.sessionToken, selected.userId, process.env.SUBSTACK_USER_AGENT, Number(process.env.SUBSTACK_REQUEST_TIMEOUT_MS) || undefined) }]);
+    const userAgent = process.env.SUBSTACK_USER_AGENT;
+    // An invalid header value would otherwise fail later, inside a request, as an unknown error.
+    if (userAgent) new Headers({ "user-agent": userAgent });
+    server = createServer([{ key: selected.key, label: selected.label, client: new SubstackClient(selected.publicationUrl, selected.sessionToken, selected.userId, userAgent, Number(process.env.SUBSTACK_REQUEST_TIMEOUT_MS) || undefined) }]);
     configured = true;
     const [ct, st] = InMemoryTransport.createLinkedPair();
     await Promise.all([client.connect(ct), server.connect(st)]);

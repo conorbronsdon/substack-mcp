@@ -6,7 +6,7 @@ import { TimeoutError } from "../utils/errors.js";
 
 const credentials = { key: "example", label: "Example", publicationUrl: "https://example.substack.com", sessionToken: "example-private-token", userId: "1", source: "env" as const, missing: [] };
 const io = () => ({ out: vi.fn(), error: vi.fn() });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("operator read commands", () => {
   it("reports offline status without network, browser or identity claims", async () => {
@@ -33,7 +33,7 @@ describe("operator read commands", () => {
   it.each([
     ["drafts", "get", "-1"], ["drafts", "get", "1.5"], ["drafts", "get", "9007199254740992"],
     ["drafts", "list", "--limit", "0"], ["drafts", "list", "--limit", "51"],
-    ["drafts", "list", "--offset", "-1"], ["drafts", "list", "--json", "--json"],
+    ["drafts", "list", "--offset", "-1"], ["drafts", "list", "--offset", "9007199254740942"], ["drafts", "list", "--json", "--json"],
     ["subscribers", "get", "bad-email"], ["subscribers", "add", "reader@example.com"],
     ["analytics", "post", "1", "--publish"],
   ])("rejects invalid arguments without resolving credentials: %j", async (...args) => {
@@ -130,13 +130,27 @@ describe("operator failure categories", () => {
   it("classifies client-side response failures by code, not their synthetic 502 status", async () => {
     const html = await read(() => new Response("<html>private-body-marker</html>", { status: 200, headers: { "content-type": "text/html" } }));
     expect(html).toMatchObject({ category: "response_invalid", upstream_code: "unexpected_html", status: 502, status_source: "client" });
-    expect((await read(() => new Response("private-body-marker", { status: 200 }))).upstream_code).toBe("malformed_json");
+    expect(await read(() => new Response("private-body-marker", { status: 200 }))).toMatchObject({ category: "response_invalid", upstream_code: "malformed_json" });
     expect((await read(() => new Response(null, { status: 302, headers: { location: "https://elsewhere.example/" } }))).category).toBe("response_invalid");
   });
   it("classifies deadline failures as timeouts", async () => {
     vi.spyOn(SubstackClient.prototype, "getDraft").mockRejectedValue(new TimeoutError("https://example.substack.com/api/v1/drafts/42", 5));
     const output = io(); expect(await runOperator(["drafts", "get", "42"], () => [credentials], output)).toBe(1);
     expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ category: "timeout", upstream_code: "timeout", status: 408, status_source: "client" });
+  });
+  it("enforces the CLI output cap for results that pass the MCP result cap", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: 42, draft_body: "x".repeat(4 * 1024 * 1024 - 50) })));
+    const output = io(); expect(await runOperator(["drafts", "get", "42"], () => [credentials], output)).toBe(1);
+    expect(output.out).not.toHaveBeenCalled(); expect(output.error).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(output.error.mock.calls[0][0])).toEqual({ format_version: 1, ok: false, command: "drafts get", code: "read_failed", category: "output_limit", message: expect.stringContaining("4 MiB") });
+  });
+  it("reports an invalid configured User-Agent as configuration without printing it", async () => {
+    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+    vi.stubEnv("SUBSTACK_USER_AGENT", "bad" + String.fromCharCode(10) + "agent-marker");
+    const output = io(); expect(await runOperator(["drafts", "list"], () => [credentials], output)).toBe(1);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ code: "read_failed", category: "configuration" });
+    expect(output.error.mock.calls[0][0]).not.toContain("agent-marker");
   });
   it("classifies credential loading and client configuration failures without printing their text", async () => {
     for (const load of [() => { throw new Error("example-private-token"); }, () => [{ ...credentials, userId: "0" }]]) {

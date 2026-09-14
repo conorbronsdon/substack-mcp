@@ -9,6 +9,15 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
+- `rank_posts` (#101) ranks posts by one metric from Substack's dashboard email statistics: views,
+  opened, sent, open_rate, click_through_rate, signups, subscribes, estimated_value or post_date, in
+  either direction. It makes one read of up to 20 rows, Substack's page limit, and reports total and
+  next_offset. Only metrics whose server-side sorting was checked live are accepted. Rows keep
+  Substack's order and mark each ranked value as reported, null or absent, and nothing is filled in
+  or recomputed. Rate denominators are documented as unknown. See
+  [docs/analytics-rankings.md](docs/analytics-rankings.md).
+
+### Added
 - Native footnotes in long-form drafts (#104). A GFM reference `[^id]` in a top-level paragraph
   becomes a `footnoteAnchor`, and its one-paragraph definition becomes a `footnote` block directly
   after that paragraph. Numbers follow reference order, matching a structure captured from the

@@ -18,6 +18,7 @@ import { preflightDraft } from "./utils/draft-preflight.js";
 import { exportDraft, exportDraftInput, exportDraftOutput, draftEditorUrl } from "./api/draft-export.js";
 import { publicationOutput } from "./api/publication.js";
 import { listTagsInput, postTagsInput, listTagsOutput, postTagsOutput } from "./api/tags.js";
+import { rankPostsInput, rankPostsOutput, RANK_MAX_LIMIT } from "./api/rankings.js";
 import { planDraftUpdate, applyDraftUpdate, draftChangesInput, draftApplyInput, draftPlanOutput, draftApplyOutput, DraftChangeError } from "./api/draft-changes.js";
 
 async function draftChangeResponse(run: () => Promise<Record<string, unknown>>) {
@@ -130,6 +131,16 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     annotations: buildAnnotations("get_post_tags"),
   }, async ({ publication, ...input }: z.output<typeof postTagsInput> & { publication?: string }) => {
     const result = postTagsOutput.parse({ ...await clientFor(publication).getPostTags(input), publication: publication ?? pubKeys[0] });
+    return { structuredContent: result, content: [{ type: "text", text: JSON.stringify(result) }] };
+  });
+
+  registerTool("rank_posts", {
+    description: `Rank posts by one metric from Substack's dashboard email statistics: views, opened, sent, open_rate, click_through_rate, signups, subscribes, estimated_value or post_date, descending or ascending. Returns 10 rows by default, at most ${RANK_MAX_LIMIT} (Substack's page limit), with total and next_offset for continuation. One read; nothing is changed. Values are passed through as Substack reports them: this server does not recompute, fill in or estimate metrics, and Substack does not document rate denominators. Each row marks the ranked value as reported, null or absent; null and absent are not zero, and null rates can appear among numeric rows. For one post's stats by ID, use get_post_analytics.`,
+    inputSchema: { ...rankPostsInput.shape, ...publicationField() },
+    outputSchema: rankPostsOutput.shape,
+    annotations: buildAnnotations("rank_posts"),
+  }, async ({ publication, ...input }: z.output<typeof rankPostsInput> & { publication?: string }) => {
+    const result = rankPostsOutput.parse({ ...await clientFor(publication).rankPosts(input), publication: publication ?? pubKeys[0] });
     return { structuredContent: result, content: [{ type: "text", text: JSON.stringify(result) }] };
   });
 

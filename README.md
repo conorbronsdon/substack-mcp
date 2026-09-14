@@ -233,6 +233,7 @@ authoritative wording.
 | `get_post_comments` | Get comments on a published post |
 | `get_sections` | List your publication's sections (categories) with their IDs |
 | `get_post_analytics` | Get a published post's stats (views, opens, signups, subscribes, reactions) by ID |
+| `rank_posts` | [Rank posts](docs/analytics-rankings.md) by views, opens, sends, rates, signups, subscribes, estimated value or date, keeping null and missing values distinct |
 | `list_scheduled_posts` | List posts scheduled for future publication (read-only; scheduling stays in Substack's editor) |
 
 ### Archive search and draft review

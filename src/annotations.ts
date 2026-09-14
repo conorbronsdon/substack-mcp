@@ -61,6 +61,7 @@ export const TOOL_KINDS = {
   export_draft: "read",
   list_publication_tags: "read",
   get_post_tags: "read",
+  rank_posts: "read",
   get_publication: "read",
   search_posts: "read",
   preflight_draft: "read",

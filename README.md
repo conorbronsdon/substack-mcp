@@ -104,6 +104,14 @@ analytics result or subscriber is still a completed read; inspect `data`. Counts
 retain their exact/approximate/unavailable precision. Output is capped at 4 MiB
 without partial printing. Draft and subscriber output is private.
 
+Failed reads still print `code: "read_failed"` to stderr with exit 1, and add a
+`category`: `authentication`, `rate_limited`, `timeout`, `not_found`,
+`invalid_request`, `upstream_unavailable`, `response_invalid`,
+`response_too_large`, `cancelled`, `output_limit`, `configuration` or `unknown`.
+When the MCP boundary reported them, `upstream_code`, `status`, `status_source`
+and a validated `retry_after` are included. Upstream messages, response bodies
+and exception text are never printed, and nothing is retried automatically.
+
 `status` reports installed version, Node/platform and the same offline
 configuration diagnostics as doctor. It never opens a browser or claims a
 verified user identity. `drafts export` is an alias of the existing `export`

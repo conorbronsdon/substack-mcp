@@ -50,7 +50,13 @@
     "substack",
     "newsletter",
     "ai",
-    "claude"
+    "claude",
+    "mcp-server",
+    "model-context-protocol",
+    "cli",
+    "markdown",
+    "newsletter-automation",
+    "content-creation"
   ],
   "license": "MIT",
   "author": "Conor Bronsdon",

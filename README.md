@@ -2,7 +2,7 @@
 
 # substack-mcp
 
-Safe creator operations for Substack, via MCP. Prepare rich drafts, publish Notes, inspect analytics, and manage explicitly consented free subscribers across publications. Review and publish long-form posts in Substack.
+Create and manage your Substack newsletter from your AI assistant or terminal. Prepare rich drafts, search your archive, publish Notes, inspect analytics, and manage explicitly consented free subscribers across publications. Review and publish long-form posts in Substack.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Language: TypeScript](https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -20,9 +20,9 @@ Safe creator operations for Substack, via MCP. Prepare rich drafts, publish Note
 
 The demo runs actual MCP handlers against offline sample data. No live API calls or publication occur. Follow the [draft workflow](docs/workflow.md) to create, find, export and review a post.
 
-This server imposes no Bestseller-status check. Use an authenticated account with permission to manage the publication; individual operations depend on your Substack access. Connect through local stdio or self-hosted HTTP.
-
 **Safe by design — with one loud exception:** This server cannot publish or delete long-form posts. Post tools create and edit drafts only; you review and publish manually through Substack's editor. The exception is Substack **Notes**: `create_note` and `create_note_with_link` publish short-form Notes immediately, because Notes have no draft state on Substack. Treat the Note tools as public-publish actions — there is no preview step and no undo from this server. The split is proportionate review, the piece of trust infrastructure for agents this server cares most about: the high-stakes surface gets a human gate, and the exception is stated loudly.
+
+This server imposes no Bestseller-status check. Use an authenticated account with permission to manage the publication; individual operations depend on your Substack access. Connect through local stdio or self-hosted HTTP.
 
 <a href="https://glama.ai/mcp/servers/conorbronsdon/substack-mcp">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/conorbronsdon/substack-mcp/badge" alt="substack-mcp MCP server" />
@@ -30,234 +30,34 @@ This server imposes no Bestseller-status check. Use an authenticated account wit
 
 For 1.0 setup coverage and account eligibility, see [compatibility](docs/compatibility.md). Maintainers can use the [release checklist](docs/release-checklist.md) and [distribution inventory](docs/distribution.md).
 
-## Tools
+**Contents:** [Quick start](#quick-start) · [Setup](#setup) · [Tools](#tools) · [Operator CLI](docs/operator-cli.md) · [Draft workflow](docs/workflow.md) · [Export](docs/export.md) · [Markdown](docs/authoring.md) · [Multiple publications](#multiple-publications) · [Transports](docs/http-transport.md) · [Compatibility](docs/compatibility.md)
 
-Every tool declares MCP [tool annotations](https://modelcontextprotocol.io/docs/concepts/tools#tool-annotations), set **explicitly** rather than left to MCP's defaults (an omitted `destructiveHint` or `openWorldHint` defaults to `true`). Reads carry `readOnlyHint: true`. Draft updates replace existing fields and carry `destructiveHint: true`; additive writes carry `destructiveHint: false`. Draft writes are private (`openWorldHint: false`); `upload_image` carries `openWorldHint: true` because it returns a publicly-fetchable CDN URL; and the Note tools carry `openWorldHint: true` for immediate public publish. Annotations are untrusted hints, so the authoritative wording lives in each tool's description.
+## Quick start
 
-### Read
+1. **Install and sign in.** Browser login needs the optional Playwright dependency:
 
-| Tool | Description |
-|------|-------------|
-| `get_subscriber_count` | Get your publication's current subscriber count |
-| `list_subscribers` | Read a bounded page of private subscriber records |
-| `get_subscriber` | Look up membership by exact email; reconcile pending additions |
-| `list_published_posts` | List published posts with pagination |
-| `get_publication` | Read projected publication identity/settings, verify the configured host, and report missing fields; does not verify account identity or role |
-| `list_publication_tags` | Read tag definitions, including hidden tags by default, with bounded local pagination |
-| `get_post_tags` | Resolve post tag associations; preserves unresolved IDs and reports empty-result identity uncertainty. Draft coverage is currently live-verified only for empty responses |
-| `search_posts` | Search a publication archive by query and status; bounded pages with continuation metadata |
-| `plan_draft_update` | Review proposed changes, preflight and a receipt for best-effort stale detection; no writes |
-| `export_draft` | Editable Markdown, exact original body, conversion diagnostics, preflight and editor link |
-| `preflight_draft` | Read-only checks for title, audience, body structure, images, and paywalls, with an editor link |
-| `list_drafts` | List draft posts |
-| `get_post` | Get full content of a published post by ID |
-| `get_draft` | Get full content of a draft by ID |
-| `get_post_comments` | Get comments on a published post |
-| `get_sections` | List your publication's sections (categories) with their IDs |
-| `get_post_analytics` | Get a published post's stats (views, opens, signups, subscribes, reactions) by ID |
-| `list_scheduled_posts` | List posts scheduled for future publication (read-only; scheduling stays in Substack's editor) |
+   ```bash
+   npm install @conorbronsdon/substack-mcp playwright
+   npx playwright install chromium
+   npx substack-mcp login https://yourblog.substack.com --user-id 12345
+   ```
 
-### Archive search and draft review
-
-`search_posts` accepts `query` (1–500 characters), `status` (`published`, `drafts`,
-or `scheduled`, default `published`), `offset` (default 0), and `limit` (1–50,
-default 25). It makes one authenticated archive request and returns projected
-metadata, `returned`, `total`, `has_more`, and `next_offset`. Continue with
-`next_offset` and the same query/status. When Substack omits the total and a
-page is full, `has_more` is null (unknown); another page may be empty. Substack
-controls matching and indexing: this is not a guaranteed full-text scan. Use
-`get_post` or `get_draft` to retrieve full content. Pagination is not a snapshot;
-concurrent edits can move results between pages.
-
-`preflight_draft` accepts `draft_id`, reads it once, and returns `checks_passed`,
-findings with severity/code/message, content counts and an editor link. It checks title,
-audience, JSON/body shape, image wrappers and HTTPS sources, and paywall count
-and edge placement. Unknown nodes and external images produce review warnings.
-Bodies over two million characters, 10,000 nodes, or depth 100 are not fully
-checked; `counts.complete` is false and aggregate checks are skipped after a
-scan limit. Unknown-node warnings name up to five types for editor review.
-This is a focused static check, not full ProseMirror validation or
-publish approval. It does not fetch links/images, verify access settings, or
-prove final rendering. Review the draft in Substack; no content is modified.
-
-Both tools require `publication` when multiple publications are configured.
-
-### Operator diagnostics
-
-The CLI also exposes workflows through the same MCP handlers. Every command
-below is read-only except `drafts create`, which writes one private draft:
-
-```sh
-substack-mcp status --json
-substack-mcp drafts list --limit 10 --offset 0
-substack-mcp drafts get 42
-substack-mcp drafts create post.md --title "Post title"
-substack-mcp posts search "Post title" --status drafts --limit 10
-substack-mcp drafts preflight 42
-substack-mcp drafts export 42 --format json
-substack-mcp analytics post 42
-substack-mcp subscribers count
-substack-mcp subscribers get reader@example.com
-```
-
-Add `--publication key` when multiple publications are configured. Read commands
-return `{format_version: 1, ok, command, publication, data}` as JSON; `--json` is
-accepted explicitly. Exit 0 means a completed read or draft creation, 1 means a configuration,
-upstream or output failure, and 2 means invalid arguments or selection. A missing
-analytics result or subscriber is still a completed read; inspect `data`. Counts
-retain their exact/approximate/unavailable precision. Output is capped at 4 MiB
-without partial printing. Draft and subscriber output is private.
-
-Failed reads still print `code: "read_failed"` to stderr with exit 1, and add a
-`category`: `authentication`, `rate_limited`, `timeout`, `not_found`,
-`invalid_request`, `upstream_unavailable`, `response_invalid`,
-`response_too_large`, `cancelled`, `output_limit`, `configuration` or `unknown`.
-When the MCP boundary reported them, `upstream_code`, `status`, `status_source`
-and a validated `retry_after` are included. Upstream messages, response bodies
-and exception text are never printed, and nothing is retried automatically.
-
-`drafts create` reads a UTF-8 Markdown file of at most 1 MiB, converts it with
-the same rules as `create_draft` and writes one unpublished draft; it never
-publishes, schedules or deletes. Unsupported Markdown stops before any request
-with `unsupported_markdown` and `unsupported_nodes`; add `--allow-unsupported`
-only after reviewing them. Success data includes the draft `id` and
-`editor_url`. A configuration failure reports `write_not_attempted`. Any later
-failure reports `write_unverified` with a category, because the draft may
-exist: check `drafts list` or `posts search <title> --status drafts` before an
-explicit retry. `posts search` returns one bounded page with the continuation
-fields of `search_posts`, and `drafts preflight` runs the static checks of
-`preflight_draft`; neither approves publication.
-
-`status` reports installed version, Node/platform and the same offline
-configuration diagnostics as doctor. It never opens a browser or claims a
-verified user identity. `drafts export` is an alias of the existing `export`
-command and retains its bundle/overwrite contract. Draft plan/apply also retain
-their existing output and exit codes; these aliases do not rewrap saved plans.
-
-```sh
-substack-mcp doctor --json
-substack-mcp doctor --json --check-auth
-```
-
-`doctor` uses the same environment/stored-session resolution as the server.
-Both validate an HTTPS publication origin, a positive safe-integer user ID
-containing only digits, and an unquoted cookie value without whitespace or
-cookie separators. Invalid configuration stops server startup before requests.
-Percent-encoded cookie values are preserved exactly. Configuration checks do
-not prove that the supplied host belongs to Substack or that credentials work.
-
-Upgrading: missing or malformed credentials now stop startup instead of
-starting tools that fail later. Correct all configured publications; invalid
-entries are never silently dropped. `doctor` and `--help` still run without a
-working session. Use `substack-mcp-login` to set up a first session.
-
-By default, `doctor` checks configuration without network requests. `--check-auth`
-adds one draft-list GET per valid publication, with a five-second request
-deadline and redirects disabled. Use an HTTPS publication origin (no path,
-query, credentials, or custom port); a redirect or custom-domain block may
-require switching to the publication's canonical `name.substack.com` origin.
-All API requests reject redirects, including same-origin redirects, without
-following the destination or replaying a write. The publish-page Referer is
-retained for direct custom-domain requests. Configure the origin that serves
-the API directly; a redirect response is reported as `redirect_rejected`.
-
-Each request has one deadline through headers and body consumption (30 seconds
-by default, five seconds for `doctor --check-auth`). Streamed response limits
-are 10 MiB for API JSON, 1 MiB for doctor, 2 MiB for the public-page count
-fallback, and 64 KiB for error bodies. Limits apply to bytes delivered by fetch,
-including decompressed bytes. Oversized responses fail without partial results.
-For an oversized HTTP error body, the HTTP error classification is preserved
-and diagnostic details are discarded.
-JSON parsing is synchronous and bounded by input bytes, so it cannot be
-interrupted mid-parse; a complete parsed result is retained if parsing finishes
-after the I/O deadline.
-The public count fallback permits at most three HTTPS redirects within the same
-deadline. It sends no cookies or authorization and rejects destinations with
-URL credentials or custom ports. It returns unavailable when its read fails.
-
-Doctor distinguishes `unexpected_html`, `malformed_json`, `response_too_large`,
-`redirect_rejected`, `timeout`, `rate_limited`, and `unauthorized_or_blocked`.
-HTTP 401/403/429 bodies are discarded without waiting; rate-limit errors retain
-valid delta-seconds or standard HTTP-date `Retry-After` guidance. Error details
-are capped at 500 characters (plus an ellipsis) and matching cookie values are
-redacted before truncation. Requests are never automatically retried. A failed
-or timed-out write may have succeeded upstream; reconcile its state before
-trying again.
-
-Output includes publication key, origin, credential source, configuration and
-authentication status. It omits session tokens, user IDs and upstream error
-bodies. A successful read does not establish user-ID binding or write access.
-
-Exit codes: 0 = requested checks passed; 1 = configuration/authentication check
-failed; 2 = invalid command arguments. Without `--check-auth`, a 0 exit code
-does not mean the session is unexpired. Bare `substack-mcp` still starts the
-MCP server; `substack-mcp serve` is an explicit alias. `--help` does not connect
-to Substack. Browser login is `substack-mcp login`; `substack-mcp-login` remains an alias.
-
-### Write (private drafts; image upload returns a public URL)
-
-| Tool | Description |
-|------|-------------|
-| `create_draft` | Create a new draft from markdown (private) |
-| `update_draft` | Apply a reviewed change receipt; recheck unpublished state and report readback outcomes |
-| `upload_image` | Upload an image to Substack's CDN — returns a publicly-fetchable (unlisted) URL |
-
-### Publish (Notes — public immediately)
-
-| Tool | Description |
-|------|-------------|
-| `create_note` | Publish a Substack Note (short-form, **publishes immediately**) |
-| `create_note_with_link` | Publish a Note with a link card attachment (**publishes immediately**) |
-
-Notes have no draft state on Substack, so there is no draft-first option for these two tools.
-
-### Subscriber management
-
-`add_free_subscriber` adds one consenting reader to the free newsletter. It is
-a distribution change: that reader may receive future newsletter emails. It
-can request a welcome email with `send_welcome_email: true` (off by default).
-It never grants paid access or overrides Substack's
-suppression of previously unsubscribed addresses. Its MCP annotations identify
-it as an external write (`readOnlyHint: false`, `openWorldHint: true`).
-
-```json
-{"email":"reader@example.org","consent_confirmed":true,"consent_evidence":{"source":"booking:message-id","recorded_at":"2026-09-01T00:00:00Z"},"dry_run":true}
-```
-
-Dry-run is the default. After checking actual newsletter consent, set
-`dry_run: false` to execute. Live adds require the source reference and timestamp
-in `consent_evidence`; this attestation is echoed with the publication key for
-auditing and does not replace checking the underlying consent record.
-Multi-publication configurations also require the
-`publication` selector, just like every other tool.
-
-Results distinguish `existing`, `dry_run`, `verified`, `blocked`, and
-`unverified`, `busy`, and `retryable`. `busy` performs no write; wait for the
-other operation. `retryable` means authentication or rate limiting refused the
-request; resolve that condition before explicitly retrying. An empty API acknowledgement is **not** proof of addition.
-`verified` means an exact membership lookup succeeded after the request; it
-does not prove that this request originally created the membership. Dashboard
-data can lag. A missing reader may also have previously unsubscribed.
-
-For `unverified`, recheck with `get_subscriber`; never automatically repeat the
-add. For `blocked`, review in Substack without bypassing suppression. Automated
-callers must persist an attempt ledger **before** sending each live request.
-The client's in-memory duplicate guard does not survive restarts or separate
-HTTP sessions. Keep subscriber identities and consent evidence out of shared
-repositories, prompts to unapproved public services, and routine logs.
-
-Implementation and live verification notes: [subscriber API](docs/subscribers.md).
-
-For Google Calendar booking opt-ins, the [calendar sync helper](docs/calendar-sync.md)
-provides a bounded Gmail scan, latest-answer selection, a private durable attempt
-ledger, and read-only reconciliation after uncertain writes. Scheduling is an
-explicit local setup step; installing the MCP does not start a background job.
-
-### Intentionally excluded
-
-- **Publish posts** — Publishing long-form posts should be a deliberate human action (Notes are the documented exception above)
-- **Delete** — Too destructive for an AI tool
-- **Schedule** — Use Substack's editor for scheduling. (`list_scheduled_posts` *reads* what you've queued there, but this server never creates, edits, or cancels a schedule.)
+   Use your own account's user ID. The session is saved only after a bounded
+   authenticated read succeeds. To paste credentials instead, see
+   [Option B](#option-b--get-your-credentials-manually).
+2. **Verify a read.** `npx substack-mcp doctor --json --check-auth` makes one
+   bounded read per publication. It confirms read access, not your user ID or
+   write permission.
+3. **Connect your MCP client.** Add the server to
+   [Claude Desktop or Claude Code](#2-configure-your-mcp-client), or use the
+   [Codex plugin](#codex-plugin). Environment variables take precedence; omit
+   them to use the stored browser-login session. Then ask your assistant:
+   "How many Substack subscribers do I have?"
+4. **Prepare a draft for review.** Follow the [draft workflow](docs/workflow.md):
+   `create_draft`, `search_posts`, `export_draft`, `preflight_draft`, then
+   `plan_draft_update` and `update_draft`. Long-form posts stay unpublished
+   drafts until you publish them in Substack's editor. `create_note` and
+   `create_note_with_link` publish immediately.
 
 ## Setup
 
@@ -391,6 +191,150 @@ Ask your AI assistant: "How many Substack subscribers do I have?"
 Tool output compatibility, response limits and versioning are documented in
 [the tool contract](docs/tool-contract.md).
 
+### Operator diagnostics
+
+The CLI exposes operator commands and configuration checks through the same MCP
+handlers and credential resolution as the server. `drafts create` writes one
+private draft; the other operator commands read:
+
+```sh
+substack-mcp status --json
+substack-mcp doctor --json --check-auth
+substack-mcp drafts list --limit 10
+```
+
+Commands, the JSON envelope, exit codes, request deadlines and response limits
+are documented in [operator CLI and diagnostics](docs/operator-cli.md).
+
+## Tools
+
+Every tool declares explicit MCP side-effect annotations; see
+[tool annotations](docs/tool-contract.md#tool-annotations). Tool descriptions carry the
+authoritative wording.
+
+### Read
+
+| Tool | Description |
+|------|-------------|
+| `get_subscriber_count` | Get your publication's current subscriber count |
+| `list_subscribers` | Read a bounded page of private subscriber records |
+| `get_subscriber` | Look up membership by exact email; reconcile pending additions |
+| `list_published_posts` | List published posts with pagination |
+| `get_publication` | Read projected publication identity/settings, verify the configured host, and report missing fields; does not verify account identity or role |
+| `list_publication_tags` | Read tag definitions, including hidden tags by default, with bounded local pagination |
+| `get_post_tags` | Resolve post tag associations; preserves unresolved IDs and reports empty-result identity uncertainty. Draft coverage is currently live-verified only for empty responses |
+| `search_posts` | Search a publication archive by query and status; bounded pages with continuation metadata |
+| `plan_draft_update` | Review proposed changes, preflight and a receipt for best-effort stale detection; no writes |
+| `export_draft` | Editable Markdown, exact original body, conversion diagnostics, preflight and editor link |
+| `preflight_draft` | Read-only checks for title, audience, body structure, images, and paywalls, with an editor link |
+| `list_drafts` | List draft posts |
+| `get_post` | Get full content of a published post by ID |
+| `get_draft` | Get full content of a draft by ID |
+| `get_post_comments` | Get comments on a published post |
+| `get_sections` | List your publication's sections (categories) with their IDs |
+| `get_post_analytics` | Get a published post's stats (views, opens, signups, subscribes, reactions) by ID |
+| `list_scheduled_posts` | List posts scheduled for future publication (read-only; scheduling stays in Substack's editor) |
+
+### Archive search and draft review
+
+`search_posts` accepts `query` (1–500 characters), `status` (`published`, `drafts`,
+or `scheduled`, default `published`), `offset` (default 0), and `limit` (1–50,
+default 25). It makes one authenticated archive request and returns projected
+metadata, `returned`, `total`, `has_more`, and `next_offset`. Continue with
+`next_offset` and the same query/status. When Substack omits the total and a
+page is full, `has_more` is null (unknown); another page may be empty. Substack
+controls matching and indexing: this is not a guaranteed full-text scan. Use
+`get_post` or `get_draft` to retrieve full content. Pagination is not a snapshot;
+concurrent edits can move results between pages.
+
+`preflight_draft` accepts `draft_id`, reads it once, and returns `checks_passed`,
+findings with severity/code/message, content counts and an editor link. It checks title,
+audience, JSON/body shape, image wrappers and HTTPS sources, and paywall count
+and edge placement. Unknown nodes and external images produce review warnings.
+Bodies over two million characters, 10,000 nodes, or depth 100 are not fully
+checked; `counts.complete` is false and aggregate checks are skipped after a
+scan limit. Unknown-node warnings name up to five types for editor review.
+This is a focused static check, not full ProseMirror validation or
+publish approval. It does not fetch links/images, verify access settings, or
+prove final rendering. Review the draft in Substack; no content is modified.
+
+Both tools require `publication` when multiple publications are configured.
+
+### Write (private drafts; image upload returns a public URL)
+
+| Tool | Description |
+|------|-------------|
+| `create_draft` | Create a new draft from markdown (private) |
+| `update_draft` | Apply a reviewed change receipt; recheck unpublished state and report readback outcomes |
+| `upload_image` | Upload an image to Substack's CDN — returns a publicly-fetchable (unlisted) URL |
+
+### Review before changing a draft
+
+In 0.9, call `plan_draft_update`, review its output, then call `update_draft` with
+the same fields and returned receipt. Published or known stale drafts are
+rejected. The read/write race remains; check readback outcomes and review in
+Substack. The CLI shares this flow through `drafts plan` and `drafts apply`.
+See [draft changes and migration](docs/draft-changes.md) for examples and limits.
+
+### Publish (Notes — public immediately)
+
+| Tool | Description |
+|------|-------------|
+| `create_note` | Publish a Substack Note (short-form, **publishes immediately**) |
+| `create_note_with_link` | Publish a Note with a link card attachment (**publishes immediately**) |
+
+Notes have no draft state on Substack, so there is no draft-first option for these two tools.
+
+### Subscriber management
+
+`add_free_subscriber` adds one consenting reader to the free newsletter. It is
+a distribution change: that reader may receive future newsletter emails. It
+can request a welcome email with `send_welcome_email: true` (off by default).
+It never grants paid access or overrides Substack's
+suppression of previously unsubscribed addresses. Its MCP annotations identify
+it as an external write (`readOnlyHint: false`, `openWorldHint: true`).
+
+```json
+{"email":"reader@example.org","consent_confirmed":true,"consent_evidence":{"source":"booking:message-id","recorded_at":"2026-09-01T00:00:00Z"},"dry_run":true}
+```
+
+Dry-run is the default. After checking actual newsletter consent, set
+`dry_run: false` to execute. Live adds require the source reference and timestamp
+in `consent_evidence`; this attestation is echoed with the publication key for
+auditing and does not replace checking the underlying consent record.
+Multi-publication configurations also require the
+`publication` selector, just like every other tool.
+
+Results distinguish `existing`, `dry_run`, `verified`, `blocked`, and
+`unverified`, `busy`, and `retryable`. `busy` performs no write; wait for the
+other operation. `retryable` means authentication or rate limiting refused the
+request; resolve that condition before explicitly retrying. An empty API acknowledgement is **not** proof of addition.
+`verified` means an exact membership lookup succeeded after the request; it
+does not prove that this request originally created the membership. Dashboard
+data can lag. A missing reader may also have previously unsubscribed.
+
+For `unverified`, recheck with `get_subscriber`; never automatically repeat the
+add. For `blocked`, review in Substack without bypassing suppression. Automated
+callers must persist an attempt ledger **before** sending each live request.
+The client's in-memory duplicate guard does not survive restarts or separate
+HTTP sessions. Keep subscriber identities and consent evidence out of shared
+repositories, prompts to unapproved public services, and routine logs.
+
+Implementation and live verification notes: [subscriber API](docs/subscribers.md).
+
+For Google Calendar booking opt-ins, the [calendar sync helper](docs/calendar-sync.md)
+provides a bounded Gmail scan, latest-answer selection, a private durable attempt
+ledger, and read-only reconciliation after uncertain writes. Scheduling is an
+explicit local setup step; installing the MCP does not start a background job.
+
+### Intentionally excluded
+
+- **Publish posts** — Publishing long-form posts should be a deliberate human action (Notes are the documented exception above)
+- **Delete** — Too destructive for an AI tool
+- **Schedule** — Use Substack's editor for scheduling. (`list_scheduled_posts` *reads* what you've queued there, but this server never creates, edits, or cancels a schedule.)
+
+For an always-on scheduler with durable cloud state and weekly email reports, see [Cloud Calendar sync](docs/cloud-calendar-sync.md).
+
 ## Multiple publications
 
 Running more than one publication behind a single server? Set a `SUBSTACK_PUB_<KEY>_*` triplet per publication instead of the plain `SUBSTACK_*` vars. `<KEY>` is any name you choose (letters, digits, underscores) — it becomes the publication's lowercase, hyphenated key, e.g. `KEVIN_MULDOON` → `kevin-muldoon`.
@@ -452,60 +396,27 @@ Raise or lower it with `SUBSTACK_REQUEST_TIMEOUT_MS` (milliseconds; a non-numeri
 
 ## Transports
 
-By default the server speaks MCP over **stdio** — the client spawns it as a subprocess per session, which is what the Claude Desktop/Code configs above assume.
-
-For a persistent, network-reachable deployment (e.g. one server shared by multiple machines, connected to via [`mcp-remote`](https://www.npmjs.com/package/mcp-remote)), set `MCP_TRANSPORT=http`. This starts a stateless Streamable HTTP server instead:
-
-- `POST /mcp` — the MCP endpoint
-- `GET /health` — returns `{"status":"ok"}` for container healthchecks
-
-```bash
-docker run -d --restart unless-stopped -p 127.0.0.1:8080:8080 \
-  -e MCP_TRANSPORT=http \
-  -e MCP_HTTP_ALLOWED_HOSTS=localhost:8080,127.0.0.1:8080 \
-  -e MCP_HTTP_TOKEN="$(openssl rand -hex 32)" \
-  -e SUBSTACK_PUBLICATION_URL=https://yourblog.substack.com \
-  -e SUBSTACK_SESSION_TOKEN=your-session-token \
-  -e SUBSTACK_USER_ID=your-user-id \
-  substack-mcp
-```
-
-`MCP_HTTP_PORT` (default `8080`) and `MCP_HTTP_HOST` (default `0.0.0.0`, which is what makes a container reachable through `-p`) configure the listener. Each request gets its own server instance — there's no session state kept between requests, so nothing to lose if the container restarts.
+By default the server speaks MCP over **stdio**, which the client configurations
+above assume. Set `MCP_TRANSPORT=http` for a stateless Streamable HTTP server
+(`POST /mcp`, `GET /health`) in a persistent, self-hosted deployment. Setup,
+listener variables and the security model are in [HTTP transport](docs/http-transport.md).
 
 ### What this listener will accept
 
-Over stdio the trust boundary is your user account. Over HTTP it is whatever can open a socket to the port — and every request that gets through carries your Substack session cookie, including `create_note`, which publishes immediately with no undo. The listener therefore starts closed and is opened deliberately:
+The HTTP listener starts closed: loopback `Host` and `Origin` allowlists by
+default, an optional bearer token (`MCP_HTTP_TOKEN`) and a 10 MiB body cap. Host
+and Origin checks are not authentication; set a token wherever other processes
+can reach the port. See the [listener policy](docs/http-transport.md#what-this-listener-will-accept).
 
-| Variable | Default | Effect |
-|---|---|---|
-| `MCP_HTTP_ALLOWED_HOSTS` | loopback names for the bound port | Comma-separated `Host` allowlist. A request whose `Host` is not listed gets `403`. `*` disables the check. |
-| `MCP_HTTP_ALLOWED_ORIGINS` | loopback origins for the bound port | Comma-separated `Origin` allowlist; `403` otherwise. A request with **no** `Origin` is always allowed — non-browser MCP clients don't send one. `*` disables the check. |
-| `MCP_HTTP_TOKEN` | unset | When set, requires `Authorization: Bearer <token>`; `401` otherwise. |
-| `MCP_HTTP_MAX_BODY_BYTES` | `10485760` (10 MiB) | Hard cap enforced while the body streams. Over-limit requests get `413`. |
 
-Every one of these is checked before the request is handed to an MCP server, so a rejected request never reaches the Substack API.
-
-Only origin-form request targets are served (`POST /mcp`, `GET /health`). An absolute-form target (`POST http://elsewhere/mcp`), a scheme-relative one (`POST //elsewhere/mcp`), or a malformed one all get `400` — none of them are routed, and none can take the process down.
-
-**Reaching the server under any name other than loopback requires setting `MCP_HTTP_ALLOWED_HOSTS` yourself.** That is the DNS-rebinding defence: without it a page in your browser can resolve an attacker-controlled name to `127.0.0.1` and drive this server as you.
-
-**Host and Origin checks are not authentication.** They stop a browser being used as a confused deputy; they do nothing about a process running on the same host, which can set any `Host` it likes and send no `Origin` at all. On a machine where anything else runs — another MCP server, a dev container, a shared box — set `MCP_HTTP_TOKEN`. Publish the port to `127.0.0.1` rather than every interface (`-p 127.0.0.1:8080:8080`), and put the service behind a VPN or private network as you would any other credentialed internal service.
+Versioned GHCR images and transport verification: [container distribution](docs/containers.md).
 
 ## Typed errors
 
-API failures are mapped to a typed error hierarchy (`SubstackAPIError` base, with `AuthenticationError`, `RateLimitError`, `ValidationError`, `NotFoundError`, and `ServerError` subclasses keyed off HTTP status) in `src/utils/errors.ts`. Every tool call still surfaces the same error response shape on failure — the typed hierarchy just makes the message specific to what went wrong instead of a single generic "Substack API error" string.
-
-| Class | Status | Triggered by |
-|---|---|---|
-| `AuthenticationError` | 401/403 | Expired/invalid session token, or a Cloudflare `error code: 1010` block (see above) |
-| `RateLimitError` | 429 | Too many requests against the Substack API in a short window |
-| `ValidationError` | 400 | Malformed or invalid arguments passed to a tool (e.g. a missing required field) |
-| `NotFoundError` | 404 | The referenced draft, post, or note doesn't exist |
-| `ServerError` | 5xx | Failure on Substack's side |
-| `TimeoutError` | 408 (synthetic) | The request hit the client's own deadline — no response arrived, so there is no real status to report (see [Request timeout](#request-timeout)) |
-| `SubstackAPIError` | any other status | Fallback for unmapped status codes |
-
-Substack error response bodies are inconsistent — sometimes JSON (`{"error": "..."}` or `{"errors": [...]}`), sometimes plain text, and sometimes a large Cloudflare HTML block page. `extractErrorDetail` handles all three: it tries `JSON.parse` first, falls back to the raw text (trimmed and capped at ~500 characters so a multi-KB HTML page doesn't become the whole error message), and only uses a generic fallback string if the body is empty.
+API failures map to typed errors (`AuthenticationError`, `RateLimitError`,
+`ValidationError`, `NotFoundError`, `ServerError`, `TimeoutError`, and the base
+`SubstackAPIError`). The status mapping and error-body parsing are documented in
+[typed errors](docs/errors.md).
 
 ## Draft export
 
@@ -604,15 +515,3 @@ Long-form posts remain drafts; Notes publish immediately.
 ## License
 
 MIT
-
-For an always-on scheduler with durable cloud state and weekly email reports, see [Cloud Calendar sync](docs/cloud-calendar-sync.md).
-
-### Review before changing a draft
-
-In 0.9, call `plan_draft_update`, review its output, then call `update_draft` with
-the same fields and returned receipt. Published or known stale drafts are
-rejected. The read/write race remains; check readback outcomes and review in
-Substack. The CLI shares this flow through `drafts plan` and `drafts apply`.
-See [draft changes and migration](docs/draft-changes.md) for examples and limits.
-
-Versioned GHCR images and transport verification: [container distribution](docs/containers.md).

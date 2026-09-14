@@ -30,8 +30,10 @@ governed by Substack's terms and privacy policy.
   user ID, session cookie and the save time in `~/.substack-mcp`, or in the
   directory named by `SUBSTACK_MCP_HOME`. The file is encrypted with a key derived
   from your OS account and machine; see [SECURITY.md](SECURITY.md) for its limits.
-  Credentials supplied through environment variables are read at startup and are
-  not written to disk.
+  Saving a named profile first writes the encrypted file to a temporary
+  `.profile-<id>.tmp` in the same directory and then removes it; if that cleanup
+  fails (the CLI reports it), the encrypted temporary copy can remain. Credentials supplied through
+  environment variables are read at startup and are not written to disk.
 - **Files you ask for.** `export` writes the output path you specify. Markdown
   export also writes `<path>.source.json` beside it, containing the complete
   export bundle including the original draft body. Each file is written through a

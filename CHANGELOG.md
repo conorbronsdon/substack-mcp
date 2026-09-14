@@ -15,7 +15,9 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   not found, invalid request, upstream error, invalid or oversized response,
   cancellation, output limit, configuration or unknown) with validated
   `upstream_code`, `status`, `status_source` and `retry_after` when available.
-  `code: "read_failed"`, exit codes and successful output are unchanged.
+  `code: "read_failed"`, exit codes and successful output are unchanged, except that a
+  `drafts list --offset` above the MCP schema bound now fails as invalid arguments (exit 2)
+  instead of an opaque failure (exit 1).
 - CLI `drafts create <markdown-file>`, `posts search <query>` and
   `drafts preflight <id>` through the shared MCP handlers. Creation reads a
   bounded UTF-8 file, writes one unpublished draft, returns its editor link and

@@ -36,12 +36,18 @@ The CLI shares the MCP credential resolution and draft safeguards:
 
 ```sh
 substack-mcp doctor --json
-substack-mcp export --help
+substack-mcp drafts create post.md --title "Post title"
+substack-mcp posts search "Post title" --status drafts
+substack-mcp drafts preflight 42
+substack-mcp drafts export 42 --format markdown --output draft.md
 substack-mcp drafts plan --input changes.json > plan.json
 substack-mcp drafts apply --input changes.json --plan plan.json
 ```
 
-Inspect `plan.json` before applying. Keep exported drafts and plans private.
+`drafts create` writes one unpublished draft and prints its ID and editor link;
+unsupported Markdown stops before any request. If creation reports
+`write_unverified`, search the drafts before trying again. Inspect `plan.json`
+before applying. Keep exported drafts and plans private.
 The shell controls redirection permissions and overwrite behavior. See
 [draft change inputs and exit codes](draft-changes.md) for the complete contract.
 

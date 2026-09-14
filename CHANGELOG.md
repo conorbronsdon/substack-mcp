@@ -18,6 +18,11 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   `code: "read_failed"`, exit codes and successful output are unchanged, except that a
   `drafts list --offset` above the MCP schema bound now fails as invalid arguments (exit 2)
   instead of an opaque failure (exit 1).
+- CLI `drafts create <markdown-file>`, `posts search <query>` and
+  `drafts preflight <id>` through the shared MCP handlers. Creation reads a
+  bounded UTF-8 file, writes one unpublished draft, returns its editor link and
+  stops before any request on unsupported Markdown; ambiguous failures report
+  `write_unverified`. No publish, schedule or delete commands were added.
 
 ## [1.0.0] - 2026-09-08
 

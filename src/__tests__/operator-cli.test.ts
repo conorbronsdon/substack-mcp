@@ -133,7 +133,7 @@ describe("operator failure categories", () => {
     const html = await read(() => new Response("<html>private-body-marker</html>", { status: 200, headers: { "content-type": "text/html" } }));
     expect(html).toMatchObject({ category: "response_invalid", upstream_code: "unexpected_html", status: 502, status_source: "client" });
     expect(await read(() => new Response("private-body-marker", { status: 200 }))).toMatchObject({ category: "response_invalid", upstream_code: "malformed_json" });
-    expect((await read(() => new Response(null, { status: 302, headers: { location: "https://elsewhere.example/" } }))).category).toBe("response_invalid");
+    expect(await read(() => new Response(null, { status: 302, headers: { location: "https://elsewhere.example/" } }))).toMatchObject({ category: "response_invalid", upstream_code: "redirect_rejected" });
   });
   it("classifies deadline failures as timeouts", async () => {
     vi.spyOn(SubstackClient.prototype, "getDraft").mockRejectedValue(new TimeoutError("https://example.substack.com/api/v1/drafts/42", 5));

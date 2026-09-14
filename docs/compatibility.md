@@ -58,3 +58,7 @@ Remote image fetching, community interactions, an OS keychain backend, MCPB and
 hosted multi-tenant operation are outside 1.0. Container support starts with Linux
 amd64; see [containers](containers.md) for public-artifact verification and the
 separate OCI attestation follow-up.
+
+A documented JavaScript/TypeScript library API is not part of the 1.x interface.
+It was evaluated and deferred; see [TypeScript API evaluation](typescript-api.md)
+for the proposed surface and the conditions for revisiting it.

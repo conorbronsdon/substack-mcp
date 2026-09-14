@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runOperator } from "../operator-cli.js";
+import { convertMarkdown } from "../utils/markdown-to-prosemirror.js";
 import { SubstackClient } from "../api/client.js";
 
 const credentials = { key: "example", label: "Example", publicationUrl: "https://example.substack.com", sessionToken: "example-private-token", userId: "1", source: "env" as const, missing: [] };
@@ -42,6 +43,17 @@ describe("operator draft workflow commands", () => {
     expect(result).toMatchObject({ format_version: 1, ok: false, command: "drafts create", code: "unsupported_markdown", write_attempts: 0 });
     expect(result.unsupported_nodes.length).toBeGreaterThan(0);
     for (const node of result.unsupported_nodes) expect(Object.keys(node).sort()).toEqual(["column", "line", "reason", "type"]);
+  });
+
+  it("returns every conversion diagnostic, not a truncated subset", async () => {
+    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+    const markdown = Array.from({ length: 60 }, (_, i) => "- [ ] task " + i).join(String.fromCharCode(10));
+    const expected = convertMarkdown(markdown).unsupported_nodes.length;
+    expect(expected).toBeGreaterThan(50); expect(expected).toBeLessThanOrEqual(100);
+    const output = io();
+    expect(await runOperator(["drafts", "create", file("many.md", markdown), "--title", "T"], () => [credentials], output)).toBe(1);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(JSON.parse(output.error.mock.calls[0][0]).unsupported_nodes).toHaveLength(expected);
   });
 
   it("writes literal fallbacks only when unsupported Markdown is explicitly allowed", async () => {

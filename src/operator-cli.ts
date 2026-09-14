@@ -160,11 +160,11 @@ export function projectFailure(text: string): FailureProjection {
   return failure(category, fields);
 }
 
-/** create_draft conversion rejections happen before any write; copy only the diagnostic fields. */
+/** create_draft conversion rejections happen before any write; copy only the diagnostic fields (the converter reports at most 100). */
 function conversionRejection(text: string) {
   const parsed = jsonObject(text);
   if (!parsed || (parsed.code !== "unsupported_markdown" && parsed.code !== "markdown_conversion_failed")) return undefined;
-  const nodes = Array.isArray(parsed.unsupported_nodes) ? parsed.unsupported_nodes.slice(0, 50).flatMap((node: unknown) => {
+  const nodes = Array.isArray(parsed.unsupported_nodes) ? parsed.unsupported_nodes.slice(0, 100).flatMap((node: unknown) => {
     const { type, reason, line, column } = (node && typeof node === "object" ? node : {}) as Record<string, unknown>;
     return typeof type === "string" && typeof reason === "string" && Number.isSafeInteger(line) && Number.isSafeInteger(column) ? [{ type, reason, line, column }] : [];
   }) : undefined;

@@ -104,6 +104,8 @@ describe("operator failure categories", () => {
     const fetch = vi.fn(async () => response()); vi.stubGlobal("fetch", fetch);
     const output = io(); const exit = await runOperator(args, () => [credentials], output);
     expect(exit).toBe(1); expect(output.out).not.toHaveBeenCalled(); expect(output.error).toHaveBeenCalledTimes(1);
+    // Failures are never retried: each read command makes exactly one request.
+    expect(fetch).toHaveBeenCalledTimes(1);
     const line = output.error.mock.calls[0][0] as string;
     expect(line).not.toContain(credentials.sessionToken); expect(line).not.toContain("private-body-marker");
     expect(Object.keys(JSON.parse(line)).every(key => ["format_version", "ok", "command", "code", "category", "upstream_code", "status", "status_source", "retry_after", "message"].includes(key))).toBe(true);

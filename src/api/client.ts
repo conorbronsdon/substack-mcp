@@ -426,27 +426,46 @@ export class SubstackClient {
    *   page with no contradicting total, or the scan reached the reported total).
    * - `scan_bound_reached`: the bound was hit before the end; an older post may
    *   exist, and its analytics are unknown here, not absent.
-   * - `feed_incomplete`: the feed returned a short page while its total says
-   *   more posts remain, so the search cannot claim the post is absent.
+   * - `feed_incomplete`: the pages do not form one consistent snapshot, so the
+   *   search cannot claim the post is absent. That covers a short page while the
+   *   total says more posts remain, a total that changes between pages or is
+   *   reported on only some pages, more posts than the total, and a post ID
+   *   repeated across pages.
    */
   async findPostAnalytics(postId: number): Promise<PostAnalyticsSearch> {
     const pageSize = MAX_PAGE_SIZE;
     let scanned = 0;
     let feed_capped: boolean | null = null;
-    let total: number | null = null;
+    const totals: (number | null)[] = [];
+    const seen = new Set<number>();
+    let duplicate = false;
+    // Exhaustion can only be claimed from pages that agree with each other.
+    const consistency = () => {
+      const reported = totals.some((t) => t !== null);
+      const stable = reported && totals.every((t) => t === totals[0]);
+      const total = stable ? totals[0] : null;
+      const inconsistent = duplicate || (reported && !stable) || (total !== null && scanned > total);
+      return { inconsistent, total };
+    };
     for (let page = 0; page < ANALYTICS_MAX_PAGES; page++) {
       const { posts, reported_total, capped } = await this.getPublishedPosts(page * pageSize, pageSize);
       feed_capped = capped;
-      total = reported_total;
+      totals.push(reported_total);
       scanned += posts.length;
+      for (const p of posts) {
+        if (seen.has(p.id)) duplicate = true;
+        seen.add(p.id);
+      }
       const found = posts.find((p) => p.id === postId);
       if (found) return { post: found, outcome: "found", scanned, feed_capped };
       if (posts.length < pageSize) {
-        const outcome = total !== null && scanned < total ? "feed_incomplete" : "archive_exhausted";
+        const { inconsistent, total } = consistency();
+        const outcome = inconsistent || (total !== null && scanned < total) ? "feed_incomplete" : "archive_exhausted";
         return { post: null, outcome, scanned, feed_capped };
       }
     }
-    const outcome = total !== null && scanned >= total ? "archive_exhausted" : "scan_bound_reached";
+    const { inconsistent, total } = consistency();
+    const outcome = inconsistent ? "feed_incomplete" : total !== null && scanned === total ? "archive_exhausted" : "scan_bound_reached";
     return { post: null, outcome, scanned, feed_capped };
   }
 

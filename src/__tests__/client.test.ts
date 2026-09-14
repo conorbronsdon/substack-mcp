@@ -338,6 +338,37 @@ describe("pagination limit cap (regression: #28)", () => {
     expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "scan_bound_reached" });
   });
 
+  it("findPostAnalytics never claims exhaustion from inconsistent pages", async () => {
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const feed = (pages: (offset: number) => { posts: unknown[]; total?: unknown }) => vi.stubGlobal("fetch", vi.fn(async (url: any) =>
+      new Response(JSON.stringify(pages(Number(new URL(String(url)).searchParams.get("offset") ?? 0))))));
+    const posts = (offset: number, count: number) => Array.from({ length: count }, (_, i) => ({ id: offset + i + 1, title: "Post" }));
+
+    // Total shrinks after the first page (posts deleted mid-scan): final total alone would say exhausted.
+    feed(offset => ({ posts: posts(offset, MAX_PAGE_SIZE), total: offset === 0 ? 600 : ANALYTICS_SCAN_DEPTH }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "feed_incomplete", scanned: ANALYTICS_SCAN_DEPTH });
+    // Total grows before a short page.
+    feed(offset => ({ posts: posts(offset, offset === 0 ? MAX_PAGE_SIZE : 10), total: offset === 0 ? 60 : 55 }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "feed_incomplete", scanned: 60 });
+    // Underreported total: ten full pages with total 0.
+    feed(offset => ({ posts: posts(offset, MAX_PAGE_SIZE), total: 0 }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "feed_incomplete", scanned: ANALYTICS_SCAN_DEPTH });
+    // More posts than the total on a short page.
+    feed(offset => ({ posts: posts(offset, 10), total: 5 }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "feed_incomplete", scanned: 10 });
+    // Total reported on only some pages.
+    feed(offset => ({ posts: posts(offset, offset === 0 ? MAX_PAGE_SIZE : 20), ...(offset === 0 ? { total: 70 } : {}) }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "feed_incomplete", scanned: 70 });
+    // A post repeated across pages (rows shifted by an insertion) with a matching total.
+    feed(offset => ({ posts: offset === 0 ? posts(0, MAX_PAGE_SIZE) : posts(MAX_PAGE_SIZE - 1, 10), total: 60 }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "feed_incomplete", scanned: 60 });
+    // A consistent snapshot is still exhausted, and a found post still wins.
+    feed(offset => ({ posts: posts(offset, offset === 0 ? MAX_PAGE_SIZE : 10), total: 60 }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "archive_exhausted", scanned: 60 });
+    feed(offset => ({ posts: posts(offset, MAX_PAGE_SIZE), total: offset === 0 ? 600 : 500 }));
+    expect((await client.findPostAnalytics(60)).outcome).toBe("found");
+  });
+
   it("getPostAnalytics stops as soon as the post is found", async () => {
     const fetchMock = stubPagedFeed(10_000);
     const client = new SubstackClient("https://example.substack.com", "tok", "1");

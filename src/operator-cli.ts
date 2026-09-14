@@ -1,5 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { validateHeaderValue } from "node:http";
 import { z } from "zod";
 import { createServer } from "./server.js";
 import { SubstackClient } from "./api/client.js";
@@ -140,8 +141,9 @@ export async function runOperator(args: string[], load = resolvePublications,
       io.error(JSON.stringify({ format_version: 1, ok: false, command: options.command, code: "publication_required", message: "Select a configured --publication key; required when multiple publications are configured." })); return 2;
     }
     const userAgent = process.env.SUBSTACK_USER_AGENT;
-    // An invalid header value would otherwise fail later, inside a request, as an unknown error.
-    if (userAgent) new Headers({ "user-agent": userAgent });
+    // Headers normalizes the value; fetch then rejects control characters that Headers accepts.
+    // Checking both here reports configuration instead of an unknown failure inside the request.
+    if (userAgent) validateHeaderValue("user-agent", new Headers({ "user-agent": userAgent }).get("user-agent") ?? "");
     server = createServer([{ key: selected.key, label: selected.label, client: new SubstackClient(selected.publicationUrl, selected.sessionToken, selected.userId, userAgent, Number(process.env.SUBSTACK_REQUEST_TIMEOUT_MS) || undefined) }]);
     configured = true;
     const [ct, st] = InMemoryTransport.createLinkedPair();

@@ -144,13 +144,20 @@ describe("operator failure categories", () => {
     expect(output.out).not.toHaveBeenCalled(); expect(output.error).toHaveBeenCalledTimes(1);
     expect(JSON.parse(output.error.mock.calls[0][0])).toEqual({ format_version: 1, ok: false, command: "drafts get", code: "read_failed", category: "output_limit", message: expect.stringContaining("4 MiB") });
   });
-  it("reports an invalid configured User-Agent as configuration without printing it", async () => {
+  it.each([1, 10, 31, 127])("reports a User-Agent containing character %i as configuration without printing it", async code => {
     const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
-    vi.stubEnv("SUBSTACK_USER_AGENT", "bad" + String.fromCharCode(10) + "agent-marker");
+    vi.stubEnv("SUBSTACK_USER_AGENT", "bad" + String.fromCharCode(code) + "agent-marker");
     const output = io(); expect(await runOperator(["drafts", "list"], () => [credentials], output)).toBe(1);
     expect(fetch).not.toHaveBeenCalled();
     expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ code: "read_failed", category: "configuration" });
     expect(output.error.mock.calls[0][0]).not.toContain("agent-marker");
+  });
+  it.each([["tab", "Agent" + String.fromCharCode(9) + "Name"], ["Latin-1", "Caf" + String.fromCharCode(233) + " Agent"]])("sends a valid %s User-Agent unchanged", async (_name, agent) => {
+    const fetch = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => Response.json({ posts: [] })); vi.stubGlobal("fetch", fetch);
+    vi.stubEnv("SUBSTACK_USER_AGENT", agent);
+    const output = io(); expect(await runOperator(["drafts", "list"], () => [credentials], output)).toBe(0);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(new Headers(fetch.mock.calls[0][1]!.headers).get("user-agent")).toBe(agent);
   });
   it("classifies credential loading and client configuration failures without printing their text", async () => {
     for (const load of [() => { throw new Error("example-private-token"); }, () => [{ ...credentials, userId: "0" }]]) {

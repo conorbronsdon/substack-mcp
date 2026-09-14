@@ -216,12 +216,17 @@ jobs:
         id: subject
         run: node scripts/container-attestation.mjs
       - name: Isolate registry authentication in the runner temporary directory
-        run: printf 'DOCKER_CONFIG=%s/attestation-docker-config\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+        run: printf 'DOCKER_CONFIG=%s/attestation-home/.docker\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Authenticate for OCI attestation publication and verification
         env:
           REGISTRY_TOKEN: ${{ github.token }}
           REGISTRY_ACTOR: ${{ github.actor }}
         run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_ACTOR" --password-stdin
+      - name: Confirm attestation credentials are readable from the isolated config
+        # actions/attest reads inline auths from $HOME/.docker/config.json; a credential helper would leave it empty.
+        env:
+          CHECK_SCRIPT: "const c = require(process.env.DOCKER_CONFIG + '/config.json'); if (!c.auths?.['ghcr.io']?.auth) { console.error('No inline ghcr.io auth in DOCKER_CONFIG; actions/attest cannot read registry credentials.'); process.exit(1); }"
+        run: node -e "$CHECK_SCRIPT"
       - name: Generate SPDX SBOM from the immutable image
         if: steps.subject.outputs.generate == 'true'
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
@@ -234,6 +239,9 @@ jobs:
       - name: Attest image build provenance
         if: steps.subject.outputs.generate == 'true'
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        env:
+          # actions/attest ignores DOCKER_CONFIG and reads $HOME/.docker/config.json.
+          HOME: ${{ runner.temp }}/attestation-home
         with:
           subject-name: ${{ steps.subject.outputs.subject-name }}
           subject-digest: ${{ steps.subject.outputs.manifest-digest }}
@@ -242,6 +250,9 @@ jobs:
       - name: Attest image SBOM
         if: steps.subject.outputs.generate == 'true'
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        env:
+          # actions/attest ignores DOCKER_CONFIG and reads $HOME/.docker/config.json.
+          HOME: ${{ runner.temp }}/attestation-home
         with:
           subject-name: ${{ steps.subject.outputs.subject-name }}
           subject-digest: ${{ steps.subject.outputs.manifest-digest }}

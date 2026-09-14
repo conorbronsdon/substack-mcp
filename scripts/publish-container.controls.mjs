@@ -143,6 +143,33 @@ test('publish workflow pins generation and verification to digest, source and si
   }
 });
 
+test('attestation actions share isolated registry credentials without changing other steps HOME', () => {
+  const workflow = readFileSync('.github/workflows/publish.yml', 'utf8').replaceAll('\r\n', '\n');
+  const job = workflow.split('\n  attest:\n')[1]?.split(/\n  [\w-]+:\n/)[0];
+  assert.ok(job, 'Expected the attest job');
+  // Include unnamed uses steps as well as named steps.
+  const steps = job.split('\n      - ').slice(1);
+  const isolation = steps.find(step => step.startsWith('name: Isolate registry authentication in the runner temporary directory\n'));
+  assert.ok(isolation, 'Expected isolated registry authentication');
+  const config = isolation.match(/printf 'DOCKER_CONFIG=%s([^']+)\\n' "(\$RUNNER_TEMP)" >> "\$GITHUB_ENV"/);
+  assert.ok(config, 'Isolation must write DOCKER_CONFIG under $RUNNER_TEMP to GITHUB_ENV');
+  const normalizeTemp = value => value.replace(/\$\{\{\s*runner\.temp\s*\}\}|\$RUNNER_TEMP/g, '<runner-temp>');
+  const dockerConfig = normalizeTemp(config[2] + config[1]);
+  assert.match(dockerConfig, /^<runner-temp>\/(?:[\w-]+\/)+\.docker$/, 'DOCKER_CONFIG must be an isolated directory ending in /.docker under $RUNNER_TEMP');
+  const expectedHome = dockerConfig.slice(0, -'/.docker'.length);
+  const attestSteps = steps.filter(step => /^(?:uses:|        uses:) actions\/attest@/m.test(step));
+  assert.ok(attestSteps.length > 0, 'Expected actions/attest steps');
+  let outsideAttestSteps = workflow;
+  for (const step of attestSteps) {
+    const env = step.match(/^        env:\n((?:          [^\n]*\n)*)/m)?.[1];
+    const home = env?.match(/^          HOME: (.+)$/m)?.[1];
+    assert.ok(home, `${step.split('\n')[0]} must set HOME in its own env`);
+    assert.equal(normalizeTemp(home.trim()), expectedHome, 'Attestation HOME must be the parent of DOCKER_CONFIG');
+    outsideAttestSteps = outsideAttestSteps.replace(step, '');
+  }
+  assert.doesNotMatch(outsideAttestSteps, /\bHOME\s*[:=]/, 'Only actions/attest steps may set HOME, including workflow/job env and GITHUB_ENV writes');
+});
+
 test('attestation verification is gated so a recovery run can never be permanently stuck', () => {
   const workflow = readFileSync('.github/workflows/publish.yml', 'utf8').replaceAll('\r\n', '\n');
   const steps = new Map(workflow.split('\n      - name: ').slice(1).map(block => [block.split('\n')[0], block]));

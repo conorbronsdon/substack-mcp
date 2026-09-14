@@ -148,6 +148,13 @@ function fetchHop(url: URL, lookup: LookupFunction, signal: AbortSignal, maxByte
       response.on("error", error => reject(error));
     });
     request.on("error", error => reject(error));
+    // A 101 upgrade bypasses the response callback; settle it as an HTTP status.
+    request.on("upgrade", (response, socket) => {
+      resolve({ status: response.statusCode ?? 101 });
+      socket.destroy();
+    });
+    // Any other way the request ends without settling is a failed download, not a hang.
+    request.on("close", () => reject(new RemoteImageError("network", "The image connection closed before a response.")));
     request.end();
   });
 }

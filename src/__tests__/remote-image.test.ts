@@ -1,5 +1,5 @@
 import { createServer as createHttpServer, type IncomingHttpHeaders, type Server, type ServerResponse } from "node:http";
-import type { AddressInfo } from "node:net";
+import { createServer as createNetServer, type AddressInfo, type Socket } from "node:net";
 import { describe, it, expect, beforeAll, afterAll, vi, afterEach } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -145,6 +145,24 @@ describe("fetchRemoteImage", () => {
     expect((await fetchRemoteImage(`${base}/endless-redirect`, local)).mime).toBe("image/png");
     expect(await code(fetchRemoteImage(`${base}/endless-404`, local))).toBe("http_status");
     await vi.waitFor(() => expect(closed.sort()).toEqual(["404", "redirect"]), { timeout: 1_000, interval: 20 });
+  });
+
+  it("settles a protocol upgrade response with http_status instead of hanging", async () => {
+    // A raw TCP server, so nothing but the upgrade response is ever sent.
+    const sockets = new Set<Socket>();
+    const upgradeServer = createNetServer(socket => {
+      sockets.add(socket);
+      socket.once("data", () => socket.end("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n"));
+    });
+    await new Promise<void>(resolve => upgradeServer.listen(0, "127.0.0.1", resolve));
+    try {
+      const url = `http://127.0.0.1:${(upgradeServer.address() as AddressInfo).port}/upgrade`;
+      const outcome = await Promise.race([code(fetchRemoteImage(url, { ...local, deadlineMs: 50 })), new Promise(resolve => setTimeout(() => resolve("still pending"), 1_000))]);
+      expect(outcome).toBe("http_status");
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>(resolve => upgradeServer.close(() => resolve()));
+    }
   });
 
   it("maps a malformed redirect Location to invalid_url", async () => {

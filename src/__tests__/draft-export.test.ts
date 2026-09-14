@@ -127,6 +127,32 @@ describe("loss-aware reverse Markdown conversion", () => {
     expect(reverse([{ type: "paywall" }, { type: "paywall" }]).unsupported_nodes).toContainEqual(expect.objectContaining({ type: "paywall" }));
     expect(reverse([{ type: "ordered_list", attrs: { order: 1_000_000_000 }, content: [{ type: "list_item", content: [paragraph(text("A"))] }] }]).status).toBe("partial");
   });
+  it("exports editor footnotes and reimports the identical structure", () => {
+    const fixture = JSON.parse(readFileSync(new URL("./fixtures/footnotes-editor.json", import.meta.url), "utf8"));
+    const result = prosemirrorToMarkdown(JSON.stringify(fixture.document));
+    expect(result.status).toBe("converted");
+    expect(result.markdown).toBe("Earlier synthetic claim [^1]Synthetic footnote test sentence[^2]\n\n[^1]: Earlier synthetic definition\n\n[^2]: Synthetic footnote definition text\n");
+    const restored = convertMarkdown(result.markdown!);
+    expect(restored.document).toEqual(fixture.document);
+    expect(restored.unsupported_nodes).toEqual([]);
+  });
+  it.each([
+    ["anchor without a footnote", [paragraph(text("A"), { type: "footnoteAnchor", attrs: { number: 1 } })], "footnoteAnchor"],
+    ["footnote without an anchor", [paragraph(text("A")), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B"))] }], "footnote"],
+    ["invalid number", [paragraph({ type: "footnoteAnchor", attrs: { number: "1" } }), { type: "footnote", attrs: { number: "1" }, content: [paragraph(text("B"))] }], "footnoteAnchor"],
+    ["duplicate footnote", [paragraph({ type: "footnoteAnchor", attrs: { number: 1 } }), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B"))] }, { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("C"))] }], "footnote"],
+    ["nested footnote", [{ type: "blockquote", content: [paragraph({ type: "footnoteAnchor", attrs: { number: 1 } }), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B"))] }] }], "footnote"],
+    ["out-of-order numbers", [paragraph({ type: "footnoteAnchor", attrs: { number: 2 } }, { type: "footnoteAnchor", attrs: { number: 1 } }), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B"))] }, { type: "footnote", attrs: { number: 2 }, content: [paragraph(text("C"))] }], "footnote"],
+    ["footnote after a later paragraph", [paragraph({ type: "footnoteAnchor", attrs: { number: 1 } }), paragraph(text("Later")), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B"))] }], "footnote"],
+    ["anchor in a heading", [{ type: "heading", attrs: { level: 2 }, content: [{ type: "footnoteAnchor", attrs: { number: 1 } }] }, { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B"))] }], "footnote"],
+    ["repeated anchor", [paragraph({ type: "footnoteAnchor", attrs: { number: 1 } }, { type: "footnoteAnchor", attrs: { number: 1 } }), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B"))] }], "footnote"],
+    ["multi-paragraph footnote", [paragraph({ type: "footnoteAnchor", attrs: { number: 1 } }), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B")), paragraph(text("C"))] }], "footnote"],
+  ])("reports footnote structures Markdown cannot round-trip: %s", (_name, content, type) => {
+    const result = reverse(content);
+    expect(result.status).toBe("partial");
+    expect(result.unsupported_nodes).toContainEqual(expect.objectContaining({ type }));
+    expect(result.source_prosemirror).toBe(serialize(content));
+  });
   it("bounds source, nodes, depth, marks and diagnostic growth", () => {
     expect(() => prosemirrorToMarkdown(" ".repeat(2_000_001))).toThrow("export limit");
     expect(() => reverse(Array.from({ length: 10_001 }, () => paragraph(text("a"))))).toThrow("10,000-node");

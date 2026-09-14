@@ -6,7 +6,7 @@ export class MarkdownConversionError extends Error {
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown } from "mdast-util-gfm";
 import { gfm } from "micromark-extension-gfm";
-import type { Nodes, Definition, Root } from "mdast";
+import type { Nodes, Definition, FootnoteDefinition, Root } from "mdast";
 
 export interface PMNode {
   type: string;
@@ -103,6 +103,14 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
   const usedDefinitions = new Set<Definition>();
   const literalReferences = new Set<string>();
   const pendingDefinitions = new Map<PMNode, Definition>();
+  // Footnotes follow the editor's stored layout: an inline footnoteAnchor numbered in
+  // document order, and a top-level footnote block after the paragraph holding it.
+  const footnoteDefinitions = new Map<string, FootnoteDefinition>();
+  const footnoteNumbers = new Map<string, number>();
+  const usedFootnotes = new Set<FootnoteDefinition>();
+  const literalFootnotes = new Set<string>();
+  const pendingFootnotes = new Map<PMNode, FootnoteDefinition>();
+  let footnoteScope: PMNode[] | null = null;
   const stack: { node: Nodes; depth: number }[] = [{ node: root, depth: 0 }];
   let count = 0;
   while (stack.length) {
@@ -112,6 +120,7 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
       // Stack visits siblings in source order: CommonMark uses the first definition.
       if (!definitions.has(node.identifier)) definitions.set(node.identifier, node);
     }
+    if (node.type === "footnoteDefinition" && !footnoteDefinitions.has(node.identifier)) footnoteDefinitions.set(node.identifier, node);
     if ("children" in node) {
       for (let i = node.children.length - 1; i >= 0; i--) stack.push({ node: node.children[i], depth: depth + 1 });
     }
@@ -128,6 +137,7 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
     while (pending.length) {
       const child = pending.pop()!;
       if (child.type === "linkReference" || child.type === "imageReference") literalReferences.add(child.identifier);
+      if (child.type === "footnoteReference") literalFootnotes.add(child.identifier);
       if ("children" in child) pending.push(...child.children);
     }
     return inline ? textNodes(raw(node), marks) : [{ type: "code_block", content: textNodes(raw(node)) }];
@@ -157,30 +167,65 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
         if (marks.some(mark => mark.type !== "link")) report(node, "Text formatting around images has no verified image mapping.");
         return [buildImageNode(node.alt ?? "", image.url, image.title ?? null, typeof href === "string" ? href : null)];
       }
+      case "footnoteReference": {
+        const definition = footnoteDefinitions.get(node.identifier);
+        if (target !== "draft") return fallback(node, "Footnotes are supported only in long-form drafts.", true, marks);
+        if (!footnoteScope) return fallback(node, "Footnote references are supported only in top-level paragraphs and not inside footnotes.", true, marks);
+        if (marks.length) return fallback(node, "Formatted or linked footnote references have no verified editor mapping.", true, marks);
+        if (footnoteNumbers.has(node.identifier)) return fallback(node, "Repeated references to one footnote have no verified editor mapping; each editor footnote has one anchor.", true, marks);
+        const content = definition && root.children.includes(definition) ? footnoteContent(definition) : null;
+        if (!definition || !content) return fallback(node, "Footnote definitions must be top-level and contain one paragraph without images or footnote references.", true, marks);
+        const number = footnoteNumbers.size + 1;
+        footnoteNumbers.set(node.identifier, number);
+        usedFootnotes.add(definition);
+        footnoteScope.push({ type: "footnote", attrs: { number }, content });
+        return [{ type: "footnoteAnchor", attrs: { number } }];
+      }
       default: return fallback(node, "No verified inline editor mapping; Markdown retained literally.", true, marks);
     }
   });
   // Images are block nodes in Substack. Split paragraphs/headings around them,
   // preserving surrounding text and linked-image destinations in reading order.
-  const textBlocks = (node: Extract<Nodes, { type: "paragraph" | "heading" }>): PMNode[] => {
+  const textBlocks = (node: Extract<Nodes, { type: "paragraph" | "heading" }>, topLevel = false): PMNode[] => {
     const result: PMNode[] = [];
     let run: PMNode[] = [];
     const flush = (): void => {
       if (run.length) result.push({ type: node.type, ...(node.type === "heading" ? { attrs: { level: node.depth } } : {}), content: run });
       run = [];
     };
-    for (const child of inline(node.children)) {
+    const footnotes: PMNode[] = [];
+    footnoteScope = topLevel && node.type === "paragraph" ? footnotes : null;
+    const converted = inline(node.children);
+    footnoteScope = null;
+    for (const child of converted) {
       if (child.type === "captionedImage") { flush(); result.push(child); }
       else run.push(child);
     }
     flush();
-    return result.length ? result : [{ type: node.type, ...(node.type === "heading" ? { attrs: { level: node.depth } } : {}) }];
+    if (!result.length) result.push({ type: node.type, ...(node.type === "heading" ? { attrs: { level: node.depth } } : {}) });
+    return [...result, ...footnotes];
+  };
+  // The editor stores one paragraph per verified footnote; other forms stay Markdown.
+  const footnoteContent = (definition: FootnoteDefinition): PMNode[] | null => {
+    const [paragraph] = definition.children;
+    if (definition.children.length !== 1 || paragraph.type !== "paragraph") return null;
+    const pending: Nodes[] = [...paragraph.children];
+    while (pending.length) {
+      const child = pending.pop()!;
+      if (["image", "imageReference", "footnoteReference"].includes(child.type)) return null;
+      if ("children" in child) pending.push(...child.children);
+    }
+    const saved = footnoteScope;
+    footnoteScope = null;
+    const content = inline(paragraph.children);
+    footnoteScope = saved;
+    return [{ type: "paragraph", ...(content.length ? { content } : {}) }];
   };
   let paywalls = 0;
   const blocks = (nodes: Nodes[], topLevel = false): PMNode[] => nodes.flatMap((node): PMNode[] => {
     switch (node.type) {
       case "paragraph":
-      case "heading": return textBlocks(node);
+      case "heading": return textBlocks(node, topLevel);
       case "blockquote": return [{ type: "blockquote", content: blocks(node.children) }];
       case "list": return [{ type: node.ordered ? "ordered_list" : "bullet_list", ...(node.ordered ? { attrs: { order: node.start ?? 1 } } : {}), content: blocks(node.children) }];
       case "listItem": {
@@ -201,6 +246,12 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
         pendingDefinitions.set(placeholder, node);
         return [placeholder];
       }
+      case "footnoteDefinition": {
+        // Resolved after references: only a definition consumed by a native anchor is removed.
+        const placeholder: PMNode = { type: "footnote_definition_placeholder" };
+        pendingFootnotes.set(placeholder, node);
+        return [placeholder];
+      }
       case "html":
         if (node.value.trim() === "<!-- paywall -->") {
           if (target !== "draft" || !topLevel) return fallback(node, "Paywall markers are supported only at the top level of long-form drafts.");
@@ -214,6 +265,8 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
   const resolveDefinitions = (nodes: PMNode[]): PMNode[] => nodes.flatMap(node => {
     const definition = pendingDefinitions.get(node);
     if (definition) return usedDefinitions.has(definition) && !literalReferences.has(definition.identifier) ? [] : fallback(definition, "Unused, unconverted or duplicate reference definition retained as Markdown.");
+    const footnote = pendingFootnotes.get(node);
+    if (footnote) return usedFootnotes.has(footnote) && !literalFootnotes.has(footnote.identifier) ? [] : fallback(footnote, "Unused, unconverted, nested or duplicate footnote definition retained as Markdown.");
     if (node.content) node.content = resolveDefinitions(node.content);
     if (node.type === "blockquote" && !node.content?.length) node.content = [{ type: "paragraph" }];
     return [node];

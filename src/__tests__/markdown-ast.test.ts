@@ -77,7 +77,7 @@ describe("Markdown AST fidelity", () => {
   it.each([
     ["| A | B |\n|---|---|\n| x | y |", "table"],
     ["<iframe src=\"https://example.com\"></iframe>", "html"],
-    ["ref[^1]\n\n[^1]: Footnote text", "footnoteReference"],
+    ["ref[^1] again[^1]\n\n[^1]: Footnote text", "footnoteReference"],
     ["- [x] finished", "listItem"],
     ["```js filename=test.js\ncode\n```", "code"],
     ["[unused]: https://example.com", "definition"],
@@ -142,6 +142,58 @@ describe("Markdown AST fidelity", () => {
     expect(convert("> <!-- paywall -->").unsupported_nodes[0].reason).toContain("top level");
     expect(convertMarkdown("<!-- paywall -->", "note").unsupported_nodes[0].reason).toContain("long-form drafts");
     expect(convert("\\<!-- paywall -->").document.content[0].type).toBe("paragraph");
+  });
+
+  it("maps footnotes to the editor-captured structure, numbered in reference order", () => {
+    const fixture = JSON.parse(readFileSync(new URL("./fixtures/footnotes-editor.json", import.meta.url), "utf8"));
+    const result = convert(fixture.markdown);
+    expect(result.document).toEqual(fixture.document);
+    expect(result.unsupported_nodes).toEqual([]);
+    // Definition order and labels do not matter; numbers follow the references.
+    expect(convert("One[^z] two[^y]\n\n[^y]: Second\n\n[^z]: First").document).toEqual(convert("One[^1] two[^2]\n\n[^1]: First\n\n[^2]: Second").document);
+  });
+
+  it("places each paragraph's footnotes directly after it, including before later paragraphs and images", () => {
+    const result = convert("A[^1]\n\nB ![img](https://example.com/a.png) C[^2]\n\nD\n\n[^2]: Two **bold** [link](https://example.com)\n\n[^1]: One");
+    expect(result.unsupported_nodes).toEqual([]);
+    expect(result.document.content.map(node => node.type + (node.attrs?.number ?? ""))).toEqual(["paragraph", "footnote1", "paragraph", "captionedImage", "paragraph", "footnote2", "paragraph"]);
+    expect(result.document.content[5].content?.[0].content).toEqual([
+      { type: "text", text: "Two " }, { type: "text", text: "bold", marks: [{ type: "bold" }] }, { type: "text", text: " " },
+      { type: "text", text: "link", marks: [{ type: "link", attrs: { href: "https://example.com" } }] },
+    ]);
+  });
+
+  it.each([
+    ["repeated reference", "A[^1] B[^1]\n\n[^1]: Text", "Repeated"],
+    ["reference in a heading", "# A[^1]\n\n[^1]: Text", "top-level paragraphs"],
+    ["reference in a list", "- A[^1]\n\n[^1]: Text", "top-level paragraphs"],
+    ["reference in a blockquote", "> A[^1]\n\n[^1]: Text", "top-level paragraphs"],
+    ["formatted reference", "*A[^1]*\n\n[^1]: Text", "Formatted"],
+    ["multi-paragraph definition", "A[^1]\n\n[^1]: One\n\n    Two", "one paragraph"],
+    ["definition with an image", "A[^1]\n\n[^1]: ![x](https://example.com/a.png)", "one paragraph"],
+    ["nested footnote reference", "A[^1]\n\n[^1]: See[^2]\n\n[^2]: Inner", "one paragraph"],
+    ["nested definition", "A[^1]\n\n> [^1]: Text", "top-level"],
+  ])("keeps unsupported footnote forms as Markdown with diagnostics: %s", (_name, source, reason) => {
+    const result = convert(source);
+    expect(result.unsupported_nodes.some(node => node.reason.includes(reason))).toBe(true);
+    const serialized = JSON.stringify(result.document);
+    // A literal reference always keeps its definition source; nothing is silently dropped.
+    if (!serialized.includes("footnoteAnchor")) expect(result.unsupported_nodes.some(node => node.type === "footnoteDefinition")).toBe(true);
+    expect(result.source_markdown).toBe(source);
+  });
+
+  it("keeps a definition as Markdown when a literal reference also uses it, and reports unused definitions", () => {
+    const shared = convert("A[^1]\n\n- B[^1]\n\n[^1]: Text");
+    expect(shared.document.content[1]).toMatchObject({ type: "footnote", attrs: { number: 1 } });
+    expect(JSON.stringify(shared.document)).toContain("[^1]: Text");
+    expect(convert("Plain\n\n[^1]: Unused").unsupported_nodes.map(node => node.type)).toEqual(["footnoteDefinition"]);
+    expect(convert("Undefined[^missing]").document.content).toEqual([{ type: "paragraph", content: [{ type: "text", text: "Undefined[^missing]" }] }]);
+  });
+
+  it("rejects footnotes in Notes", () => {
+    const result = convertMarkdown("A[^1]\n\n[^1]: Text", "note");
+    expect(result.unsupported_nodes.map(node => node.type)).toEqual(["footnoteReference", "footnoteDefinition"]);
+    expect(JSON.stringify(result.document)).not.toContain("footnote\"");
   });
 
   it("bounds input, tree depth, output node count and diagnostics", () => {

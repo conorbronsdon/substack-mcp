@@ -88,7 +88,7 @@ try {
     assert.match(execFileSync(process.execPath, [cli, ...args], { env, encoding: 'utf8', timeout: 10_000 }), /drafts create <markdown-file>/);
   }
   const unsupportedMarkdown = join(scratch, 'unsupported.md');
-  writeFileSync(unsupportedMarkdown, ['A claim.[^1]', '', '[^1]: A source.'].join(String.fromCharCode(10)));
+  writeFileSync(unsupportedMarkdown, ['| A | B |', '|---|---|', '| x | y |'].join(String.fromCharCode(10)));
   assert.throws(() => execFileSync(process.execPath, [cli, 'drafts', 'create', unsupportedMarkdown, '--title', 'T'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }),
     error => error.status === 1 && JSON.parse(error.stderr).code === 'unsupported_markdown' && JSON.parse(error.stderr).command === 'drafts create');
   for (const args of [['posts', 'search', 'hello', '--publication', 'missing'], ['drafts', 'preflight', '42', '--publication', 'missing'], ['drafts', 'create', unsupportedMarkdown, '--title', 'T', '--publication', 'missing']]) {

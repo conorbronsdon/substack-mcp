@@ -19,6 +19,33 @@ of a document means code, as in CommonMark.
 | Images | `captionedImage` wrapping `image2`; alt text also supplies a plain caption |
 | Linked images | Image destination in `image2.attrs.href` |
 | `<!-- paywall -->` on its own block | One top-level `paywall`, in long-form drafts only |
+| Footnotes `text[^id]` with `[^id]: definition` | Inline `footnoteAnchor` and a top-level `footnote` block, in long-form drafts only |
+
+## Footnotes
+
+Footnotes follow the structure the Substack editor stores. Each reference
+becomes a `footnoteAnchor` with `attrs.number`. Its definition becomes a
+`footnote` block with the same number, containing one paragraph. Numbers run
+from 1 in the order references appear; labels such as `[^source]` and the order
+of definitions in the Markdown do not matter. Each paragraph's footnotes follow
+it directly, as a run of `footnote` blocks, matching where the editor places
+them. A paragraph split around an image keeps its footnotes after the last part.
+
+Supported: one reference per footnote, in a top-level paragraph, without
+surrounding formatting or link, and a top-level definition with one paragraph.
+Inline formatting and links inside that paragraph are converted as usual.
+
+These forms keep their Markdown and produce a diagnostic, so they need
+`allow_unsupported: true` to write:
+
+- a second reference to the same footnote (the editor has one anchor per footnote)
+- references in headings, lists, blockquotes, tables, or inside a footnote
+- bold, italic or linked references
+- definitions with several paragraphs, lists, code or images, or nested in another block
+- unused or duplicate definitions, and definitions shared with a literal reference
+
+A reference with no definition anywhere is ordinary text in GFM. It is written
+as typed and does not produce a diagnostic. Notes reject footnotes.
 
 Images occupy blocks in Substack. An image inside a paragraph or heading splits
 that text block into text before the image, the image, and text after it. Image
@@ -48,9 +75,9 @@ fields plus its receipt to apply. A successful response still includes the
 diagnostics. See [reviewed draft changes](draft-changes.md).
 
 Tables retain their exact Markdown in a code block because this converter has
-no verified native table mapping. Raw HTML, footnote definitions, unused, unconverted or
+no verified native table mapping. Raw HTML, unsupported footnote definitions, unused, unconverted or
 duplicate reference definitions, and code fences with extra metadata also
-retain source as code. Footnote references and unsupported inline constructs
+retain source as code. Unsupported footnote references and inline constructs
 remain literal Markdown. Task-list items retain their source as code inside
 the list. Link titles and text formatting around images produce diagnostics
 because those attributes have no verified mapping here. Keep the original
@@ -64,8 +91,7 @@ Paywall support is for long-form drafts only.
 The internal `convertMarkdown` API returns `document`, `unsupported_nodes` and
 the complete `source_markdown`. Compatibility helpers return the document or
 content array with literal fallbacks; write integrations must use the diagnostic
-API. Arbitrary HTML embeds, native callouts and native footnotes are not
-advertised as supported. An ordinary URL remains a link, not an embed.
+API. Arbitrary HTML embeds and native callouts are not advertised as supported. An ordinary URL remains a link, not an embed.
 
 Conversion accepts at most 200,000 JavaScript string characters, 10,000 parsed
 or generated nodes, 100 nesting levels, 100 diagnostics, and 2,000,000 serialized
@@ -94,6 +120,16 @@ fixture's synthetic image URL is only for offline tests. Record the candidate
 SHA, tested features, returned structure and any rendering differences without
 private publication content. Leave cleanup explicit and manual; do not publish
 the draft, automatically delete it, or publish Notes as a contract test.
+
+Footnote structure was checked on September 14, 2026 with release 1.1.1. An
+unpublished, clearly labeled synthetic draft was created in the Substack editor.
+It had one footnote, then a second inserted before the first. The body read back
+through the API matched `src/__tests__/fixtures/footnotes-editor.json`, apart from
+the editor's `textAlign: null` paragraph attribute. Inserting the earlier footnote
+renumbered both anchors and reordered the footnote blocks, so stored numbers are
+positions, not stable IDs. The draft was left unpublished for manual deletion.
+Not yet checked live: how the editor renders a body written through the API
+rather than typed, and anchors outside top-level paragraphs.
 
 Use [draft export](export.md) to retain the original body alongside editable Markdown.
 Stale-edit safeguards remain tracked separately in #63.

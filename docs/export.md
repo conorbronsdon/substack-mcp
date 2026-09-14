@@ -47,8 +47,21 @@ flattened export. Unsupported marks retain their text and report omitted
 formatting. Native image dimensions/layout attributes are reported; alt text,
 image title and link destinations are mapped. A caption independent of the alt
 text is exported separately and flagged because Markdown reimport cannot keep
-that distinction. Native callouts, footnotes and arbitrary embeds are not
-advertised as supported.
+that distinction. Native callouts and arbitrary embeds are not advertised as
+supported.
+
+Footnotes export as GFM footnotes numbered by their stored `attrs.number`, with
+each definition where its `footnote` block sits. The export is `partial` in
+these cases:
+
+- an anchor has no matching top-level footnote
+- a footnote has no anchor, is nested, or repeats a number
+- a footnote has anything other than one paragraph
+- the layout differs from what Markdown reimport produces: numbers not
+  sequential in anchor order, an anchor outside a top-level paragraph, a
+  repeated anchor, or footnotes not placed directly after their paragraph
+
+Unmatched anchors and footnotes keep placeholders rather than invented pairs.
 
 Partial Markdown starts with an HTML comment that the authoring converter flags
 as unsupported. Inspect the diagnostics and original body before removing that

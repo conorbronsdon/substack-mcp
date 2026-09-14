@@ -56,6 +56,42 @@ export function prosemirrorToMarkdown(source: string): MarkdownExport {
       if (Array.isArray(value.content)) for (const child of value.content) pending.push({ value: child, depth: depth + 1 });
     }
   }
+  // Footnotes: an inline footnoteAnchor pairs with a top-level footnote block by number.
+  const footnoteNumber = (n: Node): number | null => {
+    const value = attrs(n).number;
+    return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
+  };
+  const anchorsIn = (value: unknown): number[] => {
+    const found: number[] = [], stack = [value];
+    while (stack.length) {
+      const current = stack.pop();
+      if (!node(current)) continue;
+      if (current.type === "footnoteAnchor") found.push(footnoteNumber(current) ?? 0);
+      stack.push(...children(current).slice().reverse());
+    }
+    return found;
+  };
+  const anchorNumbers = new Set(anchorsIn(root));
+  const footnoteIndex = new Map<number, number>();
+  root.content.forEach((child, index) => {
+    const number = node(child) && child.type === "footnote" ? footnoteNumber(child) : null;
+    if (number !== null && anchorNumbers.has(number) && !footnoteIndex.has(number)) footnoteIndex.set(number, index);
+  });
+  {
+    // Markdown reimport numbers anchors in document order and places their footnotes
+    // directly after each top-level paragraph, as the editor stores them.
+    let expected = 1, run: number[] = [], editorLayout = true;
+    for (const child of root.content) {
+      if (node(child) && child.type === "footnote") { if (run.shift() !== footnoteNumber(child)) editorLayout = false; continue; }
+      if (run.length) editorLayout = false;
+      run = anchorsIn(child);
+      if (run.length && (!node(child) || child.type !== "paragraph")) editorLayout = false;
+      if (run.some((number, i) => number !== expected + i)) editorLayout = false;
+      expected += run.length;
+    }
+    if (run.length) editorLayout = false;
+    if (!editorLayout) report("/content", "footnote", "Footnote numbering or placement differs from the editor's sequential layout after top-level paragraphs; Markdown reimport renumbers, moves or rejects it.");
+  }
   const check = (n: Node, path: string, mappedAttrs: string[] = []): void => {
     const extra = Object.keys(n).filter(key => !["type", "attrs", "content", "marks", "text"].includes(key));
     if (extra.length) report(path, n.type, "Additional node fields are retained only in source_prosemirror.");
@@ -79,6 +115,16 @@ export function prosemirrorToMarkdown(source: string): MarkdownExport {
       check(value, at);
       if (value.content !== undefined || value.marks !== undefined) report(at, value.type, "Break children/marks are retained only in original source.");
       return [{ type: "break" }];
+    }
+    if (value.type === "footnoteAnchor") {
+      check(value, at, ["number"]);
+      if (value.content !== undefined || value.marks !== undefined) report(at, value.type, "Footnote anchor children/marks are retained only in original source.");
+      const number = footnoteNumber(value);
+      if (number === null || !footnoteIndex.has(number)) {
+        report(at, value.type, "Footnote anchor has no valid number or matching top-level footnote; original node retained.");
+        return [literal(`[Unsupported inline node at ${at}]`)];
+      }
+      return [{ type: "footnoteReference", identifier: String(number), label: String(number) }];
     }
     if (kind(value) !== "text" || typeof value.text !== "string") {
       report(at, value.type, "No verified inline Markdown mapping; original node retained.");
@@ -202,6 +248,13 @@ export function prosemirrorToMarkdown(source: string): MarkdownExport {
           if (!equivalentCaption) output.push({ type: "paragraph", children: captionInline });
         }
         return output;
+      }
+      case "footnote": {
+        check(value, at, ["number"]);
+        const number = footnoteNumber(value);
+        if (!topLevel || number === null || footnoteIndex.get(number) !== index) return placeholder(at, type, "Footnote is nested, unnumbered, duplicated or has no matching anchor; original retained.");
+        if (content.length !== 1 || !node(content[0]) || kind(content[0]) !== "paragraph") report(at, type, "Only single-paragraph footnotes have a verified Markdown import mapping.");
+        return [{ type: "footnoteDefinition", identifier: String(number), label: String(number), children: blocks(content, at + "/content") }];
       }
       default: return placeholder(at, value.type, "No verified Markdown block mapping; original node retained in source_prosemirror.");
     }

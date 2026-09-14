@@ -110,7 +110,8 @@ describe("tool pagination limits (regression: #28)", () => {
     });
     const payload = JSON.parse((result.content as any[])[0].text);
     expect(payload).toMatchObject({ found: false, post_id: 12345, search_result: "archive_exhausted", scanned: 0, feed_capped: null });
-    expect(payload.note).toContain("all 0 published posts");
+    expect(payload.note).toContain("reached the end of the published feed after 0 posts");
+    expect(payload.note).toContain("separate reads");
   });
 
   it("get_post_analytics distinguishes the scan bound from an exhausted archive", async () => {
@@ -135,7 +136,7 @@ describe("tool pagination limits (regression: #28)", () => {
     const payload = JSON.parse(((await client.callTool({ name: "get_post_analytics", arguments: { post_id: 999 } })).content as any[])[0].text);
     expect(payload).toMatchObject({ found: false, search_result: "feed_incomplete", scanned: 1 });
     expect(payload.note).toContain("search is incomplete");
-    expect(payload.note).not.toContain("were searched");
+    expect(payload.note).not.toContain("reached the end of the published feed");
   });
 
   it("get_post_analytics marks a found post without statistics", async () => {

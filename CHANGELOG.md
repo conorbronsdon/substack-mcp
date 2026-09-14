@@ -32,7 +32,8 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ### Changed
 - `get_post_analytics` says why a post was not found (#101): `search_result` is `archive_exhausted`
-  when the whole published feed was searched, `scan_bound_reached` when the 500-post bound was hit
+  when the search reached the end of the published feed with consistent pages (separate reads, so
+  concurrent publishing or deletion can still hide a post), `scan_bound_reached` when the 500-post bound was hit
   first, or `feed_incomplete` when the feed's pages were incomplete or inconsistent (fewer posts than
   reported, a changing total, or repeated posts), so an unsearched post's statistics are reported as
   unknown rather than absent. Not-found

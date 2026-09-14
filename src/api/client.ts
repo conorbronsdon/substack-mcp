@@ -422,8 +422,12 @@ export class SubstackClient {
    * time. A found post short-circuits.
    *
    * Outcomes use the feed's reported `total` when Substack sends one:
-   * - `archive_exhausted`: every published post was searched (a short final
-   *   page with no contradicting total, or the scan reached the reported total).
+   * - `archive_exhausted`: the scan reached the end of the feed as paged (a short
+   *   final page with no contradicting total, or full pages exactly reaching the
+   *   reported total). Pages are separate offset reads, not an atomic snapshot:
+   *   a post published and another deleted between reads can shift a post past
+   *   an offset boundary without changing the total, so this is not proof that
+   *   the post never existed.
    * - `scan_bound_reached`: the bound was hit before the end; an older post may
    *   exist, and its analytics are unknown here, not absent.
    * - `feed_incomplete`: the pages do not form one consistent snapshot, so the

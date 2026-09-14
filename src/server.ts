@@ -418,7 +418,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     {
       description:
         "Get performance stats (views, emails sent/delivered/opened, signups, subscribes, estimated value, comments, reactions) for a published post by ID. " +
-        `Substack has no per-post stats endpoint, so this searches your ${ANALYTICS_SCAN_DEPTH} most recent published posts for the ID; returns a not-found note if it isn't among them, saying whether the whole feed was searched, the search bound was reached, or the feed's pages were incomplete or inconsistent. stats_available is false when a found post has no statistics.`,
+        `Substack has no per-post stats endpoint, so this searches your ${ANALYTICS_SCAN_DEPTH} most recent published posts for the ID; returns a not-found note if it isn't among them, saying whether the search reached the end of the feed, reached its bound, or found the feed's pages incomplete or inconsistent. Pages are separate reads, so concurrent publishing or deletion can hide a post. stats_available is false when a found post has no statistics.`,
       inputSchema: {
         post_id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).describe("The published post ID to get stats for"),
         ...publicationField(),
@@ -441,7 +441,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
                   scanned: search.scanned,
                   feed_capped: search.feed_capped,
                   note: search.outcome === "archive_exhausted"
-                    ? `Post not found: all ${search.scanned} published posts in the feed were searched. Check the ID with list_published_posts.`
+                    ? `Post not found: the search reached the end of the published feed after ${search.scanned} posts. Pages are separate reads, so a post published or deleted during the search can be missed; retry if the feed was changing. Check the ID with list_published_posts.`
                     : search.outcome === "feed_incomplete"
                       ? `Post not found in the ${search.scanned} posts returned, but the feed's pages were incomplete or inconsistent (fewer posts than reported, a changing total, or repeated posts), so the search is incomplete and this post's analytics are unknown here, not absent. Retry later or check the ID with list_published_posts.`
                       : `Post not found among the ${ANALYTICS_SCAN_DEPTH} most recent published posts. Older posts are beyond this tool's search bound, so this post's analytics are unknown here, not absent. Check the ID with list_published_posts.`,

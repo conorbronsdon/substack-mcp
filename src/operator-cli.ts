@@ -10,6 +10,7 @@ import { searchInput } from "./api/search.js";
 import { draftEditorUrl } from "./api/draft-export.js";
 import { readBoundedFile } from "./utils/bounded-file.js";
 import packageMetadata from "../package.json" with { type: "json" };
+import { RANK_METRICS, RANK_MAX_LIMIT } from "./api/rankings.js";
 
 export async function runStatus(args: string[], load = resolvePublications,
   io = { out: (text: string) => console.log(text), error: (text: string) => console.error(text) }): Promise<number> {
@@ -30,11 +31,12 @@ const usage = `Usage: substack-mcp drafts list [--offset n] [--limit 1-50] [--pu
        substack-mcp drafts create <markdown-file> --title <text> [--subtitle <text>] [--audience everyone|only_paid|founding|only_free] [--allow-unsupported] [--publication key]
        substack-mcp posts search <query> [--status published|drafts|scheduled] [--offset n] [--limit 1-50] [--publication key]
        substack-mcp analytics post <post-id> [--publication key]
+       substack-mcp analytics rank [--metric views|opened|sent|open_rate|click_through_rate|signups|subscribes|estimated_value|post_date] [--direction desc|asc] [--offset n] [--limit 1-20] [--publication key]
        substack-mcp subscribers count [--publication key]
        substack-mcp subscribers get <email> [--publication key]
 Read-only JSON output for every command except drafts create, which writes one private, unpublished draft and never publishes. --json is accepted explicitly. Pagination performs one bounded page, not an automatic full export.
 drafts create reads a UTF-8 Markdown file of at most 1 MiB and stops before writing when the Markdown is unsupported; review unsupported_nodes before using --allow-unsupported. After a create request fails, the result is write_unverified: check drafts list or posts search before any explicit retry.
-Subscriber and draft results are private; protect redirected output. Analytics uses the same bounded recent-post scan as MCP. preflight is a static check, not publish approval.
+Subscriber and draft results are private; protect redirected output. analytics post uses the same bounded recent-post scan as MCP; analytics rank reads one page of Substack's email statistics, keeps its order and marks values reported, null or absent. preflight is a static check, not publish approval.
 Failed reads keep code read_failed and add a category (authentication, rate_limited, timeout, not_found, invalid_request, upstream_unavailable, response_invalid, response_too_large, cancelled, output_limit, configuration, unknown).`;
 
 const MAX_MARKDOWN_FILE_BYTES = 1024 * 1024;
@@ -56,7 +58,7 @@ function argument(value: string | undefined) {
 function parse(args: string[]) {
   const command = args.slice(0, 2).join(" ");
   const tools: Record<string, string> = { "drafts list": "list_drafts", "drafts get": "get_draft", "drafts preflight": "preflight_draft", "drafts create": "create_draft",
-    "posts search": "search_posts", "analytics post": "get_post_analytics", "subscribers count": "get_subscriber_count", "subscribers get": "get_subscriber" };
+    "posts search": "search_posts", "analytics post": "get_post_analytics", "analytics rank": "rank_posts", "subscribers count": "get_subscriber_count", "subscribers get": "get_subscriber" };
   const tool = tools[command];
   if (!tool) throw new Error("invalid command");
   const input: Record<string, unknown> = {};
@@ -82,6 +84,10 @@ function parse(args: string[]) {
     } else if (paged && flag === "--offset") input.offset = integer(value, 0, Number.MAX_SAFE_INTEGER - 50);
     else if (paged && flag === "--limit") input.limit = integer(value, 1, 50);
     else if (command === "posts search" && flag === "--status") input.status = searchInput.shape.status.parse(argument(value));
+    else if (command === "analytics rank" && flag === "--metric") input.metric = z.enum(RANK_METRICS).parse(argument(value));
+    else if (command === "analytics rank" && flag === "--direction") input.direction = z.enum(["desc", "asc"]).parse(argument(value));
+    else if (command === "analytics rank" && flag === "--offset") input.offset = integer(value, 0, Number.MAX_SAFE_INTEGER - RANK_MAX_LIMIT);
+    else if (command === "analytics rank" && flag === "--limit") input.limit = integer(value, 1, RANK_MAX_LIMIT);
     else if (command === "drafts create" && flag === "--title") {
       const title = argument(value);
       if (!title.trim() || title.length > MAX_TITLE_CHARACTERS) throw new Error("invalid title");

@@ -9,6 +9,8 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
+- CLI `analytics rank` runs `rank_posts` with `--metric`, `--direction`, `--offset` and `--limit`
+  (1–20), validated before any credentials are loaded.
 - `rank_posts` (#101) ranks posts by one metric from Substack's dashboard email statistics: views,
   opened, sent, open_rate, click_through_rate, signups, subscribes, estimated_value or post_date, in
   either direction. It makes one read of up to 20 rows, Substack's page limit, and reports total and

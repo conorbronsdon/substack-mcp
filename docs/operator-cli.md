@@ -14,6 +14,7 @@ substack-mcp posts search "Post title" --status drafts --limit 10
 substack-mcp drafts preflight 42
 substack-mcp drafts export 42 --format json
 substack-mcp analytics post 42
+substack-mcp analytics rank --metric subscribes --limit 10
 substack-mcp subscribers count
 substack-mcp subscribers get reader@example.com
 ```
@@ -22,7 +23,10 @@ Add `--publication key` when multiple publications are configured. Read commands
 return `{format_version: 1, ok, command, publication, data}` as JSON; `--json` is
 accepted explicitly. Exit 0 means a completed read or draft creation, 1 means a configuration,
 upstream or output failure, and 2 means invalid arguments or selection. A missing
-analytics result or subscriber is still a completed read; inspect `data`. Counts
+analytics result or subscriber is still a completed read; inspect `data`. `analytics rank`
+uses the same `rank_posts` handler: one page of at most 20 rows, Substack's order, and
+`reported`/`null`/`absent` value states (see [post rankings](analytics-rankings.md)). Statistics
+Substack does not provide fail with `upstream_code: "analytics_unavailable"`. Counts
 retain their exact/approximate/unavailable precision. Output is capped at 4 MiB
 without partial printing. Draft and subscriber output is private.
 

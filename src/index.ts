@@ -3,6 +3,7 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SubstackClient } from "./api/client.js";
 import { createServer, type PublicationConfig } from "./server.js";
+import { fetchRemoteImage } from "./utils/remote-image.js";
 import { resolvePublications } from "./auth/resolve-publications.js";
 import { startHttpServer, type HttpTransportOptions } from "./transport/http.js";
 
@@ -141,10 +142,10 @@ async function main() {
     const host = process.env.MCP_HTTP_HOST ?? "0.0.0.0";
     // Stateless: each request gets its own McpServer, so there's no single
     // instance to close on shutdown — only the underlying http.Server.
-    const httpServer = startHttpServer(() => createServer(publications), port, host, resolveHttpOptions(port));
+    const httpServer = startHttpServer(() => createServer(publications, { fetchRemoteImage: url => fetchRemoteImage(url) }), port, host, resolveHttpOptions(port));
     installShutdownHandlers(() => new Promise((resolve) => httpServer.close(() => resolve())), false);
   } else {
-    const server = createServer(publications);
+    const server = createServer(publications, { fetchRemoteImage: url => fetchRemoteImage(url) });
     const transport = new StdioServerTransport();
     // Registered before connect so a signal arriving during startup is still
     // handled; McpServer.close() is safe on a server that never connected.

@@ -2808,11 +2808,16 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "additionalProperties": false,
       "properties": {
         "image_base64": {
-          "description": "Base64-encoded image with data URI prefix (e.g., "data:image/png;base64,..."). Mutually exclusive with image_path.",
+          "description": "Base64-encoded image with data URI prefix (e.g., "data:image/png;base64,..."). Mutually exclusive with image_path and image_url.",
           "type": "string",
         },
         "image_path": {
-          "description": "Absolute path to a local image file (e.g., "/Users/me/pic.png"). Read and encoded automatically; MIME type inferred from the extension. Mutually exclusive with image_base64.",
+          "description": "Absolute path to a local image file (e.g., "/Users/me/pic.png"). Read and encoded automatically; MIME type inferred from the extension. Mutually exclusive with image_base64 and image_url.",
+          "type": "string",
+        },
+        "image_url": {
+          "description": "HTTPS URL of a PNG, JPEG, GIF, WebP or AVIF image to download and upload. Sent without Substack cookies; private, loopback, link-local, metadata and reserved destinations are refused at connection time and on every redirect (at most 3). Limits: 5 MB and 15 seconds; the bytes must match the declared type. Not available on every deployment. Mutually exclusive with image_base64 and image_path.",
+          "maxLength": 2048,
           "type": "string",
         },
         "publication": {
@@ -5427,11 +5432,16 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "additionalProperties": false,
       "properties": {
         "image_base64": {
-          "description": "Base64-encoded image with data URI prefix (e.g., "data:image/png;base64,..."). Mutually exclusive with image_path.",
+          "description": "Base64-encoded image with data URI prefix (e.g., "data:image/png;base64,..."). Mutually exclusive with image_path and image_url.",
           "type": "string",
         },
         "image_path": {
-          "description": "Absolute path to a local image file (e.g., "/Users/me/pic.png"). Read and encoded automatically; MIME type inferred from the extension. Mutually exclusive with image_base64.",
+          "description": "Absolute path to a local image file (e.g., "/Users/me/pic.png"). Read and encoded automatically; MIME type inferred from the extension. Mutually exclusive with image_base64 and image_url.",
+          "type": "string",
+        },
+        "image_url": {
+          "description": "HTTPS URL of a PNG, JPEG, GIF, WebP or AVIF image to download and upload. Sent without Substack cookies; private, loopback, link-local, metadata and reserved destinations are refused at connection time and on every redirect (at most 3). Limits: 5 MB and 15 seconds; the bytes must match the declared type. Not available on every deployment. Mutually exclusive with image_base64 and image_path.",
+          "maxLength": 2048,
           "type": "string",
         },
       },

@@ -298,6 +298,77 @@ describe("pagination limit cap (regression: #28)", () => {
     expect(Math.max(...offsets) + MAX_PAGE_SIZE).toBe(ANALYTICS_SCAN_DEPTH);
   });
 
+  it("findPostAnalytics reports why a post was not found and passes isCapped through", async () => {
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    stubPagedFeed(10_000);
+    expect(await client.findPostAnalytics(9_999)).toEqual({ post: null, outcome: "scan_bound_reached", scanned: ANALYTICS_SCAN_DEPTH, feed_capped: null });
+    stubPagedFeed(120);
+    expect(await client.findPostAnalytics(999)).toEqual({ post: null, outcome: "archive_exhausted", scanned: 120, feed_capped: null });
+    const found = await client.findPostAnalytics(60);
+    expect(found).toMatchObject({ outcome: "found", scanned: 100, feed_capped: null });
+    expect(found.post?.id).toBe(60);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ posts: [{ id: 1, title: "only" }], total: 1, isCapped: false }))));
+    expect(await client.findPostAnalytics(2)).toEqual({ post: null, outcome: "archive_exhausted", scanned: 1, feed_capped: false });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ posts: [], total: 0, isCapped: "yes" }))));
+    expect((await client.findPostAnalytics(2)).feed_capped).toBeNull();
+  });
+
+  it("findPostAnalytics classifies the search with the feed's reported total", async () => {
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const feed = (pages: (offset: number) => { posts: unknown[]; total?: unknown }) => vi.stubGlobal("fetch", vi.fn(async (url: any) =>
+      new Response(JSON.stringify(pages(Number(new URL(String(url)).searchParams.get("offset") ?? 0))))));
+    const posts = (offset: number, count: number) => Array.from({ length: count }, (_, i) => ({ id: offset + i + 1, title: "Post" }));
+
+    // A short page while total says 80 more remain: never claim the archive was searched.
+    feed(offset => ({ posts: posts(offset, 20), total: 100 }));
+    expect(await client.findPostAnalytics(999)).toMatchObject({ post: null, outcome: "feed_incomplete", scanned: 20 });
+
+    // Exactly ANALYTICS_SCAN_DEPTH posts: ten full pages reach the reported total, so every post was searched.
+    stubPagedFeed(ANALYTICS_SCAN_DEPTH);
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "archive_exhausted", scanned: ANALYTICS_SCAN_DEPTH });
+    stubPagedFeed(ANALYTICS_SCAN_DEPTH + 1);
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "scan_bound_reached", scanned: ANALYTICS_SCAN_DEPTH });
+
+    // Without a reported total: a short page ends the feed, and full pages cannot prove exhaustion.
+    feed(offset => ({ posts: posts(offset, 7) }));
+    expect(await client.findPostAnalytics(999)).toMatchObject({ outcome: "archive_exhausted", scanned: 7 });
+    feed(offset => ({ posts: posts(offset, MAX_PAGE_SIZE) }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "scan_bound_reached", scanned: ANALYTICS_SCAN_DEPTH });
+    feed(offset => ({ posts: posts(offset, MAX_PAGE_SIZE), total: "500" }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "scan_bound_reached" });
+  });
+
+  it("findPostAnalytics never claims exhaustion from inconsistent pages", async () => {
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const feed = (pages: (offset: number) => { posts: unknown[]; total?: unknown }) => vi.stubGlobal("fetch", vi.fn(async (url: any) =>
+      new Response(JSON.stringify(pages(Number(new URL(String(url)).searchParams.get("offset") ?? 0))))));
+    const posts = (offset: number, count: number) => Array.from({ length: count }, (_, i) => ({ id: offset + i + 1, title: "Post" }));
+
+    // Total shrinks after the first page (posts deleted mid-scan): final total alone would say exhausted.
+    feed(offset => ({ posts: posts(offset, MAX_PAGE_SIZE), total: offset === 0 ? 600 : ANALYTICS_SCAN_DEPTH }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "feed_incomplete", scanned: ANALYTICS_SCAN_DEPTH });
+    // Total grows before a short page.
+    feed(offset => ({ posts: posts(offset, offset === 0 ? MAX_PAGE_SIZE : 10), total: offset === 0 ? 60 : 55 }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "feed_incomplete", scanned: 60 });
+    // Underreported total: ten full pages with total 0.
+    feed(offset => ({ posts: posts(offset, MAX_PAGE_SIZE), total: 0 }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "feed_incomplete", scanned: ANALYTICS_SCAN_DEPTH });
+    // More posts than the total on a short page.
+    feed(offset => ({ posts: posts(offset, 10), total: 5 }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "feed_incomplete", scanned: 10 });
+    // Total reported on only some pages.
+    feed(offset => ({ posts: posts(offset, offset === 0 ? MAX_PAGE_SIZE : 20), ...(offset === 0 ? { total: 70 } : {}) }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "feed_incomplete", scanned: 70 });
+    // A post repeated across pages (rows shifted by an insertion) with a matching total.
+    feed(offset => ({ posts: offset === 0 ? posts(0, MAX_PAGE_SIZE) : posts(MAX_PAGE_SIZE - 1, 10), total: 60 }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "feed_incomplete", scanned: 60 });
+    // A consistent snapshot is still exhausted, and a found post still wins.
+    feed(offset => ({ posts: posts(offset, offset === 0 ? MAX_PAGE_SIZE : 10), total: 60 }));
+    expect(await client.findPostAnalytics(9_999)).toMatchObject({ outcome: "archive_exhausted", scanned: 60 });
+    feed(offset => ({ posts: posts(offset, MAX_PAGE_SIZE), total: offset === 0 ? 600 : 500 }));
+    expect((await client.findPostAnalytics(60)).outcome).toBe("found");
+  });
+
   it("getPostAnalytics stops as soon as the post is found", async () => {
     const fetchMock = stubPagedFeed(10_000);
     const client = new SubstackClient("https://example.substack.com", "tok", "1");

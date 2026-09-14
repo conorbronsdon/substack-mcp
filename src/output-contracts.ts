@@ -25,7 +25,7 @@ export const objectOutputSchemas: Record<string, z.AnyZodObject> = {
   list_published_posts: z.object({ total: maybeCount, posts: z.array(post).max(50) }),
   get_post: post.extend({ body_html: maybeText }),
   get_draft: draft.extend({ body: maybeText }),
-  get_post_analytics: z.object({ found: z.boolean(), post_id: id.optional(), note: text.optional(), id: id.optional(), title: maybeText, post_date: maybeText,
+  get_post_analytics: z.object({ found: z.boolean(), post_id: id.optional(), note: text.optional(), search_result: z.enum(["archive_exhausted", "scan_bound_reached", "feed_incomplete"]).optional(), scanned: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(), /* separate instance: sharing count would make existing fields $ref this one */ feed_capped: z.boolean().nullable().optional(), stats_available: z.boolean().optional(), id: id.optional(), title: maybeText, post_date: maybeText,
     views: maybeCount, sent: maybeCount, delivered: maybeCount, opened: maybeCount, signups: maybeCount, subscribes: maybeCount,
     estimated_value: z.number().finite().nullable().optional(), comment_count: maybeCount, reaction_count: maybeCount }),
   upload_image: z.object({ image_url: text.url() }),

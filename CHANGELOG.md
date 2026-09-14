@@ -9,6 +9,13 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
+- `rank_posts` (#101) ranks posts by one metric from Substack's dashboard email statistics: views,
+  opened, sent, open_rate, click_through_rate, signups, subscribes, estimated_value or post_date, in
+  either direction. It makes one read of up to 20 rows, Substack's page limit, and reports total and
+  next_offset. Only metrics whose server-side sorting was checked live are accepted. Rows keep
+  Substack's order and mark each ranked value as reported, null or absent, and nothing is filled in
+  or recomputed. Rate denominators are documented as unknown. See
+  [docs/analytics-rankings.md](docs/analytics-rankings.md).
 - Native footnotes in long-form drafts (#104). A GFM reference `[^id]` in a top-level paragraph
   becomes a `footnoteAnchor`, and its one-paragraph definition becomes a `footnote` block directly
   after that paragraph. Numbers follow reference order, matching a structure captured from the
@@ -22,6 +29,16 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   is covered. Downloads are limited to 3 redirects, 5 MB and 15 seconds, and the bytes must match the
   declared type. Failures return a typed `code` with `upload_attempts: 0`. The Cloudflare Worker returns
   `remote_image_unavailable`. See [docs/remote-images.md](docs/remote-images.md).
+
+### Changed
+- `get_post_analytics` says why a post was not found (#101): `search_result` is `archive_exhausted`
+  when the search reached the end of the published feed with consistent pages (separate reads, so
+  concurrent publishing or deletion can still hide a post), `scan_bound_reached` when the 500-post bound was hit
+  first, or `feed_incomplete` when the feed's pages were incomplete or inconsistent (fewer posts than
+  reported, a changing total, or repeated posts), so an unsearched post's statistics are reported as
+  unknown rather than absent. Not-found
+  results add `scanned` and `feed_capped` (the feed's `isCapped` flag, uninterpreted), and found
+  posts add `stats_available`. Existing fields are unchanged.
 
 ## [1.1.1] - 2026-09-14
 

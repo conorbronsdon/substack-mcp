@@ -18,6 +18,8 @@ import { preflightDraft } from "./utils/draft-preflight.js";
 import { exportDraft, exportDraftInput, exportDraftOutput, draftEditorUrl } from "./api/draft-export.js";
 import { publicationOutput } from "./api/publication.js";
 import { listTagsInput, postTagsInput, listTagsOutput, postTagsOutput } from "./api/tags.js";
+import { rankPostsInput, rankPostsOutput, RANK_MAX_LIMIT } from "./api/rankings.js";
+import { SubstackAPIError } from "./utils/errors.js";
 import { planDraftUpdate, applyDraftUpdate, draftChangesInput, draftApplyInput, draftPlanOutput, draftApplyOutput, DraftChangeError } from "./api/draft-changes.js";
 
 async function draftChangeResponse(run: () => Promise<Record<string, unknown>>) {
@@ -131,6 +133,27 @@ export function createServer(publications: PublicationConfig[], options: ServerO
   }, async ({ publication, ...input }: z.output<typeof postTagsInput> & { publication?: string }) => {
     const result = postTagsOutput.parse({ ...await clientFor(publication).getPostTags(input), publication: publication ?? pubKeys[0] });
     return { structuredContent: result, content: [{ type: "text", text: JSON.stringify(result) }] };
+  });
+
+  registerTool("rank_posts", {
+    description: `Rank posts by one metric from Substack's dashboard email statistics: views, opened, sent, open_rate, click_through_rate, signups, subscribes, estimated_value or post_date, descending or ascending. Returns 10 rows by default, at most ${RANK_MAX_LIMIT} (Substack's page limit), with total and next_offset for continuation. One read; nothing is changed. Values are passed through as Substack reports them: this server does not recompute, fill in or estimate metrics, and Substack does not document rate denominators. Each row marks the ranked value as reported, null or absent; null and absent are not zero, and null rates can appear among numeric rows. For one post's stats by ID, use get_post_analytics.`,
+    inputSchema: rankPostsInput.extend(publicationField()).strict(),
+    outputSchema: rankPostsOutput.shape,
+    annotations: buildAnnotations("rank_posts"),
+  }, async ({ publication, ...input }) => {
+    let ranked;
+    try {
+      ranked = await clientFor(publication).rankPosts(input as z.input<typeof rankPostsInput>);
+    } catch (error) {
+      // 403/404 from the statistics endpoint means no statistics are available to this account or publication, not an empty ranking.
+      if (error instanceof SubstackAPIError && (error.statusCode === 403 || error.statusCode === 404)) {
+        return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: "analytics_unavailable", status: error.statusCode,
+          message: "Substack did not provide email statistics for this publication or account. The account may lack statistics access, or the publication may have no statistics. This is not an empty ranking. No writes were attempted." }) }] };
+      }
+      throw error;
+    }
+    const result = rankPostsOutput.parse({ ...ranked, publication: publication ?? pubKeys[0] });
+    return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
   });
 
   registerTool("get_publication", {
@@ -395,7 +418,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     {
       description:
         "Get performance stats (views, emails sent/delivered/opened, signups, subscribes, estimated value, comments, reactions) for a published post by ID. " +
-        `Substack has no per-post stats endpoint, so this searches your ${ANALYTICS_SCAN_DEPTH} most recent published posts for the ID; returns a not-found note if it isn't among them.`,
+        `Substack has no per-post stats endpoint, so this searches your ${ANALYTICS_SCAN_DEPTH} most recent published posts for the ID; returns a not-found note if it isn't among them, saying whether the search reached the end of the feed, reached its bound, or found the feed's pages incomplete or inconsistent. Pages are separate reads, so concurrent publishing or deletion can hide a post. stats_available is false when a found post has no statistics.`,
       inputSchema: {
         post_id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).describe("The published post ID to get stats for"),
         ...publicationField(),
@@ -403,7 +426,8 @@ export function createServer(publications: PublicationConfig[], options: ServerO
       annotations: buildAnnotations("get_post_analytics"),
     },
     async ({ post_id, publication }: { post_id: number; publication?: string }) => {
-      const post = await clientFor(publication).getPostAnalytics(post_id);
+      const search = await clientFor(publication).findPostAnalytics(post_id);
+      const post = search.post;
       if (!post) {
         return {
           content: [
@@ -413,7 +437,14 @@ export function createServer(publications: PublicationConfig[], options: ServerO
                 {
                   found: false,
                   post_id,
-                  note: `Post not found among the ${ANALYTICS_SCAN_DEPTH} most recent published posts. Check the ID with list_published_posts.`,
+                  search_result: search.outcome,
+                  scanned: search.scanned,
+                  feed_capped: search.feed_capped,
+                  note: search.outcome === "archive_exhausted"
+                    ? `Post not found: the search reached the end of the published feed after ${search.scanned} posts. Pages are separate reads, so a post published or deleted during the search can be missed; retry if the feed was changing. Check the ID with list_published_posts.`
+                    : search.outcome === "feed_incomplete"
+                      ? `Post not found in the ${search.scanned} posts returned, but the feed's pages were incomplete or inconsistent (fewer posts than reported, a changing total, or repeated posts), so the search is incomplete and this post's analytics are unknown here, not absent. Retry later or check the ID with list_published_posts.`
+                      : `Post not found among the ${ANALYTICS_SCAN_DEPTH} most recent published posts. Older posts are beyond this tool's search bound, so this post's analytics are unknown here, not absent. Check the ID with list_published_posts.`,
                 },
                 null,
                 2,
@@ -430,6 +461,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
             text: JSON.stringify(
               {
                 found: true,
+                stats_available: post.stats !== undefined && post.stats !== null,
                 id: post.id,
                 title: post.title,
                 post_date: post.post_date,

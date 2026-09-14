@@ -17,6 +17,7 @@ import { SubscriberService } from "./subscribers.js";
 import { searchPosts } from "./search.js";
 import { getPublication } from "./publication.js";
 import { listPublicationTags, getPostTags } from "./tags.js";
+import { rankPosts } from "./rankings.js";
 import { validateCredentials } from "../auth/validate-credentials.js";
 
 /**
@@ -52,6 +53,16 @@ export const ANALYTICS_MAX_PAGES = 10;
  * it so they can't rot when either factor changes.
  */
 export const ANALYTICS_SCAN_DEPTH = MAX_PAGE_SIZE * ANALYTICS_MAX_PAGES;
+
+/** Outcome of searching the published feed for one post's analytics. */
+export interface PostAnalyticsSearch {
+  post: SubstackPost | null;
+  outcome: "found" | "archive_exhausted" | "scan_bound_reached" | "feed_incomplete";
+  /** Published posts examined before stopping. */
+  scanned: number;
+  /** The feed's `isCapped` flag from the last page read, uninterpreted; null when absent. */
+  feed_capped: boolean | null;
+}
 
 /**
  * Parse Substack's order-of-magnitude subscriber bucket into a number.
@@ -166,6 +177,10 @@ export class SubstackClient {
     return getPostTags(input, () => this.getPublication(), path => this.request(`${this.publicationUrl}${path}`));
   }
 
+  rankPosts(input: Parameters<typeof rankPosts>[0]) {
+    return rankPosts(input, path => this.request(`${this.publicationUrl}${path}`));
+  }
+
   /**
    * Subscriber count, with its precision stated rather than implied.
    *
@@ -258,11 +273,13 @@ export class SubstackClient {
   async getPublishedPosts(
     offset = 0,
     limit = 25,
-  ): Promise<{ posts: SubstackPost[]; total: number }> {
-    const data = await this.request<{ posts: SubstackPost[]; total: number; offset: number; limit: number }>(
+  ): Promise<{ posts: SubstackPost[]; total: number; reported_total: number | null; capped: boolean | null }> {
+    const data = await this.request<{ posts: SubstackPost[]; total: number; offset: number; limit: number; isCapped?: unknown }>(
       `${this.publicationUrl}/api/v1/post_management/published?offset=${offset}&limit=${limit}&order_by=post_date&order_direction=desc`,
     );
-    return { posts: data.posts || [], total: data.total || 0 };
+    // isCapped is passed through uninterpreted; its meaning is not documented.
+    const reported_total = typeof data.total === "number" && Number.isSafeInteger(data.total) && data.total >= 0 ? data.total : null;
+    return { posts: data.posts || [], total: data.total || 0, reported_total, capped: typeof data.isCapped === "boolean" ? data.isCapped : null };
   }
 
   async getDrafts(offset = 0, limit = 25): Promise<SubstackDraft[]> {
@@ -392,23 +409,68 @@ export class SubstackClient {
   }
 
   async getPostAnalytics(postId: number): Promise<SubstackPost | null> {
-    // Substack has no per-post stats endpoint. Each row of the published
-    // feed already carries a `stats` object, so page through the feed
-    // (newest first) until the matching id turns up. Bounded so a bad id
-    // can't scan forever: ANALYTICS_SCAN_DEPTH most recent published posts.
-    //
-    // Pages are awaited one at a time, so the worst case is ANALYTICS_MAX_PAGES
-    // *sequential* requests, not a parallel burst — and that worst case only
-    // occurs when the id isn't in the feed at all. A found post short-circuits.
+    return (await this.findPostAnalytics(postId)).post;
+  }
+
+  /**
+   * Search the published feed for a post's stats row, reporting why it was not found.
+   *
+   * Substack has no per-post stats endpoint. Each row of the published feed
+   * already carries a `stats` object, so page through the feed (newest first)
+   * until the matching id turns up. Bounded so a bad id can't scan forever:
+   * ANALYTICS_SCAN_DEPTH most recent published posts, awaited one page at a
+   * time. A found post short-circuits.
+   *
+   * Outcomes use the feed's reported `total` when Substack sends one:
+   * - `archive_exhausted`: the scan reached the end of the feed as paged (a short
+   *   final page with no contradicting total, or full pages exactly reaching the
+   *   reported total). Pages are separate offset reads, not an atomic snapshot:
+   *   a post published and another deleted between reads can shift a post past
+   *   an offset boundary without changing the total, so this is not proof that
+   *   the post never existed.
+   * - `scan_bound_reached`: the bound was hit before the end; an older post may
+   *   exist, and its analytics are unknown here, not absent.
+   * - `feed_incomplete`: the pages do not form one consistent snapshot, so the
+   *   search cannot claim the post is absent. That covers a short page while the
+   *   total says more posts remain, a total that changes between pages or is
+   *   reported on only some pages, more posts than the total, and a post ID
+   *   repeated across pages.
+   */
+  async findPostAnalytics(postId: number): Promise<PostAnalyticsSearch> {
     const pageSize = MAX_PAGE_SIZE;
-    const maxPages = ANALYTICS_MAX_PAGES;
-    for (let page = 0; page < maxPages; page++) {
-      const { posts } = await this.getPublishedPosts(page * pageSize, pageSize);
+    let scanned = 0;
+    let feed_capped: boolean | null = null;
+    const totals: (number | null)[] = [];
+    const seen = new Set<number>();
+    let duplicate = false;
+    // Exhaustion can only be claimed from pages that agree with each other.
+    const consistency = () => {
+      const reported = totals.some((t) => t !== null);
+      const stable = reported && totals.every((t) => t === totals[0]);
+      const total = stable ? totals[0] : null;
+      const inconsistent = duplicate || (reported && !stable) || (total !== null && scanned > total);
+      return { inconsistent, total };
+    };
+    for (let page = 0; page < ANALYTICS_MAX_PAGES; page++) {
+      const { posts, reported_total, capped } = await this.getPublishedPosts(page * pageSize, pageSize);
+      feed_capped = capped;
+      totals.push(reported_total);
+      scanned += posts.length;
+      for (const p of posts) {
+        if (seen.has(p.id)) duplicate = true;
+        seen.add(p.id);
+      }
       const found = posts.find((p) => p.id === postId);
-      if (found) return found;
-      if (posts.length < pageSize) break; // reached the end of the feed
+      if (found) return { post: found, outcome: "found", scanned, feed_capped };
+      if (posts.length < pageSize) {
+        const { inconsistent, total } = consistency();
+        const outcome = inconsistent || (total !== null && scanned < total) ? "feed_incomplete" : "archive_exhausted";
+        return { post: null, outcome, scanned, feed_capped };
+      }
     }
-    return null;
+    const { inconsistent, total } = consistency();
+    const outcome = inconsistent ? "feed_incomplete" : total !== null && scanned === total ? "archive_exhausted" : "scan_bound_reached";
+    return { post: null, outcome, scanned, feed_capped };
   }
 
   async createNote(

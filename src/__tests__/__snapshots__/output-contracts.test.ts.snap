@@ -868,6 +868,12 @@ exports[`stable output contracts > classifies any public schema drift as potenti
             },
           ],
         },
+        "feed_capped": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
         "found": {
           "type": "boolean",
         },
@@ -891,11 +897,27 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "reaction_count": {
           "$ref": "#/properties/views",
         },
+        "scanned": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "search_result": {
+          "enum": [
+            "archive_exhausted",
+            "scan_bound_reached",
+            "feed_incomplete",
+          ],
+          "type": "string",
+        },
         "sent": {
           "$ref": "#/properties/views",
         },
         "signups": {
           "$ref": "#/properties/views",
+        },
+        "stats_available": {
+          "type": "boolean",
         },
         "subscribes": {
           "$ref": "#/properties/views",
@@ -2369,6 +2391,320 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "limitations",
         "publication",
         "editor_url",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "default": "desc",
+          "enum": [
+            "desc",
+            "asc",
+          ],
+          "type": "string",
+        },
+        "limit": {
+          "default": 10,
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "metric": {
+          "default": "views",
+          "enum": [
+            "views",
+            "opened",
+            "sent",
+            "open_rate",
+            "click_through_rate",
+            "signups",
+            "subscribes",
+            "estimated_value",
+            "post_date",
+          ],
+          "type": "string",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 9007199254740971,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "rank_posts",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "enum": [
+            "desc",
+            "asc",
+          ],
+          "type": "string",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "limit": {
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "metric": {
+          "enum": [
+            "views",
+            "opened",
+            "sent",
+            "open_rate",
+            "click_through_rate",
+            "signups",
+            "subscribes",
+            "estimated_value",
+            "post_date",
+          ],
+          "type": "string",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "offset": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "ordering": {
+          "const": "server",
+          "type": "string",
+        },
+        "publication": {
+          "type": "string",
+        },
+        "returned": {
+          "$ref": "#/properties/offset",
+        },
+        "rows": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "absent_metrics": {
+                "items": {
+                  "enum": [
+                    "views",
+                    "sent",
+                    "delivered",
+                    "opened",
+                    "open_rate",
+                    "clicked",
+                    "click_through_rate",
+                    "signups",
+                    "subscribes",
+                    "unsubscribes",
+                    "estimated_value",
+                    "likes",
+                    "comments",
+                    "restacks",
+                  ],
+                  "type": "string",
+                },
+                "type": "array",
+              },
+              "metrics": {
+                "additionalProperties": false,
+                "properties": {
+                  "click_through_rate": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "clicked": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "comments": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "delivered": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "estimated_value": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "likes": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "open_rate": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "opened": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "restacks": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "sent": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "signups": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "subscribes": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "unsubscribes": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "views": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "views",
+                  "sent",
+                  "delivered",
+                  "opened",
+                  "open_rate",
+                  "clicked",
+                  "click_through_rate",
+                  "signups",
+                  "subscribes",
+                  "unsubscribes",
+                  "estimated_value",
+                  "likes",
+                  "comments",
+                  "restacks",
+                ],
+                "type": "object",
+              },
+              "post_date": {
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+              "post_id": {
+                "$ref": "#/properties/rows/items/properties/rank",
+              },
+              "rank": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer",
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+              "type": {
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                      },
+                      {
+                        "type": "string",
+                      },
+                    ],
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "value_state": {
+                "enum": [
+                  "reported",
+                  "null",
+                  "absent",
+                ],
+                "type": "string",
+              },
+            },
+            "required": [
+              "rank",
+              "post_id",
+              "title",
+              "post_date",
+              "type",
+              "value",
+              "value_state",
+              "metrics",
+              "absent_metrics",
+            ],
+            "type": "object",
+          },
+          "maxItems": 20,
+          "type": "array",
+        },
+        "semantics": {
+          "type": "string",
+        },
+        "source": {
+          "const": "publication_email_stats",
+          "type": "string",
+        },
+        "total": {
+          "$ref": "#/properties/offset",
+        },
+        "unreported_in_page": {
+          "$ref": "#/properties/offset",
+        },
+      },
+      "required": [
+        "publication",
+        "source",
+        "metric",
+        "direction",
+        "offset",
+        "limit",
+        "total",
+        "returned",
+        "has_more",
+        "next_offset",
+        "ordering",
+        "unreported_in_page",
+        "rows",
+        "semantics",
       ],
       "type": "object",
     },
@@ -3649,6 +3985,12 @@ exports[`stable output contracts > classifies any public schema drift as potenti
             },
           ],
         },
+        "feed_capped": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
         "found": {
           "type": "boolean",
         },
@@ -3672,11 +4014,27 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "reaction_count": {
           "$ref": "#/properties/views",
         },
+        "scanned": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "search_result": {
+          "enum": [
+            "archive_exhausted",
+            "scan_bound_reached",
+            "feed_incomplete",
+          ],
+          "type": "string",
+        },
         "sent": {
           "$ref": "#/properties/views",
         },
         "signups": {
           "$ref": "#/properties/views",
+        },
+        "stats_available": {
+          "type": "boolean",
         },
         "subscribes": {
           "$ref": "#/properties/views",
@@ -5011,6 +5369,309 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "limitations",
         "publication",
         "editor_url",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "default": "desc",
+          "enum": [
+            "desc",
+            "asc",
+          ],
+          "type": "string",
+        },
+        "limit": {
+          "default": 10,
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "metric": {
+          "default": "views",
+          "enum": [
+            "views",
+            "opened",
+            "sent",
+            "open_rate",
+            "click_through_rate",
+            "signups",
+            "subscribes",
+            "estimated_value",
+            "post_date",
+          ],
+          "type": "string",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 9007199254740971,
+          "minimum": 0,
+          "type": "integer",
+        },
+      },
+      "type": "object",
+    },
+    "name": "rank_posts",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "enum": [
+            "desc",
+            "asc",
+          ],
+          "type": "string",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "limit": {
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "metric": {
+          "enum": [
+            "views",
+            "opened",
+            "sent",
+            "open_rate",
+            "click_through_rate",
+            "signups",
+            "subscribes",
+            "estimated_value",
+            "post_date",
+          ],
+          "type": "string",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "offset": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "ordering": {
+          "const": "server",
+          "type": "string",
+        },
+        "publication": {
+          "type": "string",
+        },
+        "returned": {
+          "$ref": "#/properties/offset",
+        },
+        "rows": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "absent_metrics": {
+                "items": {
+                  "enum": [
+                    "views",
+                    "sent",
+                    "delivered",
+                    "opened",
+                    "open_rate",
+                    "clicked",
+                    "click_through_rate",
+                    "signups",
+                    "subscribes",
+                    "unsubscribes",
+                    "estimated_value",
+                    "likes",
+                    "comments",
+                    "restacks",
+                  ],
+                  "type": "string",
+                },
+                "type": "array",
+              },
+              "metrics": {
+                "additionalProperties": false,
+                "properties": {
+                  "click_through_rate": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "clicked": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "comments": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "delivered": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "estimated_value": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "likes": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "open_rate": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "opened": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "restacks": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "sent": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "signups": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "subscribes": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "unsubscribes": {
+                    "$ref": "#/properties/rows/items/properties/metrics/properties/views",
+                  },
+                  "views": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "views",
+                  "sent",
+                  "delivered",
+                  "opened",
+                  "open_rate",
+                  "clicked",
+                  "click_through_rate",
+                  "signups",
+                  "subscribes",
+                  "unsubscribes",
+                  "estimated_value",
+                  "likes",
+                  "comments",
+                  "restacks",
+                ],
+                "type": "object",
+              },
+              "post_date": {
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+              "post_id": {
+                "$ref": "#/properties/rows/items/properties/rank",
+              },
+              "rank": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer",
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+              "type": {
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                      },
+                      {
+                        "type": "string",
+                      },
+                    ],
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "value_state": {
+                "enum": [
+                  "reported",
+                  "null",
+                  "absent",
+                ],
+                "type": "string",
+              },
+            },
+            "required": [
+              "rank",
+              "post_id",
+              "title",
+              "post_date",
+              "type",
+              "value",
+              "value_state",
+              "metrics",
+              "absent_metrics",
+            ],
+            "type": "object",
+          },
+          "maxItems": 20,
+          "type": "array",
+        },
+        "semantics": {
+          "type": "string",
+        },
+        "source": {
+          "const": "publication_email_stats",
+          "type": "string",
+        },
+        "total": {
+          "$ref": "#/properties/offset",
+        },
+        "unreported_in_page": {
+          "$ref": "#/properties/offset",
+        },
+      },
+      "required": [
+        "publication",
+        "source",
+        "metric",
+        "direction",
+        "offset",
+        "limit",
+        "total",
+        "returned",
+        "has_more",
+        "next_offset",
+        "ordering",
+        "unreported_in_page",
+        "rows",
+        "semantics",
       ],
       "type": "object",
     },

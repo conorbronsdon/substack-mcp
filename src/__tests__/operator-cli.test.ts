@@ -74,10 +74,10 @@ describe("operator read commands", () => {
     expect(JSON.parse(output.out.mock.calls[0][0]).data).toEqual({ id: 42, title: "Title", body: "Body" });
   });
   it("preserves missing analytics and approximate subscriber-count semantics", async () => {
-    vi.spyOn(SubstackClient.prototype, "getPostAnalytics").mockResolvedValue(null);
+    vi.spyOn(SubstackClient.prototype, "findPostAnalytics").mockResolvedValue({ post: null, outcome: "scan_bound_reached", scanned: 500, feed_capped: null });
     vi.spyOn(SubstackClient.prototype, "getSubscriberCount").mockResolvedValue({ count: 1000, precision: "approximate", note: "Rounded public count." } as never);
     const analytics = io(); expect(await runOperator(["analytics", "post", "42"], () => [credentials], analytics)).toBe(0);
-    expect(JSON.parse(analytics.out.mock.calls[0][0]).data).toMatchObject({ found: false, post_id: 42 });
+    expect(JSON.parse(analytics.out.mock.calls[0][0]).data).toMatchObject({ found: false, post_id: 42, search_result: "scan_bound_reached", scanned: 500, feed_capped: null });
     const count = io(); expect(await runOperator(["subscribers", "count"], () => [credentials], count)).toBe(0);
     expect(JSON.parse(count.out.mock.calls[0][0]).data).toEqual({ count: 1000, precision: "approximate", note: "Rounded public count." });
   });

@@ -136,6 +136,14 @@ describe("loss-aware reverse Markdown conversion", () => {
     expect(restored.document).toEqual(fixture.document);
     expect(restored.unsupported_nodes).toEqual([]);
   });
+  it("round-trips a footnote attached to text before an image without diagnostics", () => {
+    const imported = convertMarkdown("A[^1] ![img](https://example.com/a.png) B\n\n[^1]: One").document;
+    const exported = prosemirrorToMarkdown(JSON.stringify(imported));
+    expect(exported.unsupported_nodes.filter(node => node.type.startsWith("footnote"))).toEqual([]);
+    // Image layout attributes make the export partial; its notice reimports as a leading code block.
+    expect(exported.markdown).toMatch(/^<!-- substack-export-partial/);
+    expect(convertMarkdown(exported.markdown!).document.content.slice(1).map(node => node.type)).toEqual(imported.content.map(node => node.type));
+  });
   it.each([
     ["anchor without a footnote", [paragraph(text("A"), { type: "footnoteAnchor", attrs: { number: 1 } })], "footnoteAnchor"],
     ["footnote without an anchor", [paragraph(text("A")), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B"))] }], "footnote"],
@@ -146,7 +154,8 @@ describe("loss-aware reverse Markdown conversion", () => {
     ["footnote after a later paragraph", [paragraph({ type: "footnoteAnchor", attrs: { number: 1 } }), paragraph(text("Later")), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B"))] }], "footnote"],
     ["anchor in a heading", [{ type: "heading", attrs: { level: 2 }, content: [{ type: "footnoteAnchor", attrs: { number: 1 } }] }, { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B"))] }], "footnote"],
     ["repeated anchor", [paragraph({ type: "footnoteAnchor", attrs: { number: 1 } }, { type: "footnoteAnchor", attrs: { number: 1 } }), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B"))] }], "footnote"],
-    ["multi-paragraph footnote", [paragraph({ type: "footnoteAnchor", attrs: { number: 1 } }), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B")), paragraph(text("C"))] }], "footnote"],
+    ["anchor inside a footnote", [paragraph({ type: "footnoteAnchor", attrs: { number: 1 } }), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("See "), { type: "footnoteAnchor", attrs: { number: 1 } })] }], "footnote"],
+    ["multi-paragraph footnote",[paragraph({ type: "footnoteAnchor", attrs: { number: 1 } }), { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("B")), paragraph(text("C"))] }], "footnote"],
   ])("reports footnote structures Markdown cannot round-trip: %s", (_name, content, type) => {
     const result = reverse(content);
     expect(result.status).toBe("partial");

@@ -29,7 +29,8 @@ becomes a `footnoteAnchor` with `attrs.number`. Its definition becomes a
 from 1 in the order references appear; labels such as `[^source]` and the order
 of definitions in the Markdown do not matter. Each paragraph's footnotes follow
 it directly, as a run of `footnote` blocks, matching where the editor places
-them. A paragraph split around an image keeps its footnotes after the last part.
+them. When an image splits a paragraph, each footnote follows the text part
+that holds its reference.
 
 Supported: one reference per footnote, in a top-level paragraph, without
 surrounding formatting or link, and a top-level definition with one paragraph.

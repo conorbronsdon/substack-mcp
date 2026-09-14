@@ -190,6 +190,23 @@ describe("Markdown AST fidelity", () => {
     expect(convert("Undefined[^missing]").document.content).toEqual([{ type: "paragraph", content: [{ type: "text", text: "Undefined[^missing]" }] }]);
   });
 
+  it("keeps a footnote with the image-split text part that references it", () => {
+    const result = convert("A[^1] ![img](https://example.com/a.png) B\n\n[^1]: One");
+    expect(result.unsupported_nodes).toEqual([]);
+    expect(result.document.content.map(node => node.type + (node.attrs?.number ?? ""))).toEqual(["paragraph", "footnote1", "captionedImage", "paragraph"]);
+  });
+
+  it("retains definitions referenced from inside a retained footnote definition, in any order", () => {
+    const footnote = convert("[^1]: One\n\nA[^1]\n\n[^unused]: See[^1]");
+    expect(footnote.document.content.map(node => node.type)).toEqual(["code_block", "paragraph", "footnote", "code_block"]);
+    expect(JSON.stringify(footnote.document)).toContain("[^1]: One");
+    expect(JSON.stringify(footnote.document)).toContain("[^unused]: See[^1]");
+    const link = convert("[a][x]\n\n[x]: https://example.com\n\n[^u]: See [b][x]");
+    expect(link.document.content[0].content?.[0].marks?.[0].type).toBe("link");
+    expect(JSON.stringify(link.document)).toContain("[x]: https://example.com");
+    expect(link.unsupported_nodes.map(node => node.type).sort()).toEqual(["definition", "footnoteDefinition"]);
+  });
+
   it("rejects footnotes in Notes", () => {
     const result = convertMarkdown("A[^1]\n\n[^1]: Text", "note");
     expect(result.unsupported_nodes.map(node => node.type)).toEqual(["footnoteReference", "footnoteDefinition"]);

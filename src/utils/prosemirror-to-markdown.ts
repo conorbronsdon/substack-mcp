@@ -82,7 +82,7 @@ export function prosemirrorToMarkdown(source: string): MarkdownExport {
     // directly after each top-level paragraph, as the editor stores them.
     let expected = 1, run: number[] = [], editorLayout = true;
     for (const child of root.content) {
-      if (node(child) && child.type === "footnote") { if (run.shift() !== footnoteNumber(child)) editorLayout = false; continue; }
+      if (node(child) && child.type === "footnote") { if (run.shift() !== footnoteNumber(child) || anchorsIn(child).length) editorLayout = false; continue; }
       if (run.length) editorLayout = false;
       run = anchorsIn(child);
       if (run.length && (!node(child) || child.type !== "paragraph")) editorLayout = false;

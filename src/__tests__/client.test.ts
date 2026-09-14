@@ -298,6 +298,21 @@ describe("pagination limit cap (regression: #28)", () => {
     expect(Math.max(...offsets) + MAX_PAGE_SIZE).toBe(ANALYTICS_SCAN_DEPTH);
   });
 
+  it("findPostAnalytics reports why a post was not found and passes isCapped through", async () => {
+    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    stubPagedFeed(10_000);
+    expect(await client.findPostAnalytics(9_999)).toEqual({ post: null, outcome: "scan_bound_reached", scanned: ANALYTICS_SCAN_DEPTH, feed_capped: null });
+    stubPagedFeed(120);
+    expect(await client.findPostAnalytics(999)).toEqual({ post: null, outcome: "archive_exhausted", scanned: 120, feed_capped: null });
+    const found = await client.findPostAnalytics(60);
+    expect(found).toMatchObject({ outcome: "found", scanned: 100, feed_capped: null });
+    expect(found.post?.id).toBe(60);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ posts: [{ id: 1, title: "only" }], total: 1, isCapped: false }))));
+    expect(await client.findPostAnalytics(2)).toEqual({ post: null, outcome: "archive_exhausted", scanned: 1, feed_capped: false });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ posts: [], total: 0, isCapped: "yes" }))));
+    expect((await client.findPostAnalytics(2)).feed_capped).toBeNull();
+  });
+
   it("getPostAnalytics stops as soon as the post is found", async () => {
     const fetchMock = stubPagedFeed(10_000);
     const client = new SubstackClient("https://example.substack.com", "tok", "1");

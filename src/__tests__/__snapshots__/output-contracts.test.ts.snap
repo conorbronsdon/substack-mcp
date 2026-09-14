@@ -868,6 +868,12 @@ exports[`stable output contracts > classifies any public schema drift as potenti
             },
           ],
         },
+        "feed_capped": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
         "found": {
           "type": "boolean",
         },
@@ -891,11 +897,26 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "reaction_count": {
           "$ref": "#/properties/views",
         },
+        "scanned": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "search_result": {
+          "enum": [
+            "archive_exhausted",
+            "scan_bound_reached",
+          ],
+          "type": "string",
+        },
         "sent": {
           "$ref": "#/properties/views",
         },
         "signups": {
           "$ref": "#/properties/views",
+        },
+        "stats_available": {
+          "type": "boolean",
         },
         "subscribes": {
           "$ref": "#/properties/views",
@@ -3963,6 +3984,12 @@ exports[`stable output contracts > classifies any public schema drift as potenti
             },
           ],
         },
+        "feed_capped": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
         "found": {
           "type": "boolean",
         },
@@ -3986,11 +4013,26 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "reaction_count": {
           "$ref": "#/properties/views",
         },
+        "scanned": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "search_result": {
+          "enum": [
+            "archive_exhausted",
+            "scan_bound_reached",
+          ],
+          "type": "string",
+        },
         "sent": {
           "$ref": "#/properties/views",
         },
         "signups": {
           "$ref": "#/properties/views",
+        },
+        "stats_available": {
+          "type": "boolean",
         },
         "subscribes": {
           "$ref": "#/properties/views",

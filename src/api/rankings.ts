@@ -23,7 +23,7 @@ export const rankPostsInput = z.object({
   direction: z.enum(["desc", "asc"]).default("desc"),
   limit: z.number().int().min(1).max(RANK_MAX_LIMIT).default(10),
   offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER - RANK_MAX_LIMIT).default(0),
-});
+}).strict(); // No filters are supported; reject them instead of returning an unfiltered ranking.
 
 const metricValue = z.number().finite().nullable();
 const valueState = z.enum(["reported", "null", "absent"]);
@@ -56,7 +56,9 @@ const upstream = z.object({
   rows: z.array(z.record(z.unknown())).max(RANK_MAX_LIMIT),
   total: count,
 });
-const rowIdentity = z.object({ post_id: positiveId, title: text, post_date: text, type: text });
+// post_date is Substack's own timestamp string, returned unchanged; it must at least parse as a date.
+const postDate = z.string().max(64).refine(value => Number.isFinite(Date.parse(value))).nullish();
+const rowIdentity = z.object({ post_id: positiveId, title: text, post_date: postDate, type: text });
 
 type Read = (path: string) => Promise<unknown>;
 const invalid = () => new Error("Unexpected email statistics response; no ranking can be verified.");
@@ -67,6 +69,10 @@ export async function rankPosts(rawInput: z.input<typeof rankPostsInput>, read: 
   const query = new URLSearchParams({ order_by: input.metric, order_direction: input.direction, limit: String(input.limit), offset: String(input.offset) });
   const parsed = upstream.safeParse(await read(`/api/v1/publication/stats/email_stats?${query}`));
   if (!parsed.success || parsed.data.rows.length > input.limit) throw invalid();
+  // A page must agree with total: a short or empty page before the end, or rows past it, cannot be ranked honestly.
+  const { rows: rawRows, total } = parsed.data;
+  if (rawRows.length && input.offset + rawRows.length > total) throw invalid();
+  if (rawRows.length < input.limit && input.offset + rawRows.length < total) throw invalid();
   const seen = new Set<number>();
   const rows = parsed.data.rows.map((row, index) => {
     const identity = rowIdentity.safeParse(row);
@@ -99,12 +105,12 @@ export async function rankPosts(rawInput: z.input<typeof rankPostsInput>, read: 
     };
   });
   const returned = rows.length;
-  const has_more = returned > 0 && input.offset + returned < parsed.data.total;
+  const has_more = returned > 0 && input.offset + returned < total;
   const rate = RATE_METRICS.has(input.metric);
   return {
     source: "publication_email_stats",
     metric: input.metric, direction: input.direction, offset: input.offset, limit: input.limit,
-    total: parsed.data.total, returned, has_more, next_offset: has_more ? input.offset + returned : null,
+    total, returned, has_more, next_offset: has_more ? input.offset + returned : null,
     ordering: "server",
     unreported_in_page: rows.filter(row => row.value_state !== "reported").length,
     rows,
@@ -113,7 +119,8 @@ export async function rankPosts(rawInput: z.input<typeof rankPostsInput>, read: 
       "Substack does not document rate denominators or units, so open_rate and click_through_rate are passed through unchanged.",
       "value_state 'absent' means the row omitted the field; 'null' means Substack returned null. Neither is zero.",
       rate ? "When ranking by a rate, Substack places null rates among numeric rows rather than at one end; treat their positions as unranked." : "Rows without the metric appear at the end of descending pages and the start of ascending pages.",
-      "total is Substack's row count for this statistics list and may exclude posts without email statistics. Pages are separate reads and can shift between calls.",
+      "total is Substack's row count for this statistics list and may exclude posts without email statistics. Pages are separate reads and can shift between calls; a page that contradicts total is rejected.",
+      "post_date is Substack's timestamp string, returned unchanged.",
     ].join(" "),
   };
 }

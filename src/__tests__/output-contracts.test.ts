@@ -88,7 +88,7 @@ describe("stable output contracts", () => {
         ["list_published_posts", {}, "getPublishedPosts", { total: 1, posts: [post] }],
         ["get_post", { post_id: 42 }, "getPost", post],
         ["get_draft", { draft_id: 42 }, "getDraft", draft],
-        ["get_post_analytics", { post_id: 42 }, "getPostAnalytics", { ...post, stats: { views: 5 } }],
+        ["get_post_analytics", { post_id: 42 }, "findPostAnalytics", { post: { ...post, stats: { views: 5 } }, outcome: "found", scanned: 1, feed_capped: false }],
         ["list_drafts", {}, "getDrafts", [draft]],
         ["list_scheduled_posts", {}, "getScheduledPosts", [{ id: 42, draft_title: null, audience: "everyone", trigger_at: null }]],
         ["get_sections", {}, "getSections", [{ id: 42, name: "Section" }]],

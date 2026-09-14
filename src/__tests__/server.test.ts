@@ -100,7 +100,7 @@ describe("tool pagination limits (regression: #28)", () => {
     );
   });
 
-  it("get_post_analytics reports the same depth in its not-found note", async () => {
+  it("get_post_analytics says the whole feed was searched when the archive ends", async () => {
     stubFetch(); // empty feed: the id is never found
     const client = await connect();
 
@@ -109,9 +109,32 @@ describe("tool pagination limits (regression: #28)", () => {
       arguments: { post_id: 12345 },
     });
     const payload = JSON.parse((result.content as any[])[0].text);
-    expect(payload.found).toBe(false);
-    expect(payload.note).toContain(
-      `${ANALYTICS_SCAN_DEPTH} most recent published posts`,
-    );
+    expect(payload).toMatchObject({ found: false, post_id: 12345, search_result: "archive_exhausted", scanned: 0, feed_capped: null });
+    expect(payload.note).toContain("all 0 published posts");
+  });
+
+  it("get_post_analytics distinguishes the scan bound from an exhausted archive", async () => {
+    // Every page is full and carries isCapped, so the search stops at its bound.
+    const fetchMock = vi.fn(async (url: any) => {
+      const offset = Number(new URL(String(url)).searchParams.get("offset") ?? 0);
+      const posts = Array.from({ length: MAX_PAGE_SIZE }, (_, i) => ({ id: offset + i + 1, title: "Post", stats: { views: 1 } }));
+      return new Response(JSON.stringify({ posts, total: 10_000, isCapped: true }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = await connect();
+
+    const missing = JSON.parse(((await client.callTool({ name: "get_post_analytics", arguments: { post_id: 9_999 } })).content as any[])[0].text);
+    expect(missing).toMatchObject({ found: false, search_result: "scan_bound_reached", scanned: ANALYTICS_SCAN_DEPTH, feed_capped: true });
+    expect(missing.note).toContain(`${ANALYTICS_SCAN_DEPTH} most recent published posts`);
+    expect(missing.note).toContain("unknown here, not absent");
+  });
+
+  it("get_post_analytics marks a found post without statistics", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ posts: [{ id: 7, title: "No stats" }, { id: 8, title: "Stats", stats: { views: 3 } }], total: 2 }))));
+    const client = await connect();
+    const noStats = JSON.parse(((await client.callTool({ name: "get_post_analytics", arguments: { post_id: 7 } })).content as any[])[0].text);
+    expect(noStats).toMatchObject({ found: true, id: 7, stats_available: false, views: null });
+    const withStats = JSON.parse(((await client.callTool({ name: "get_post_analytics", arguments: { post_id: 8 } })).content as any[])[0].text);
+    expect(withStats).toMatchObject({ found: true, id: 8, stats_available: true, views: 3 });
   });
 });

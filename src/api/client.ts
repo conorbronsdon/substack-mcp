@@ -54,6 +54,16 @@ export const ANALYTICS_MAX_PAGES = 10;
  */
 export const ANALYTICS_SCAN_DEPTH = MAX_PAGE_SIZE * ANALYTICS_MAX_PAGES;
 
+/** Outcome of searching the published feed for one post's analytics. */
+export interface PostAnalyticsSearch {
+  post: SubstackPost | null;
+  outcome: "found" | "archive_exhausted" | "scan_bound_reached";
+  /** Published posts examined before stopping. */
+  scanned: number;
+  /** The feed's `isCapped` flag from the last page read, uninterpreted; null when absent. */
+  feed_capped: boolean | null;
+}
+
 /**
  * Parse Substack's order-of-magnitude subscriber bucket into a number.
  *
@@ -263,11 +273,12 @@ export class SubstackClient {
   async getPublishedPosts(
     offset = 0,
     limit = 25,
-  ): Promise<{ posts: SubstackPost[]; total: number }> {
-    const data = await this.request<{ posts: SubstackPost[]; total: number; offset: number; limit: number }>(
+  ): Promise<{ posts: SubstackPost[]; total: number; capped: boolean | null }> {
+    const data = await this.request<{ posts: SubstackPost[]; total: number; offset: number; limit: number; isCapped?: unknown }>(
       `${this.publicationUrl}/api/v1/post_management/published?offset=${offset}&limit=${limit}&order_by=post_date&order_direction=desc`,
     );
-    return { posts: data.posts || [], total: data.total || 0 };
+    // isCapped is passed through uninterpreted; its meaning is not documented.
+    return { posts: data.posts || [], total: data.total || 0, capped: typeof data.isCapped === "boolean" ? data.isCapped : null };
   }
 
   async getDrafts(offset = 0, limit = 25): Promise<SubstackDraft[]> {
@@ -397,23 +408,35 @@ export class SubstackClient {
   }
 
   async getPostAnalytics(postId: number): Promise<SubstackPost | null> {
-    // Substack has no per-post stats endpoint. Each row of the published
-    // feed already carries a `stats` object, so page through the feed
-    // (newest first) until the matching id turns up. Bounded so a bad id
-    // can't scan forever: ANALYTICS_SCAN_DEPTH most recent published posts.
-    //
-    // Pages are awaited one at a time, so the worst case is ANALYTICS_MAX_PAGES
-    // *sequential* requests, not a parallel burst — and that worst case only
-    // occurs when the id isn't in the feed at all. A found post short-circuits.
+    return (await this.findPostAnalytics(postId)).post;
+  }
+
+  /**
+   * Search the published feed for a post's stats row, reporting why it was not found.
+   *
+   * Substack has no per-post stats endpoint. Each row of the published feed
+   * already carries a `stats` object, so page through the feed (newest first)
+   * until the matching id turns up. Bounded so a bad id can't scan forever:
+   * ANALYTICS_SCAN_DEPTH most recent published posts, awaited one page at a
+   * time. A found post short-circuits.
+   *
+   * `archive_exhausted` means a short page ended the feed, so every published
+   * post was searched. `scan_bound_reached` means the bound was hit first: an
+   * older post may exist, and its analytics are unknown here, not absent.
+   */
+  async findPostAnalytics(postId: number): Promise<PostAnalyticsSearch> {
     const pageSize = MAX_PAGE_SIZE;
-    const maxPages = ANALYTICS_MAX_PAGES;
-    for (let page = 0; page < maxPages; page++) {
-      const { posts } = await this.getPublishedPosts(page * pageSize, pageSize);
+    let scanned = 0;
+    let feed_capped: boolean | null = null;
+    for (let page = 0; page < ANALYTICS_MAX_PAGES; page++) {
+      const { posts, capped } = await this.getPublishedPosts(page * pageSize, pageSize);
+      feed_capped = capped;
+      scanned += posts.length;
       const found = posts.find((p) => p.id === postId);
-      if (found) return found;
-      if (posts.length < pageSize) break; // reached the end of the feed
+      if (found) return { post: found, outcome: "found", scanned, feed_capped };
+      if (posts.length < pageSize) return { post: null, outcome: "archive_exhausted", scanned, feed_capped };
     }
-    return null;
+    return { post: null, outcome: "scan_bound_reached", scanned, feed_capped };
   }
 
   async createNote(

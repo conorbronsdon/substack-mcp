@@ -49,12 +49,21 @@ describe("rankPosts", () => {
     const result = await rankPosts({ metric: "post_date", direction: "asc", limit: 2, offset: 18 }, async () => ({ rows: [row(7), withoutMetrics(8)], total: 20 }));
     expect(result.rows.map(r => [r.rank, r.value, r.value_state])).toEqual([[19, "2026-09-01T12:00:00.000Z", "reported"], [20, null, "null"]]);
     expect(result).toMatchObject({ has_more: false, next_offset: null });
+    // Observed live: the page at offset == total is empty.
+    expect(await rankPosts({ offset: 20 }, async () => ({ rows: [], total: 20 }))).toMatchObject({ returned: 0, has_more: false, next_offset: null });
     expect(await rankPosts({ offset: 40 }, async () => ({ rows: [], total: 20 }))).toMatchObject({ returned: 0, has_more: false, next_offset: null });
-    // An empty page ends continuation even if total claims more rows (observed: the page after the last is empty).
-    expect(await rankPosts({ offset: 10 }, async () => ({ rows: [], total: 20 }))).toMatchObject({ returned: 0, has_more: false, next_offset: null });
   });
 
-  it.each([{ limit: 21 }, { limit: 0 }, { offset: -1 }, { limit: 1.5 }, { metric: "not_a_field" }, { metric: "likes" }, { direction: "sideways" }])(
+  it.each([
+    ["empty page before the end", { offset: 10, limit: 10 }, { rows: [], total: 20 }],
+    ["short page before the end", { offset: 0, limit: 10 }, { rows: [row(1), row(2)], total: 20 }],
+    ["rows past total", { offset: 19, limit: 5 }, { rows: [row(1), row(2)], total: 20 }],
+  ])("rejects a page that contradicts total instead of reporting exhaustion: %s", async (_name, input, response) => {
+    await expect(rankPosts(input, async () => response)).rejects.toThrow(/no ranking can be verified/);
+  });
+
+  it.each([{ limit: 21 }, { limit: 0 }, { offset: -1 }, { limit: 1.5 }, { metric: "not_a_field" }, { metric: "likes" }, { direction: "sideways" },
+    { section_id: 42 }, { order_by: "views" }, { metric: "views", filter: "paid" }])(
     "rejects unverified or out-of-range input before any request: %j", async input => {
       const read = vi.fn();
       await expect(rankPosts(input as never, read)).rejects.toThrow();
@@ -72,6 +81,8 @@ describe("rankPosts", () => {
     ["non-finite metric", { rows: [row(1, { opened: Number.POSITIVE_INFINITY })], total: 1 }],
     ["duplicate post", { rows: [row(1), row(1)], total: 2 }],
     ["oversized title", { rows: [row(1, { title: "x".repeat(10_001) })], total: 1 }],
+    ["unparseable post_date", { rows: [row(1, { post_date: "not-a-date" })], total: 1 }],
+    ["oversized post_date", { rows: [row(1, { post_date: "2026-09-01T12:00:00.000Z".padEnd(65, "Z") })], total: 1 }],
   ])("rejects malformed responses without partial results: %s", async (_name, response) => {
     await expect(rankPosts({ limit: 2 }, async () => response)).rejects.toThrow(/no ranking can be verified/);
   });
@@ -103,6 +114,24 @@ describe("rank_posts through MCP", () => {
       expect(url).toBe("https://b.substack.com/api/v1/publication/stats/email_stats?order_by=subscribes&order_direction=desc&limit=2&offset=0");
       expect(options?.method ?? "GET").toBe("GET");
       expect((await client.callTool({ name: "rank_posts", arguments: { limit: 21, ...(count === 2 ? { publication: "b" } : {}) } })).isError).toBe(true);
+      // An unsupported filter is rejected, not dropped into an unfiltered ranking.
+      expect((await client.callTool({ name: "rank_posts", arguments: { section_id: 42, ...(count === 2 ? { publication: "b" } : {}) } })).isError).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally { await client.close(); await server.close(); }
+  });
+
+  it.each([403, 404])("reports HTTP %s from statistics as analytics_unavailable, not an empty ranking", async status => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ error: "private-upstream-detail" }), { status, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const server = createServer([{ key: "b", label: "b", client: new SubstackClient("https://b.substack.com", "fixture", "1") }]);
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "test", version: "1" });
+    await Promise.all([client.connect(ct), server.connect(st)]);
+    try {
+      const result = await client.callTool({ name: "rank_posts", arguments: {} });
+      expect(result.isError).toBe(true);
+      expect(JSON.parse((result.content as { text: string }[])[0].text)).toMatchObject({ code: "analytics_unavailable", status });
+      expect(JSON.stringify(result)).not.toContain("private-upstream-detail");
       expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally { await client.close(); await server.close(); }
   });

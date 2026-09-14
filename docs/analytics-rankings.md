@@ -16,8 +16,10 @@ statistics. It is a single read and never changes anything.
 
 Only metrics whose sorting was checked against the live endpoint are accepted.
 The endpoint silently accepts unknown sort fields and misspelled parameters, so
-anything else is rejected before a request is made. Substack rejects page sizes
-above 20.
+anything else is rejected before a request is made. No filters are supported:
+an extra argument such as `section_id` is rejected rather than ignored, so a
+result is never presented as filtered when it is not. Substack rejects page
+sizes above 20.
 
 ## Result
 
@@ -48,6 +50,10 @@ Rows keep Substack's order; nothing is re-sorted. Checked on September 14, 2026:
 without email statistics, such as posts that were never emailed. Each page is a
 separate read, so rankings can shift between calls if statistics change.
 
+A page must agree with `total`. The page at `offset == total` is empty, which
+ends continuation. An empty or short page before that point, or rows past
+`total`, is rejected instead of being reported as the end of the list.
+
 ## Metric meanings
 
 Values are passed through as Substack reports them. Substack does not document
@@ -56,9 +62,32 @@ does not describe them as percentages of any particular count. `opened` and
 `sent` are Substack's own counts; they are not unique-reader counts unless
 Substack says so. `estimated_value` is Substack's estimate.
 
-For a single post's statistics by ID, use `get_post_analytics`.
+`post_date` is Substack's timestamp string, returned unchanged. It must parse as
+a date; its timezone is whatever the string states.
+
+## One post by ID
+
+`get_post_analytics` reads a single post's statistics from the published feed,
+searching the 500 most recent published posts. When the post is not found,
+`search_result` says why:
+
+| `search_result` | Meaning |
+| --- | --- |
+| `archive_exhausted` | The feed ended first, so every published post was searched |
+| `scan_bound_reached` | The 500-post bound was reached first. An older post may exist; its statistics are unknown here, not absent |
+
+`scanned` is the number of posts examined. `feed_capped` passes through the
+feed's `isCapped` flag, uninterpreted, or `null` when Substack omits it. A found
+post has `stats_available: false` when Substack returned no statistics for it;
+its metric fields are then `null`, not zero.
 
 ## Errors
+
+HTTP 403 or 404 from the statistics endpoint returns `code:
+"analytics_unavailable"` with its `status`. It means Substack did not provide
+statistics to this account or publication, not that the ranking is empty. This
+server does not check publication tier or eligibility in advance; it reports what
+Substack returns.
 
 Rate limiting and other upstream failures return the standard read error with
 `status` and a validated `retry_after` when Substack provides one; there is no

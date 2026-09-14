@@ -8,6 +8,12 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+### Fixed
+- Container attestation now reads the isolated registry login: `actions/attest` only reads
+  `$HOME/.docker/config.json`, so the attest steps use a private `HOME` whose `.docker` is the
+  isolated `DOCKER_CONFIG`. The 1.1.0 image was published without attestations because of this.
+  A release control and a pre-attestation credential check guard the pairing.
+
 ## [1.1.0] - 2026-09-14
 
 ### Added

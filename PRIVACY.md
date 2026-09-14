@@ -10,15 +10,18 @@ analytics or crash reporting.
 | --- | --- | --- |
 | The Substack publication you configure | MCP tool calls, and CLI commands that read or write Substack data (`status`, `--help` and other local commands make no request) | Your Substack session cookie and the request needed for that operation: reading posts, drafts, statistics or subscribers; creating or updating drafts; uploading images; publishing Notes; adding consented free subscribers |
 | The public page of your publication, and any host it redirects to | The subscriber-count read, when Substack's API does not return a count | A plain HTTPS request with no cookie or credential. Up to 3 HTTPS redirects are followed, including to other hosts |
-| `substack.com` | `substack-mcp login` only | You sign in through a local browser window; the resulting session cookie for your publication is saved locally |
+| `substack.com`, your publication, and whatever those pages load | `substack-mcp login` only | You sign in through a local browser window, which behaves like any browser: it follows the pages' redirects and loads the resources they request, including third-party hosts. The resulting session cookie for your publication is saved locally |
 | The image host you name, and any host it redirects to | `upload_image` with `image_url` only | A plain HTTPS download request, with no Substack cookie or credential. Up to 3 HTTPS redirects are followed, including to other hosts; private and reserved network addresses are refused. The image is then uploaded to Substack's CDN, where anyone with the returned link can fetch it |
 
 With the core server and CLI, those are the only destinations. The optional
 components below contact other services when you set them up.
 
-Content you give your AI assistant or client (for example draft text) passes
-through that client under its own privacy terms. This server only sends it to
-Substack when a tool you invoke requires it. Substack's handling of your data is
+Your MCP client or AI assistant is a separate party. Content you give it (for
+example draft text) and every tool result the server returns to it (including
+private drafts, posts, statistics, subscriber records and error messages) are
+handled under that client's privacy terms. The CLI prints results to your terminal
+or to files you redirect it to. This server only sends your content to Substack
+when a tool you invoke requires it. Substack's handling of your data is
 governed by Substack's terms and privacy policy.
 
 ## What is stored on your machine
@@ -46,8 +49,10 @@ These are off unless you set them up:
 - **Local calendar sync** (`calendar-sync`) runs your own `gws` command-line tool
   to read Google Calendar booking emails from Gmail, then adds consenting bookers as
   free Substack subscribers. Gmail is contacted through `gws` under your Google
-  authorization. Its state file, which you place, contains those email addresses,
-  signup answers and message IDs. See [docs/calendar-sync.md](docs/calendar-sync.md).
+  authorization. Its state file, which you place, contains the publication and
+  organizer, bookers' email addresses, signup answers, source message IDs, and a
+  record of each subscriber attempt with its status and time. Each save is written
+  first to `<state_path>.new`; if writing or renaming fails, that copy can remain. See [docs/calendar-sync.md](docs/calendar-sync.md).
 - **Cloud calendar sync** runs the same process in a Cloudflare Worker on your
   own Cloudflare account. It sends your Google OAuth client credentials and
   refresh token to Google's token endpoint (`oauth2.googleapis.com`), reads booking

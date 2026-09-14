@@ -11,6 +11,8 @@ import { buildAnnotations } from "./annotations.js";
 import { consentEvidenceSchema, type ConsentEvidence } from "./api/subscribers.js";
 import { convertMarkdown, type MarkdownConversion } from "./utils/markdown-to-prosemirror.js";
 import { fileToDataUri } from "./utils/image.js";
+import { RemoteImageError, type RemoteImageFetcher } from "./utils/remote-image-errors.js";
+import { REMOTE_IMAGE_DEADLINE_MS, REMOTE_IMAGE_MAX_BYTES, REMOTE_IMAGE_MAX_REDIRECTS } from "./utils/remote-image-limits.js";
 import { searchInput } from "./api/search.js";
 import { preflightDraft } from "./utils/draft-preflight.js";
 import { exportDraft, exportDraftInput, exportDraftOutput, draftEditorUrl } from "./api/draft-export.js";
@@ -50,7 +52,12 @@ function conversionError(conversion: MarkdownConversion, note = false) {
   };
 }
 
-export function createServer(publications: PublicationConfig[]): McpServer {
+export interface ServerOptions {
+  /** Enables upload_image's image_url. Node entrypoints pass fetchRemoteImage; the Worker does not. */
+  fetchRemoteImage?: RemoteImageFetcher;
+}
+
+export function createServer(publications: PublicationConfig[], options: ServerOptions = {}): McpServer {
   if (publications.length === 0) {
     throw new Error("createServer requires at least one publication configuration.");
   }
@@ -561,19 +568,26 @@ export function createServer(publications: PublicationConfig[]): McpServer {
     "upload_image",
     {
       description:
-        "Upload an image to Substack's CDN. Provide exactly one of `image_base64` (a base64 data URI) or `image_path` (a local file path). Returns a hosted image URL that is publicly fetchable by anyone with the link (an unlisted asset — not attributed to you or added to your feed).",
+        "Upload an image to Substack's CDN. Provide exactly one of `image_base64` (a base64 data URI), `image_path` (a local file path) or `image_url` (a public HTTPS image to download first). Returns a hosted image URL that is publicly fetchable by anyone with the link (an unlisted asset — not attributed to you or added to your feed).",
       inputSchema: {
         image_base64: z
           .string()
           .optional()
           .describe(
-            'Base64-encoded image with data URI prefix (e.g., "data:image/png;base64,..."). Mutually exclusive with image_path.',
+            'Base64-encoded image with data URI prefix (e.g., "data:image/png;base64,..."). Mutually exclusive with image_path and image_url.',
           ),
         image_path: z
           .string()
           .optional()
           .describe(
-            'Absolute path to a local image file (e.g., "/Users/me/pic.png"). Read and encoded automatically; MIME type inferred from the extension. Mutually exclusive with image_base64.',
+            'Absolute path to a local image file (e.g., "/Users/me/pic.png"). Read and encoded automatically; MIME type inferred from the extension. Mutually exclusive with image_base64 and image_url.',
+          ),
+        image_url: z
+          .string()
+          .max(2048)
+          .optional()
+          .describe(
+            `HTTPS URL of a PNG, JPEG, GIF, WebP or AVIF image to download and upload. Sent without Substack cookies; private, loopback, link-local, metadata and reserved destinations are refused at connection time and on every redirect (at most ${REMOTE_IMAGE_MAX_REDIRECTS}). Limits: ${REMOTE_IMAGE_MAX_BYTES / 1024 / 1024} MB and ${REMOTE_IMAGE_DEADLINE_MS / 1000} seconds; the bytes must match the declared type. Not available on every deployment. Mutually exclusive with image_base64 and image_path.`,
           ),
         ...publicationField(),
       },
@@ -582,20 +596,37 @@ export function createServer(publications: PublicationConfig[]): McpServer {
     async ({
       image_base64,
       image_path,
+      image_url,
       publication,
     }: {
       image_base64?: string;
       image_path?: string;
+      image_url?: string;
       publication?: string;
     }) => {
-      if (!image_base64 === !image_path) {
+      if ([image_base64, image_path, image_url].filter(Boolean).length !== 1) {
         throw new Error(
-          "Provide exactly one of `image_base64` or `image_path`.",
+          "Provide exactly one of `image_base64`, `image_path` or `image_url`.",
         );
       }
-      const dataUri = image_path
-        ? await fileToDataUri(image_path)
-        : (image_base64 as string);
+      const remoteError = (code: string, message: string) => ({
+        isError: true,
+        content: [{ type: "text" as const, text: JSON.stringify({ code, message, upload_attempts: 0 }) }],
+      });
+      let dataUri: string;
+      if (image_url) {
+        if (!options.fetchRemoteImage) return remoteError("remote_image_unavailable", "This deployment does not download remote images. Upload the file with image_path or image_base64 instead.");
+        try {
+          dataUri = (await options.fetchRemoteImage(image_url)).data_uri;
+        } catch (error) {
+          if (!(error instanceof RemoteImageError)) throw error;
+          return remoteError(error.code, `${error.message} Nothing was uploaded.`);
+        }
+      } else {
+        dataUri = image_path
+          ? await fileToDataUri(image_path)
+          : (image_base64 as string);
+      }
       const result = await clientFor(publication).uploadImage(dataUri);
       return {
         content: [

@@ -8,6 +8,15 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+### Added
+- `upload_image` accepts `image_url` (#55). The server downloads a PNG, JPEG, GIF, WebP or AVIF image
+  over HTTPS, without Substack cookies, and uploads it through the existing path. Destinations are
+  checked at connection time and after every redirect, so loopback, private, link-local, metadata and
+  reserved addresses (including IPv4-mapped and tunnelled IPv6 forms) are refused and DNS rebinding
+  is covered. Downloads are limited to 3 redirects, 5 MB and 15 seconds, and the bytes must match the
+  declared type. Failures return a typed `code` with `upload_attempts: 0`. The Cloudflare Worker returns
+  `remote_image_unavailable`. See [docs/remote-images.md](docs/remote-images.md).
+
 ## [1.1.1] - 2026-09-14
 
 ### Fixed

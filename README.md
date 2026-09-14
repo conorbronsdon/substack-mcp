@@ -266,7 +266,7 @@ Both tools require `publication` when multiple publications are configured.
 |------|-------------|
 | `create_draft` | Create a new draft from markdown (private) |
 | `update_draft` | Apply a reviewed change receipt; recheck unpublished state and report readback outcomes |
-| `upload_image` | Upload an image to Substack's CDN — returns a publicly-fetchable (unlisted) URL |
+| `upload_image` | Upload an image to Substack's CDN from a file, data URI or [public HTTPS URL](docs/remote-images.md) — returns a publicly-fetchable (unlisted) URL |
 
 ### Review before changing a draft
 

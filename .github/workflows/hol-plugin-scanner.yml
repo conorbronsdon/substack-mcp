@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # This action revision installs the attested plugin-scanner 3.0.123 wheel.
+      # This action revision installs the attested plugin-scanner 3.0.145 wheel.
       - uses: hashgraph-online/ai-plugin-scanner-action@7facfaefd57629e86506432eed7884d26b61eb1f # v1.2.653
         with:
           # Verify deliberately safety-skips command-based MCP servers; test:package covers runtime execution.

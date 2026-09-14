@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
@@ -31,7 +31,7 @@ const expectedTools = [
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
   'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/authoring.md', 'docs/export.md', 'docs/draft-changes.md',
   'docs/workflow.md', 'docs/tool-contract.md', 'docs/plugins.md', 'docs/containers.md',
-  'docs/compatibility.md', 'docs/release-checklist.md', 'docs/distribution.md', 'docs/operator-cli.md', 'docs/http-transport.md', 'docs/errors.md', 'dist/index.js', 'dist/login.js'];
+  'docs/compatibility.md', 'docs/release-checklist.md', 'docs/distribution.md', 'docs/typescript-api.md', 'docs/operator-cli.md', 'docs/http-transport.md', 'docs/errors.md', 'dist/index.js', 'dist/login.js'];
 let transport;
 try {
   const [packed] = JSON.parse(npm(['pack', '--json', '--ignore-scripts', '--pack-destination', scratch], process.cwd()));
@@ -84,6 +84,22 @@ try {
     assert.match(execFileSync(process.execPath, [cli, ...args], { env, encoding: 'utf8', timeout: 10_000 }), /Read-only JSON/);
   }
   assert.throws(() => execFileSync(process.execPath, [cli, 'drafts', 'get', '-1'], { env, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
+  for (const args of [['drafts', 'create', '--help'], ['posts', 'search', '--help'], ['drafts', 'preflight', '--help']]) {
+    assert.match(execFileSync(process.execPath, [cli, ...args], { env, encoding: 'utf8', timeout: 10_000 }), /drafts create <markdown-file>/);
+  }
+  const unsupportedMarkdown = join(scratch, 'unsupported.md');
+  writeFileSync(unsupportedMarkdown, ['A claim.[^1]', '', '[^1]: A source.'].join(String.fromCharCode(10)));
+  assert.throws(() => execFileSync(process.execPath, [cli, 'drafts', 'create', unsupportedMarkdown, '--title', 'T'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }),
+    error => error.status === 1 && JSON.parse(error.stderr).code === 'unsupported_markdown' && JSON.parse(error.stderr).command === 'drafts create');
+  for (const args of [['posts', 'search', 'hello', '--publication', 'missing'], ['drafts', 'preflight', '42', '--publication', 'missing'], ['drafts', 'create', unsupportedMarkdown, '--title', 'T', '--publication', 'missing']]) {
+    assert.throws(() => execFileSync(process.execPath, [cli, ...args], { env: doctorEnv, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => {
+      const result = JSON.parse(error.stderr);
+      return error.status === 2 && result.code === 'publication_required' && result.command === args.slice(0, 2).join(' ');
+    });
+  }
+  for (const args of [['drafts', 'create', join(scratch, 'missing.md'), '--title', 'T'], ['posts', 'search', 'hello', '--limit', '51'], ['drafts', 'preflight', '0'], ['drafts', 'plan']]) {
+    assert.throws(() => execFileSync(process.execPath, [cli, ...args], { env, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
+  }
   assert.equal(diagnosis.ok, true);
   assert.equal(diagnosis.mode, 'configuration_only');
   assert.equal(diagnosis.publications[0].authentication, 'not_checked');

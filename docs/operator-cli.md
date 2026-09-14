@@ -2,12 +2,16 @@
 
 Configuration, credentials and client setup are in the [README](../README.md#setup).
 
-The CLI also exposes read-only workflows through the same MCP handlers:
+The CLI also exposes workflows through the same MCP handlers. Every command
+below is read-only except `drafts create`, which writes one private draft:
 
 ```sh
 substack-mcp status --json
 substack-mcp drafts list --limit 10 --offset 0
 substack-mcp drafts get 42
+substack-mcp drafts create post.md --title "Post title"
+substack-mcp posts search "Post title" --status drafts --limit 10
+substack-mcp drafts preflight 42
 substack-mcp drafts export 42 --format json
 substack-mcp analytics post 42
 substack-mcp subscribers count
@@ -16,11 +20,31 @@ substack-mcp subscribers get reader@example.com
 
 Add `--publication key` when multiple publications are configured. Read commands
 return `{format_version: 1, ok, command, publication, data}` as JSON; `--json` is
-accepted explicitly. Exit 0 means a completed read, 1 means a configuration,
+accepted explicitly. Exit 0 means a completed read or draft creation, 1 means a configuration,
 upstream or output failure, and 2 means invalid arguments or selection. A missing
 analytics result or subscriber is still a completed read; inspect `data`. Counts
 retain their exact/approximate/unavailable precision. Output is capped at 4 MiB
 without partial printing. Draft and subscriber output is private.
+
+Failed reads still print `code: "read_failed"` to stderr with exit 1, and add a
+`category`: `authentication`, `rate_limited`, `timeout`, `not_found`,
+`invalid_request`, `upstream_unavailable`, `response_invalid`,
+`response_too_large`, `cancelled`, `output_limit`, `configuration` or `unknown`.
+When the MCP boundary reported them, `upstream_code`, `status`, `status_source`
+and a validated `retry_after` are included. Upstream messages, response bodies
+and exception text are never printed, and nothing is retried automatically.
+
+`drafts create` reads a UTF-8 Markdown file of at most 1 MiB, converts it with
+the same rules as `create_draft` and writes one unpublished draft; it never
+publishes, schedules or deletes. Unsupported Markdown stops before any request
+with `unsupported_markdown` and `unsupported_nodes`; add `--allow-unsupported`
+only after reviewing them. Success data includes the draft `id` and
+`editor_url`. A configuration failure reports `write_not_attempted`. Any later
+failure reports `write_unverified` with a category, because the draft may
+exist: check `drafts list` or `posts search <title> --status drafts` before an
+explicit retry. `posts search` returns one bounded page with the continuation
+fields of `search_posts`, and `drafts preflight` runs the static checks of
+`preflight_draft`; neither approves publication.
 
 `status` reports installed version, Node/platform and the same offline
 configuration diagnostics as doctor. It never opens a browser or claims a

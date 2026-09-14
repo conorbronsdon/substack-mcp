@@ -88,6 +88,7 @@
     "docs/compatibility.md",
     "docs/release-checklist.md",
     "docs/distribution.md",
+    "docs/typescript-api.md",
     "docs/operator-cli.md",
     "docs/http-transport.md",
     "docs/errors.md"

@@ -193,8 +193,9 @@ Tool output compatibility, response limits and versioning are documented in
 
 ### Operator diagnostics
 
-The CLI exposes read commands and configuration checks through the same MCP
-handlers and credential resolution as the server:
+The CLI exposes operator commands and configuration checks through the same MCP
+handlers and credential resolution as the server. `drafts create` writes one
+private draft; the other operator commands read:
 
 ```sh
 substack-mcp status --json

@@ -37,7 +37,7 @@ const usage = `Usage: substack-mcp drafts list [--offset n] [--limit 1-50] [--pu
 Read-only JSON output for every command except drafts create, which writes one private, unpublished draft and never publishes. --json is accepted explicitly. Pagination performs one bounded page, not an automatic full export.
 drafts create reads a UTF-8 Markdown file of at most 1 MiB and stops before writing when the Markdown is unsupported; review unsupported_nodes before using --allow-unsupported. After a create request fails, the result is write_unverified: check drafts list or posts search before any explicit retry.
 Subscriber and draft results are private; protect redirected output. analytics post uses the same bounded recent-post scan as MCP; analytics rank reads one page of Substack's email statistics, keeps its order and marks values reported, null or absent. preflight is a static check, not publish approval.
-Failed reads keep code read_failed and add a category (authentication, rate_limited, timeout, not_found, invalid_request, upstream_unavailable, response_invalid, response_too_large, cancelled, output_limit, configuration, unknown).`;
+Failed reads keep code read_failed and add a category (authentication, rate_limited, timeout, not_found, invalid_request, upstream_unavailable, response_invalid, response_too_large, cancelled, output_limit, configuration, statistics_unavailable, unknown).`;
 
 const MAX_MARKDOWN_FILE_BYTES = 1024 * 1024;
 const MAX_TITLE_CHARACTERS = 1000;
@@ -104,7 +104,7 @@ function parse(args: string[]) {
 }
 
 export type FailureCategory = "authentication" | "rate_limited" | "timeout" | "not_found" | "invalid_request" | "upstream_unavailable"
-  | "response_invalid" | "response_too_large" | "cancelled" | "output_limit" | "configuration" | "unknown";
+  | "response_invalid" | "response_too_large" | "cancelled" | "output_limit" | "configuration" | "statistics_unavailable" | "unknown";
 export interface FailureProjection { category: FailureCategory; upstream_code?: string; status?: number; status_source?: "http" | "client"; retry_after?: string; message: string }
 
 const failureMessages: Record<FailureCategory, string> = {
@@ -119,11 +119,14 @@ const failureMessages: Record<FailureCategory, string> = {
   cancelled: "The request was cancelled before completion.",
   output_limit: "The read completed, but the CLI result exceeded 4 MiB; no partial result was printed.",
   configuration: "Credential or publication configuration could not be loaded. Check with substack-mcp status --json.",
+  statistics_unavailable: "Substack did not provide email statistics for this publication or account; the account may lack statistics access. Refreshing the session will not change this.",
   unknown: "The read could not be completed within its response bounds. Check configuration and authentication with doctor --json --check-auth.",
 };
 const codeCategories = new Map<string, FailureCategory>([
   ["timeout", "timeout"], ["request_cancelled", "cancelled"], ["response_too_large", "response_too_large"], ["result_too_large", "response_too_large"],
   ["unexpected_html", "response_invalid"], ["malformed_json", "response_invalid"], ["redirect_rejected", "response_invalid"], ["invalid_tool_output", "response_invalid"],
+  // rank_posts reports a 403/404 from the statistics endpoint as analytics_unavailable; it is not a session failure.
+  ["analytics_unavailable", "statistics_unavailable"],
 ]);
 
 function failure(category: FailureCategory, fields: Omit<FailureProjection, "category" | "message"> = {}): FailureProjection {

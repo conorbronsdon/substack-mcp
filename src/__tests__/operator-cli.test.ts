@@ -73,7 +73,8 @@ describe("operator read commands", () => {
     expect(await runOperator(["analytics", "rank"], () => [credentials], output)).toBe(1);
     expect(output.out).not.toHaveBeenCalled();
     const error = JSON.parse(output.error.mock.calls[0][0]);
-    expect(error).toMatchObject({ format_version: 1, ok: false, command: "analytics rank", code: "read_failed", upstream_code: "analytics_unavailable", status: 403 });
+    expect(error).toMatchObject({ format_version: 1, ok: false, command: "analytics rank", code: "read_failed", category: "statistics_unavailable", upstream_code: "analytics_unavailable", status: 403 });
+    expect(error.message).not.toContain("substack-mcp login");
     expect(output.error.mock.calls[0][0]).not.toContain("private-detail");
   });
   it("requires an explicit existing selector for multiple publications", async () => {
@@ -206,6 +207,8 @@ describe("operator failure categories", () => {
     [{ code: "result_too_large" }, "response_too_large"],
     [{ code: "invalid_tool_output" }, "response_invalid"],
     [{ code: "request_cancelled", status: 502, status_source: "client" }, "cancelled"],
+    [{ code: "analytics_unavailable", status: 403 }, "statistics_unavailable"],
+    [{ code: "analytics_unavailable", status: 404 }, "statistics_unavailable"],
     [{ status: 503 }, "upstream_unavailable"],
     [{ status: 502, status_source: "client" }, "unknown"],
     [{ code: "constructor", status: 200 }, "unknown"],

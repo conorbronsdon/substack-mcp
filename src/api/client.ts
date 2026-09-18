@@ -300,9 +300,17 @@ export class SubstackClient {
   }
 
   async getPost(id: number): Promise<SubstackPost> {
-    return this.request<SubstackPost>(
-      `${this.publicationUrl}/api/v1/posts/${id}`,
+    // /posts/:slug treats a numeric ID as a slug and returns 404 (#125).
+    // The numeric route returns { post, publication, publicationSettings }.
+    const data = await this.request<{ post?: SubstackPost & { wordcount?: number } }>(
+      `${this.publicationUrl}/api/v1/posts/by-id/${id}`,
     );
+    const post = data?.post;
+    if (!post || post.id !== id) {
+      throw new Error("Unexpected published post response; requested post cannot be verified.");
+    }
+    // This route calls the count `wordcount`; keep the public tool field stable.
+    return { ...post, word_count: post.word_count ?? post.wordcount };
   }
 
   async createDraft(

@@ -8,6 +8,12 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+### Fixed
+- `get_post` retrieves published posts using the numeric-ID endpoint and unwraps
+  its `post` response (#125). Previously, numeric IDs were sent to the slug endpoint
+  and returned 404. The upstream `wordcount` field maps to the existing `word_count`
+  output. Missing or mismatched post data fails instead of returning empty success.
+
 ## [1.2.0] - 2026-09-14
 
 ### Added

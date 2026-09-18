@@ -1,6 +1,6 @@
 {
   "name": "substack-mcp",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Safe creator operations for Substack: rich drafts, Notes, analytics, and consented subscribers. Long-form posts stay draft-only; Notes publish immediately.",
   "keywords": [
     "mcp",

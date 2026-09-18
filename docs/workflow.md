@@ -30,6 +30,19 @@ preflight checks do not prove rendering or publication readiness. The server
 does not publish, schedule or delete long-form posts. The separate Note tools
 publish immediately and are not used in this workflow.
 
+## Community example: Codex and ChatGPT
+
+For a complete installation-to-draft account, read Jonathan Price's
+[I used Codex to connect ChatGPT to Substack. Then it drafted this post.](https://craftandcontext.substack.com/p/i-used-codex-to-connect-chatgpt-to-substack)
+at Craft & Context. He used Codex for local setup, connected ChatGPT through
+OpenAI's Secure MCP Tunnel, and created the guide as a private Substack draft
+before publishing it manually.
+
+His September 18, 2026 walkthrough used 1.2.0 and reported a `get_post` 404;
+that retrieval bug is fixed in 1.2.1. Follow the [current package setup](../README.md#setup)
+for configuration and keep the distinction between private long-form drafts
+and immediately published Notes.
+
 ## Use the CLI for file review
 
 The CLI shares the MCP credential resolution and draft safeguards:

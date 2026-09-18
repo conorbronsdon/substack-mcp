@@ -59,6 +59,19 @@ For 1.0 setup coverage and account eligibility, see [compatibility](docs/compati
    drafts until you publish them in Substack's editor. `create_note` and
    `create_note_with_link` publish immediately.
 
+## Community walkthrough
+
+Jonathan Price's [I used Codex to connect ChatGPT to Substack. Then it drafted this post.](https://craftandcontext.substack.com/p/i-used-codex-to-connect-chatgpt-to-substack)
+walks through using Codex to install the MCP locally, connecting ChatGPT through
+OpenAI's Secure MCP Tunnel, and creating a private draft for manual publication.
+He used the connection to create the draft of the guide itself.
+
+The guide documents his September 18, 2026 setup with version 1.2.0. Its reported
+`get_post` 404 is fixed in 1.2.1. Client interfaces and access requirements can
+change; use the [setup instructions below](#setup) for this package's current
+configuration. This is a community walkthrough, not a hosted service provided
+by this project.
+
 ## Setup
 
 Requires **Node.js 22 or newer** (CI covers Node 22 and 24). Browser login additionally requires Playwright.

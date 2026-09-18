@@ -8,6 +8,12 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-09-18
+
+### Added
+- Link Jonathan Price's Codex and ChatGPT setup walkthrough from the README and
+  draft-workflow guide (#126), with the version context for its reported bug.
+
 ### Fixed
 - `get_post` retrieves published posts using the numeric-ID endpoint and unwraps
   its `post` response (#125). Previously, numeric IDs were sent to the slug endpoint

@@ -16,7 +16,7 @@ Create and manage your Substack newsletter from your AI assistant or terminal. P
 
 ---
 
-![Create, search, export, plan and review a draft with substack-mcp](https://raw.githubusercontent.com/conorbronsdon/substack-mcp/dc259c332ec0fc561a75104063a79e816545351a/docs/workflow-demo.gif)
+![Create, search, export, plan and review a draft with substack-mcp](https://raw.githubusercontent.com/conorbronsdon/substack-mcp/7d0e8d675915a867901eca438d98ec066ab6c832/docs/workflow-demo.gif)
 
 The demo runs actual MCP handlers against offline sample data. No live API calls or publication occur. Follow the [draft workflow](docs/workflow.md) to create, find, export and review a post.
 
@@ -58,6 +58,19 @@ For 1.0 setup coverage and account eligibility, see [compatibility](docs/compati
    `plan_draft_update` and `update_draft`. Long-form posts stay unpublished
    drafts until you publish them in Substack's editor. `create_note` and
    `create_note_with_link` publish immediately.
+
+## Community walkthrough
+
+Jonathan Price's [I used Codex to connect ChatGPT to Substack. Then it drafted this post.](https://craftandcontext.substack.com/p/i-used-codex-to-connect-chatgpt-to-substack)
+walks through using Codex to install the MCP locally, connecting ChatGPT through
+OpenAI's Secure MCP Tunnel, and creating a private draft for manual publication.
+He used the connection to create the draft of the guide itself.
+
+The guide documents his September 18, 2026 setup with version 1.2.0. Its reported
+`get_post` 404 is fixed in 1.2.1. Client interfaces and access requirements can
+change; use the [setup instructions below](#setup) for this package's current
+configuration. This is a community walkthrough, not a hosted service provided
+by this project.
 
 ## Setup
 

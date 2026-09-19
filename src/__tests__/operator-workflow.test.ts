@@ -1,5 +1,5 @@
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runOperator } from "../operator-cli.js";
@@ -77,6 +77,19 @@ describe("operator draft workflow commands", () => {
     expect(await runOperator(["drafts", "create", path(), "--title", "T"], load, output)).toBe(2);
     expect(load).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled(); expect(output.out).not.toHaveBeenCalled();
     expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ format_version: 1, ok: false, command: "drafts create", code: "invalid_input_file" });
+  });
+
+  it("rejects a symbolic-link Markdown file before loading credentials", async context => {
+    const target = file("linked-target.md", "Hello");
+    const path = join(dir, "linked.md");
+    try { symlinkSync(target, path, "file"); } catch (error) {
+      if (process.platform === "win32" && (error as NodeJS.ErrnoException).code === "EPERM") { context.skip(); return; }
+      throw error;
+    }
+    const fetch = vi.fn(), load = vi.fn(), output = io(); vi.stubGlobal("fetch", fetch);
+    expect(await runOperator(["drafts", "create", path, "--title", "T"], load, output)).toBe(2);
+    expect(load).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled(); expect(output.out).not.toHaveBeenCalled();
+    expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ code: "invalid_input_file" });
   });
 
   it("admits a 1 MiB file, then applies the converter's own bound before any request", async () => {

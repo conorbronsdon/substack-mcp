@@ -8,6 +8,16 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+### Fixed
+- CLI `analytics rank` reports unavailable email statistics (403/404) as a new
+  `statistics_unavailable` failure category instead of the authentication message, which told
+  users to refresh a session that was not the problem.
+- Draft export reports a footnote anchor followed by `:` at the start of a line (paragraph start
+  or after a hard break) and marks the export `partial`. That text exports as `[^1]: …`, which
+  Markdown reimport reads as a footnote definition.
+- Container run examples in `docs/containers.md` point at the 1.2.1 image; they still pinned
+  1.2.0, which has the `get_post` 404 fixed in 1.2.1.
+
 ## [1.2.1] - 2026-09-18
 
 ### Added

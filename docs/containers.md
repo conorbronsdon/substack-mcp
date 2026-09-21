@@ -25,21 +25,21 @@ server starts. Machine-bound sessions from a different host are not portable;
 the image does not bundle Playwright or a browser login flow.
 
 ```sh
-docker run -i --rm --env-file ./substack.env ghcr.io/conorbronsdon/substack-mcp:1.2.0
+docker run -i --rm --env-file ./substack.env ghcr.io/conorbronsdon/substack-mcp:1.2.1
 ```
 
 The existing image command remains `node dist/index.js`. For an offline status
 check, explicitly select the Node entrypoint:
 
 ```sh
-docker run --rm --env-file ./substack.env --entrypoint node ghcr.io/conorbronsdon/substack-mcp:1.2.0 dist/index.js status --json
+docker run --rm --env-file ./substack.env --entrypoint node ghcr.io/conorbronsdon/substack-mcp:1.2.1 dist/index.js status --json
 ```
 
 For persistent HTTP, also configure a strong `MCP_HTTP_TOKEN` in the environment
 file, bind the host port to loopback, and allow the exact host/port clients use:
 
 ```sh
-docker run --rm --env-file ./substack.env -p 127.0.0.1:8080:8080 -e MCP_TRANSPORT=http -e MCP_HTTP_ALLOWED_HOSTS=127.0.0.1:8080,localhost:8080 ghcr.io/conorbronsdon/substack-mcp:1.2.0
+docker run --rm --env-file ./substack.env -p 127.0.0.1:8080:8080 -e MCP_TRANSPORT=http -e MCP_HTTP_ALLOWED_HOSTS=127.0.0.1:8080,localhost:8080 ghcr.io/conorbronsdon/substack-mcp:1.2.1
 ```
 
 Clients send `Authorization: Bearer <your MCP_HTTP_TOKEN>` to

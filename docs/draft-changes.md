@@ -78,7 +78,8 @@ substack-mcp drafts apply --input changes.json --plan plan.json
 ```
 
 Inspect `plan.json` before applying. Add `--publication key` for multiple
-publications. Inputs must be regular UTF-8 JSON files at most 1 MiB. The plan
+publications. Inputs must be regular UTF-8 JSON files at most 1 MiB; symbolic links are
+refused. The plan
 file contains the full plan output, not just its receipt. The CLI uses the same
 core and credential resolution as MCP. It never writes input or plan files;
 shell redirection follows your shell's overwrite and access-permission rules.

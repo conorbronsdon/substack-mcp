@@ -41,7 +41,9 @@ and exception text are never printed, and nothing is retried automatically.
 
 `drafts create` reads a UTF-8 Markdown file of at most 1 MiB, converts it with
 the same rules as `create_draft` and writes one unpublished draft; it never
-publishes, schedules or deletes. Unsupported Markdown stops before any request
+publishes, schedules or deletes. The path must name the file itself: symbolic
+links and directories are refused with `invalid_input_file` before credentials
+load. Unsupported Markdown stops before any request
 with `unsupported_markdown` and `unsupported_nodes`; add `--allow-unsupported`
 only after reviewing them. Success data includes the draft `id` and
 `editor_url`. A configuration failure reports `write_not_attempted`. Any later

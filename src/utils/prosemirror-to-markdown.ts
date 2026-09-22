@@ -179,6 +179,17 @@ export function prosemirrorToMarkdown(source: string): MarkdownExport {
       case "paragraph":
         check(value, at, defaultAlignment(a));
         if (!content.length) report(at, type, "An empty paragraph has no distinct Markdown representation.");
+        {
+          // "[^1]" then text starting with ":" at the start of a line (paragraph start or after a hard break)
+          // reimports as a footnote definition, turning the paragraph into code blocks.
+          const visible = content.filter(child => !(node(child) && kind(child) === "text" && child.text === ""));
+          visible.forEach((anchor, i) => {
+            const previous = visible[i - 1], next = visible[i + 1];
+            if (!node(anchor) || anchor.type !== "footnoteAnchor" || (previous !== undefined && !(node(previous) && kind(previous) === "hard_break"))) return;
+            if (node(next) && kind(next) === "text" && typeof next.text === "string" && next.text.startsWith(":"))
+              report(`${at}/content/${content.indexOf(anchor)}`, anchor.type, "A footnote anchor followed by a colon at the start of a line reimports as a footnote definition; original retained.");
+          });
+        }
         return [{ type: "paragraph", children: inline(content, at + "/content") }];
       case "heading":
         check(value, at, ["level", ...defaultAlignment(a)]);

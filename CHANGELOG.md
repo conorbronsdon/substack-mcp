@@ -9,6 +9,10 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Fixed
+- Release recovery accepts an npm `dist.integrity` only when it is a canonical base64 sha512
+  digest (exactly 64 bytes, 88 characters with `==` padding, re-encoding to the same text).
+  The previous check was syntax-only and passed truncated, unpadded or non-canonical values
+  (refs #65).
 - CLI `analytics rank` reports unavailable email statistics (403/404) as a new
   `statistics_unavailable` failure category instead of the authentication message, which told
   users to refresh a session that was not the problem.

@@ -24,7 +24,7 @@ assert.equal(status.version, pkg.version);
 const catalog = async client => {
   assert.equal(client.getServerVersion().version, pkg.version);
   const { tools } = await client.listTools();
-  assert.equal(tools.length, 25);
+  assert.equal(tools.length, 26);
   for (const name of ['get_publication', 'list_drafts', 'plan_draft_update', 'update_draft', 'rank_posts']) assert.ok(tools.some(tool => tool.name === name));
   for (const name of ['publish_post', 'delete_post', 'schedule_post']) assert.ok(!tools.some(tool => tool.name === name));
 };

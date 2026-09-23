@@ -8,6 +8,12 @@ import { classifyRelease } from './check-release-order.mjs';
 const repository = 'conorbronsdon/substack-mcp';
 const officialKey = 'io.modelcontextprotocol.registry/official';
 const isSha = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value);
+// npm dist.integrity: canonical base64 of exactly 64 bytes (88 chars ending `==`) that round-trips.
+const isSha512Integrity = value => {
+  if (typeof value !== 'string' || !/^sha512-[A-Za-z0-9+/]{86}==$/.test(value)) return false;
+  const digest = value.slice('sha512-'.length), bytes = Buffer.from(digest, 'base64');
+  return bytes.length === 64 && bytes.toString('base64') === digest;
+};
 class ReleaseStateError extends Error {
   constructor(message, retryable = false) { super(message); this.retryable = retryable; }
 }
@@ -77,7 +83,7 @@ export function decideRelease(pkg, sha, { latest, npm, registry, release, tagSha
   if (npm) {
     requireState(npm.name === pkg.name && npm.version === pkg.version, 'npm version identity mismatch');
     requireState(isSha(npm.gitHead) || manual, 'npm release commit is missing or invalid; manual reconciliation required');
-    requireState(typeof npm.dist?.integrity === 'string' && /^sha512-[A-Za-z0-9+/]+={0,2}$/.test(npm.dist.integrity), 'npm artifact integrity is missing or invalid');
+    requireState(isSha512Integrity(npm.dist?.integrity), 'npm artifact integrity is missing or invalid');
     if (manual) requireState(npm.dist.integrity === reconciledIntegrity, 'Reconciled npm integrity does not match the published artifact');
     requireState(latest?.version === pkg.version, 'npm latest and exact version disagree; wait for propagation, then reconcile dist-tags if persistent', true);
   } else requireState(latest?.version !== pkg.version, 'npm latest exists but exact version is absent; wait for propagation', true);

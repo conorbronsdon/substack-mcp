@@ -7,10 +7,12 @@ const pkg = { name: '@conorbronsdon/substack-mcp', mcpName: 'io.github.conorbron
 // Synthetic credential used only to assert auth scoping; never a real value.
 const fixtureAuth = 'example-token';
 const sha = 'a'.repeat(40), newerSha = 'b'.repeat(40);
+// Synthetic sha512 integrity: canonical base64 of 64 bytes (88 chars, `==` padding).
+const integrity = `sha512-${Buffer.alloc(64, 0xab).toString('base64')}`;
 const manifest = { name: pkg.mcpName, version: pkg.version, packages: [{ registryType: 'npm', identifier: pkg.name, version: pkg.version }] };
 const state = () => ({
   latest: { name: pkg.name, version: pkg.version },
-  npm: { name: pkg.name, version: pkg.version, gitHead: sha, dist: { integrity: 'sha512-YWJj' } },
+  npm: { name: pkg.name, version: pkg.version, gitHead: sha, dist: { integrity } },
   registry: { server: structuredClone(manifest), _meta: { 'io.modelcontextprotocol.registry/official': { status: 'active' } } },
   release: { tag_name: 'v0.9.0', draft: false, prerelease: false, published_at: '2026-09-07T20:00:00Z' },
   tagSha: sha,
@@ -162,6 +164,27 @@ test('verification stages reject partial publication and changed release targets
   assert.throws(() => verifyStage({ ...complete, registry: true }, 'verify-registry', sha), /Registry publication/);
   assert.throws(() => verifyStage({ ...complete, github: true }, 'verify', sha), /GitHub release/);
   assert.throws(() => verifyStage(complete, 'unknown', sha), /Unknown/);
+});
+
+test('npm integrity must be a canonical base64 sha512 digest', () => {
+  assert.equal(integrity.length, 'sha512-'.length + 88);
+  assert.equal(decideRelease(pkg, newerSha, state()).npm, false);
+  const digest = integrity.slice('sha512-'.length);
+  const malformed = {
+    'too short (syntactically valid base64)': 'sha512-YWJj',
+    'one byte short': `sha512-${Buffer.alloc(63, 0xab).toString('base64')}`,
+    'one byte long': `sha512-${Buffer.alloc(65, 0xab).toString('base64')}`,
+    'missing padding': `sha512-${digest.slice(0, -2)}`,
+    'short padding': `sha512-${digest.slice(0, -1)}`,
+    'extra padding': `sha512-${digest}=`,
+    'non-canonical trailing bits': `sha512-${digest.slice(0, 85)}x==`,
+    'wrong algorithm': `sha384-${digest}`,
+    'url-safe alphabet': `sha512-${digest.slice(0, 80)}-_${digest.slice(82)}`,
+  };
+  for (const [label, value] of Object.entries(malformed)) {
+    const s = state(); s.npm.dist.integrity = value;
+    assert.throws(() => decideRelease(pkg, newerSha, s), /integrity is missing or invalid/, label);
+  }
 });
 
 test('missing npm gitHead has an explicit integrity-bound manual recovery path', () => {

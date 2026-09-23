@@ -1056,6 +1056,247 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
+        "comment_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "cursor": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "comment_id",
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "get_note_thread",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "ancestors": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "ancestor_path": {
+                "anyOf": [
+                  {
+                    "maxLength": 4096,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "body_text": {
+                "anyOf": [
+                  {
+                    "maxLength": 4000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "body_truncated": {
+                "type": "boolean",
+              },
+              "children_count": {
+                "anyOf": [
+                  {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "date": {
+                "anyOf": [
+                  {
+                    "maxLength": 4000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "deleted": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "id": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer",
+              },
+              "parent_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/id",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "parent_status": {
+                "enum": [
+                  "derived",
+                  "not_derived",
+                ],
+                "type": "string",
+              },
+              "reaction_count": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "restacks": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/date/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "id",
+              "body_text",
+              "body_truncated",
+              "ancestor_path",
+              "parent_id",
+              "parent_status",
+              "date",
+              "deleted",
+              "status",
+              "children_count",
+              "reaction_count",
+              "restacks",
+            ],
+            "type": "object",
+          },
+          "maxItems": 100,
+          "type": "array",
+        },
+        "branches": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "descendants": {
+                "items": {
+                  "$ref": "#/properties/ancestors/items",
+                },
+                "maxItems": 100,
+                "type": "array",
+              },
+              "reply": {
+                "$ref": "#/properties/ancestors/items",
+              },
+            },
+            "required": [
+              "reply",
+              "descendants",
+            ],
+            "type": "object",
+          },
+          "maxItems": 100,
+          "type": "array",
+        },
+        "completeness": {
+          "enum": [
+            "complete_page",
+            "more_available",
+            "unknown",
+          ],
+          "type": "string",
+        },
+        "more_branches": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "root": {
+          "$ref": "#/properties/ancestors/items",
+        },
+        "truncated": {
+          "type": "boolean",
+        },
+      },
+      "required": [
+        "ancestors",
+        "root",
+        "branches",
+        "more_branches",
+        "next_cursor",
+        "completeness",
+        "truncated",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
         "post_id": {
           "description": "The post ID to retrieve",
           "exclusiveMinimum": 0,
@@ -1501,6 +1742,459 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "tags",
         "resolution_scope",
         "resolution_note",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string",
+        },
+        "handle": {
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "type": "string",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+        "user_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "get_profile_feed",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "has_more": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "date": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/items/items/properties/entity_key",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "entity_key": {
+                "maxLength": 4000,
+                "type": "string",
+              },
+              "kind": {
+                "enum": [
+                  "note",
+                  "post",
+                  "restack",
+                  "other",
+                ],
+                "type": "string",
+              },
+              "note": {
+                "additionalProperties": false,
+                "properties": {
+                  "ancestor_path": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4096,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "author_handle": {
+                    "anyOf": [
+                      {
+                        "pattern": "^[A-Za-z0-9_]{1,64}$",
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "author_user_id": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/user_id",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "body_text": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4000,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "body_truncated": {
+                    "type": "boolean",
+                  },
+                  "children_count": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "$ref": "#/properties/user_id",
+                  },
+                  "is_reply": {
+                    "type": [
+                      "boolean",
+                      "null",
+                    ],
+                  },
+                  "reaction_count": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/note/properties/children_count/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "restacks": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/note/properties/children_count/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "url": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4096,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "body_text",
+                  "body_truncated",
+                  "author_user_id",
+                  "author_handle",
+                  "ancestor_path",
+                  "is_reply",
+                  "children_count",
+                  "reaction_count",
+                  "restacks",
+                  "url",
+                ],
+                "type": "object",
+              },
+              "post": {
+                "additionalProperties": false,
+                "properties": {
+                  "canonical_url": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/note/properties/url/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "$ref": "#/properties/user_id",
+                  },
+                  "publication_name": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/entity_key",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "title": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/entity_key",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "canonical_url",
+                  "publication_name",
+                ],
+                "type": "object",
+              },
+            },
+            "required": [
+              "kind",
+              "entity_key",
+              "date",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "returned": {
+          "maximum": 50,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "user_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "user_id",
+        "items",
+        "returned",
+        "next_cursor",
+        "has_more",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+        "url": {
+          "maxLength": 4096,
+          "type": "string",
+        },
+      },
+      "required": [
+        "url",
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "get_public_post",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "body_html": {
+          "anyOf": [
+            {
+              "maxLength": 500000,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "body_status": {
+          "enum": [
+            "full_public",
+            "paywalled_or_truncated",
+            "absent",
+          ],
+          "type": "string",
+        },
+        "body_truncated": {
+          "type": "boolean",
+        },
+        "canonical_url": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "comment_count": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/wordcount/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "post_date": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "reaction_count": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/wordcount/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "restacks": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/wordcount/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "slug": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "subtitle": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "wordcount": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "id",
+        "body_html",
+        "body_truncated",
+        "body_status",
       ],
       "type": "object",
     },
@@ -2014,6 +2708,143 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
+        "handle": {
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "type": "string",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "handle",
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "get_user_profile",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "bio": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/name/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "handle": {
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "type": "string",
+        },
+        "id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "photo_url": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "primary_publication": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "custom_domain": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/name/anyOf/0",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+                "id": {
+                  "$ref": "#/properties/id",
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/name/anyOf/0",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+                "subdomain": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/name/anyOf/0",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+              },
+              "required": [
+                "id",
+                "name",
+                "subdomain",
+                "custom_domain",
+              ],
+              "type": "object",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "id",
+        "name",
+        "handle",
+        "bio",
+        "photo_url",
+        "primary_publication",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
         "limit": {
           "default": 25,
           "description": "Max drafts to return (1-50; Substack rejects anything higher, so larger values are clamped)",
@@ -2044,6 +2875,245 @@ exports[`stable output contracts > classifies any public schema drift as potenti
     },
     "name": "list_drafts",
     "outputSchema": null,
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 12,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 9007199254740941,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+        "publication_url": {
+          "maxLength": 2048,
+          "type": "string",
+        },
+        "query": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "sort": {
+          "default": "new",
+          "enum": [
+            "new",
+            "top",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "list_public_posts",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "has_more": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "offset": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "posts": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "audience": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "canonical_url": {
+                "anyOf": [
+                  {
+                    "maxLength": 4096,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "comment_count": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "id": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer",
+              },
+              "post_date": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "reaction_count": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "restacks": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "slug": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "subtitle": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "maxLength": 4000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "wordcount": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "id",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "publication_url": {
+          "maxLength": 2048,
+          "type": "string",
+        },
+        "query": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "returned": {
+          "maximum": 50,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "sort": {
+          "enum": [
+            "new",
+            "top",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "publication_url",
+        "sort",
+        "query",
+        "offset",
+        "limit",
+        "returned",
+        "next_offset",
+        "has_more",
+        "posts",
+      ],
+      "type": "object",
+    },
   },
   {
     "annotations": {
@@ -4851,6 +5921,238 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
+        "comment_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "cursor": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "comment_id",
+      ],
+      "type": "object",
+    },
+    "name": "get_note_thread",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "ancestors": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "ancestor_path": {
+                "anyOf": [
+                  {
+                    "maxLength": 4096,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "body_text": {
+                "anyOf": [
+                  {
+                    "maxLength": 4000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "body_truncated": {
+                "type": "boolean",
+              },
+              "children_count": {
+                "anyOf": [
+                  {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "date": {
+                "anyOf": [
+                  {
+                    "maxLength": 4000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "deleted": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "id": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer",
+              },
+              "parent_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/id",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "parent_status": {
+                "enum": [
+                  "derived",
+                  "not_derived",
+                ],
+                "type": "string",
+              },
+              "reaction_count": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "restacks": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/date/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "id",
+              "body_text",
+              "body_truncated",
+              "ancestor_path",
+              "parent_id",
+              "parent_status",
+              "date",
+              "deleted",
+              "status",
+              "children_count",
+              "reaction_count",
+              "restacks",
+            ],
+            "type": "object",
+          },
+          "maxItems": 100,
+          "type": "array",
+        },
+        "branches": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "descendants": {
+                "items": {
+                  "$ref": "#/properties/ancestors/items",
+                },
+                "maxItems": 100,
+                "type": "array",
+              },
+              "reply": {
+                "$ref": "#/properties/ancestors/items",
+              },
+            },
+            "required": [
+              "reply",
+              "descendants",
+            ],
+            "type": "object",
+          },
+          "maxItems": 100,
+          "type": "array",
+        },
+        "completeness": {
+          "enum": [
+            "complete_page",
+            "more_available",
+            "unknown",
+          ],
+          "type": "string",
+        },
+        "more_branches": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "root": {
+          "$ref": "#/properties/ancestors/items",
+        },
+        "truncated": {
+          "type": "boolean",
+        },
+      },
+      "required": [
+        "ancestors",
+        "root",
+        "branches",
+        "more_branches",
+        "next_cursor",
+        "completeness",
+        "truncated",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
         "post_id": {
           "description": "The post ID to retrieve",
           "exclusiveMinimum": 0,
@@ -5260,6 +6562,439 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "tags",
         "resolution_scope",
         "resolution_note",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string",
+        },
+        "handle": {
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "type": "string",
+        },
+        "user_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+      },
+      "type": "object",
+    },
+    "name": "get_profile_feed",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "has_more": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "date": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/items/items/properties/entity_key",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "entity_key": {
+                "maxLength": 4000,
+                "type": "string",
+              },
+              "kind": {
+                "enum": [
+                  "note",
+                  "post",
+                  "restack",
+                  "other",
+                ],
+                "type": "string",
+              },
+              "note": {
+                "additionalProperties": false,
+                "properties": {
+                  "ancestor_path": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4096,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "author_handle": {
+                    "anyOf": [
+                      {
+                        "pattern": "^[A-Za-z0-9_]{1,64}$",
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "author_user_id": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/user_id",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "body_text": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4000,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "body_truncated": {
+                    "type": "boolean",
+                  },
+                  "children_count": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "$ref": "#/properties/user_id",
+                  },
+                  "is_reply": {
+                    "type": [
+                      "boolean",
+                      "null",
+                    ],
+                  },
+                  "reaction_count": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/note/properties/children_count/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "restacks": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/note/properties/children_count/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "url": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4096,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "body_text",
+                  "body_truncated",
+                  "author_user_id",
+                  "author_handle",
+                  "ancestor_path",
+                  "is_reply",
+                  "children_count",
+                  "reaction_count",
+                  "restacks",
+                  "url",
+                ],
+                "type": "object",
+              },
+              "post": {
+                "additionalProperties": false,
+                "properties": {
+                  "canonical_url": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/note/properties/url/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "$ref": "#/properties/user_id",
+                  },
+                  "publication_name": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/entity_key",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "title": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/entity_key",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "canonical_url",
+                  "publication_name",
+                ],
+                "type": "object",
+              },
+            },
+            "required": [
+              "kind",
+              "entity_key",
+              "date",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "returned": {
+          "maximum": 50,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "user_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "user_id",
+        "items",
+        "returned",
+        "next_cursor",
+        "has_more",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "maxLength": 4096,
+          "type": "string",
+        },
+      },
+      "required": [
+        "url",
+      ],
+      "type": "object",
+    },
+    "name": "get_public_post",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "body_html": {
+          "anyOf": [
+            {
+              "maxLength": 500000,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "body_status": {
+          "enum": [
+            "full_public",
+            "paywalled_or_truncated",
+            "absent",
+          ],
+          "type": "string",
+        },
+        "body_truncated": {
+          "type": "boolean",
+        },
+        "canonical_url": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "comment_count": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/wordcount/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "post_date": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "reaction_count": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/wordcount/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "restacks": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/wordcount/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "slug": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "subtitle": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "wordcount": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "id",
+        "body_html",
+        "body_truncated",
+        "body_status",
       ],
       "type": "object",
     },
@@ -5714,6 +7449,134 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
+        "handle": {
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "type": "string",
+        },
+      },
+      "required": [
+        "handle",
+      ],
+      "type": "object",
+    },
+    "name": "get_user_profile",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "bio": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/name/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "handle": {
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "type": "string",
+        },
+        "id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "photo_url": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "primary_publication": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "custom_domain": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/name/anyOf/0",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+                "id": {
+                  "$ref": "#/properties/id",
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/name/anyOf/0",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+                "subdomain": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/name/anyOf/0",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+              },
+              "required": [
+                "id",
+                "name",
+                "subdomain",
+                "custom_domain",
+              ],
+              "type": "object",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "id",
+        "name",
+        "handle",
+        "bio",
+        "photo_url",
+        "primary_publication",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
         "limit": {
           "default": 25,
           "description": "Max drafts to return (1-50; Substack rejects anything higher, so larger values are clamped)",
@@ -5733,6 +7596,234 @@ exports[`stable output contracts > classifies any public schema drift as potenti
     },
     "name": "list_drafts",
     "outputSchema": null,
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 12,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 9007199254740941,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication_url": {
+          "maxLength": 2048,
+          "type": "string",
+        },
+        "query": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "sort": {
+          "default": "new",
+          "enum": [
+            "new",
+            "top",
+          ],
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "list_public_posts",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "has_more": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "offset": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "posts": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "audience": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "canonical_url": {
+                "anyOf": [
+                  {
+                    "maxLength": 4096,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "comment_count": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "id": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer",
+              },
+              "post_date": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "reaction_count": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "restacks": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "slug": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "subtitle": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "maxLength": 4000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "wordcount": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "id",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "publication_url": {
+          "maxLength": 2048,
+          "type": "string",
+        },
+        "query": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "returned": {
+          "maximum": 50,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "sort": {
+          "enum": [
+            "new",
+            "top",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "publication_url",
+        "sort",
+        "query",
+        "offset",
+        "limit",
+        "returned",
+        "next_offset",
+        "has_more",
+        "posts",
+      ],
+      "type": "object",
+    },
   },
   {
     "annotations": {

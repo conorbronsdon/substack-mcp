@@ -59,6 +59,11 @@ export type ToolKind =
 export const TOOL_KINDS = {
   // Reads
   export_draft: "read",
+  get_user_profile: "read",
+  get_profile_feed: "read",
+  get_note_thread: "read",
+  list_public_posts: "read",
+  get_public_post: "read",
   list_publication_tags: "read",
   get_post_tags: "read",
   rank_posts: "read",

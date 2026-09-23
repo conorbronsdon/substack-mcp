@@ -250,6 +250,36 @@ authoritative wording.
 | `get_publication_stats` | [Read dashboard summary and ranged publication metrics](docs/analytics-rankings.md), with missing and unavailable states |
 | `get_growth_sources` | [Read bounded growth source attribution](docs/analytics-rankings.md) and optional events |
 | `list_scheduled_posts` | List posts scheduled for future publication (read-only; scheduling stays in Substack's editor) |
+| `get_user_profile` | Read a minimal public user profile by handle, anonymously |
+| `get_profile_feed` | Read one public profile feed page with cursor continuation, anonymously |
+| `get_note_thread` | Read a public Note, ancestors and one replies page, anonymously |
+| `list_public_posts` | Read a bounded public archive page, anonymously |
+| `get_public_post` | Read an anonymous public post by URL with body status and truncation flags |
+
+### Public reading
+
+These five tools use a separate anonymous reader. It sends only `User-Agent` and
+`Accept`, never the configured publication cookie or other credentials. The
+configured publication selects the default archive origin; callers may supply an
+allowlisted HTTPS publication origin. Allowed hosts are `substack.com`, one-label
+`*.substack.com`, configured publication origins, and exact origins in
+`SUBSTACK_PUBLIC_READ_ORIGINS` (comma-separated HTTPS origins without ports,
+paths or userinfo). Redirects are rejected. A `*.substack.com` publication may
+redirect to its custom domain (for example, `lenny.substack.com`); JSON reads do
+not follow that redirect. Add the custom HTTPS origin to
+`SUBSTACK_PUBLIC_READ_ORIGINS` and read through that origin. With multiple
+publications, the `publication` key remains required for every tool.
+
+Profile feed pages are upstream-sized; `has_more: null` means the upstream omitted
+continuation metadata. Thread pages can omit replies when `more_branches` or
+`next_cursor` is present; `completeness: "unknown"` means continuation metadata
+was omitted.
+Archive full pages have `has_more: null` because no total is returned. Public
+post `body_status` is a heuristic based on audience and body presence; it does
+not establish full access. The anonymous reader does not use subscription
+entitlements. Reader subscriptions and inbox are unsupported: the configured
+publication session received 401 on the `substack.com` reader-account routes,
+which require a separate reader session this server does not manage.
 
 ### Archive search and draft review
 
@@ -384,6 +414,9 @@ Don't mix the two styles: if any `SUBSTACK_PUB_<KEY>_*` var is set, the plain `S
 Substack session tokens expire periodically (typically ~90 days). If you get authentication errors, grab a fresh `connect.sid` cookie from your browser and update the env var (make sure ad blockers are disabled when copying the cookie) — or, if you used the browser login, just re-run `substack-mcp-login` to refresh the stored session.
 
 ## Custom domains & Cloudflare
+
+This section covers authenticated creator API calls. Anonymous public reading
+uses the [public reading](#public-reading) origin rules above.
 
 Substack publications served on a custom domain (e.g. `blog.example.com`) sit behind Cloudflare, which can reject non-browser requests with `403 error code: 1010`. To avoid this, the server sends a browser `User-Agent` and a `Referer` by default, and addresses the publication by its canonical `*.substack.com` host.
 

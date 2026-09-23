@@ -7,7 +7,7 @@ import type { SubstackClient } from "../api/client.js";
 // never invoke — a bare object is enough to register everything. A single
 // publication keeps every tool's schema unchanged (see server.ts), which is
 // what this file's name-only completeness check assumes.
-const server = createServer([{ key: "default", label: "Default", client: {} as SubstackClient }]);
+const server = createServer([{ key: "default", label: "Default", client: { origin: "https://example.substack.com" } as SubstackClient }]);
 
 interface RegisteredToolShape {
   description?: string;
@@ -20,6 +20,11 @@ const registered = (
 )._registeredTools;
 
 const READ_TOOLS: ToolName[] = [
+  "get_user_profile",
+  "get_profile_feed",
+  "get_note_thread",
+  "list_public_posts",
+  "get_public_post",
   "export_draft",
   "list_publication_tags",
   "get_post_tags",

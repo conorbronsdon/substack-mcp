@@ -3191,6 +3191,15 @@ exports[`stable output contracts > classifies any public schema drift as potenti
           "maximum": 9007199254740991,
           "type": "integer",
         },
+        "draft_state_after": {
+          "enum": [
+            "unpublished",
+            "changed",
+            "unverifiable",
+            "not_checked",
+          ],
+          "type": "string",
+        },
         "dry_run": {
           "type": "boolean",
         },
@@ -3199,7 +3208,6 @@ exports[`stable output contracts > classifies any public schema drift as potenti
           "type": "string",
         },
         "publication": {
-          "maxLength": 128,
           "minLength": 1,
           "type": "string",
         },
@@ -3223,6 +3231,7 @@ exports[`stable output contracts > classifies any public schema drift as potenti
                   "rejected",
                   "retryable",
                   "unknown",
+                  "observed_after_unconfirmed_write",
                   "not_attempted",
                 ],
                 "type": "string",
@@ -3272,6 +3281,7 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "publication",
         "draft_id",
         "dry_run",
+        "draft_state_after",
         "write_attempts",
         "results",
         "note",
@@ -6277,6 +6287,15 @@ exports[`stable output contracts > classifies any public schema drift as potenti
           "maximum": 9007199254740991,
           "type": "integer",
         },
+        "draft_state_after": {
+          "enum": [
+            "unpublished",
+            "changed",
+            "unverifiable",
+            "not_checked",
+          ],
+          "type": "string",
+        },
         "dry_run": {
           "type": "boolean",
         },
@@ -6285,7 +6304,6 @@ exports[`stable output contracts > classifies any public schema drift as potenti
           "type": "string",
         },
         "publication": {
-          "maxLength": 128,
           "minLength": 1,
           "type": "string",
         },
@@ -6309,6 +6327,7 @@ exports[`stable output contracts > classifies any public schema drift as potenti
                   "rejected",
                   "retryable",
                   "unknown",
+                  "observed_after_unconfirmed_write",
                   "not_attempted",
                 ],
                 "type": "string",
@@ -6358,6 +6377,7 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "publication",
         "draft_id",
         "dry_run",
+        "draft_state_after",
         "write_attempts",
         "results",
         "note",

@@ -598,7 +598,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     draftChangeResponse(() => applyDraftUpdate(clientFor(publication), draftApplyInput.parse(input), publication ?? pubKeys[0])));
 
   registerTool("update_draft_tags", {
-    description: "Assign or remove up to 20 distinct tag IDs per direction on an unpublished draft only; never changes published posts. Dry-run defaults to true. Reads publication context, definitions, draft and associations (four reads); a live change rechecks the draft before writing and reads associations back once (up to six reads total). Sends at most 40 sequential writes, each once, with no automatic retry. A readback verifies observed association state, not which request caused it. Hidden tags are allowed and reported. Draft tags may become public when you later publish the draft in Substack.",
+    description: "Assign or remove up to 20 distinct tag IDs per direction on a draft; refuses published or scheduled drafts before writing; not atomic — see draft_state_after. Dry-run defaults to true. Reads publication context, definitions, draft and associations (four reads); a live change rechecks the draft before writing, then reads draft state and associations after writing (up to seven reads total). Sends at most 40 sequential writes, each once, with no automatic retry. Only a confirmed request observed in readback while the draft remains unpublished is verified. Hidden tags are allowed and reported. Draft tags may become public when you later publish the draft in Substack.",
     inputSchema: { ...draftTagsShape, ...publicationField() },
     outputSchema: draftTagsOutput.shape,
     annotations: buildAnnotations("update_draft_tags"),
@@ -611,7 +611,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     } catch (error) {
       if (!(error instanceof DraftTagError)) throw error;
       return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: error.code,
-        message: "Draft tag safety check failed. No write was attempted.", write_attempts: 0, results: error.results }) }] };
+        message: "Draft tag safety check failed. No write was attempted.", write_attempts: 0, draft_state_after: "not_checked", results: error.results }) }] };
     }
   });
 

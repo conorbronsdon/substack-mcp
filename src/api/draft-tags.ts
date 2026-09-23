@@ -18,17 +18,17 @@ export function validateDraftTags({ add, remove }: { add: string[]; remove: stri
 export const draftTagsInput = z.object(draftTagsShape).strict().superRefine(validateDraftTags);
 export type DraftTagsInput = z.input<typeof draftTagsInput>;
 
-const outcome = z.enum(["already_present", "already_absent", "planned", "verified", "unverified", "rejected", "retryable", "unknown", "not_attempted"]);
+const outcome = z.enum(["already_present", "already_absent", "planned", "verified", "unverified", "rejected", "retryable", "unknown", "observed_after_unconfirmed_write", "not_attempted"]);
 const result = z.object({
   tag_id: uuid, tag_name: z.string().max(1000).nullable(), hidden: z.boolean().nullable(),
   requested: z.enum(["add", "remove"]), outcome,
 });
 export const draftTagsOutput = z.object({
-  publication: z.string().min(1).max(128), draft_id: id, dry_run: z.boolean(),
+  publication: z.string().min(1), draft_id: id, dry_run: z.boolean(), draft_state_after: z.enum(["unpublished", "changed", "unverifiable", "not_checked"]),
   write_attempts: z.number().int().min(0).max(40), results: z.array(result).max(40), note: z.string().max(1000),
 }).strict();
 type Result = z.output<typeof result>;
-type ErrorCode = "draft_published" | "draft_unverifiable" | "publication_mismatch" | "unknown_tag" | "response_invalid";
+type ErrorCode = "draft_published" | "draft_scheduled" | "draft_unverifiable" | "publication_mismatch" | "unknown_tag" | "response_invalid";
 export class DraftTagError extends SubstackAPIError {
   constructor(readonly code: ErrorCode, readonly results: Result[]) {
     super(422, "Draft tag safety check failed. No write was attempted.", "update_draft_tags", undefined, "client");
@@ -77,6 +77,7 @@ function checkedDraft(raw: unknown, publicationId: number, draftId: number, resu
   try { requireEditable(parsed.data); }
   catch (error) {
     if (error instanceof DraftChangeError && error.code === "published_draft") throw new DraftTagError("draft_published", results);
+    if (error instanceof DraftChangeError && error.code === "scheduled_draft") throw new DraftTagError("draft_scheduled", results);
     throw new DraftTagError("draft_unverifiable", results);
   }
 }
@@ -88,7 +89,7 @@ interface Client {
   request(path: string, options?: RequestInit): Promise<unknown>;
 }
 
-/** Initial four reads, then a pre-write state recheck and one readback after at most 40 one-shot writes. */
+/** Initial four reads, then a pre-write recheck and post-write draft and association readbacks after at most 40 one-shot writes. */
 export async function updateDraftTags(input: DraftTagsInput, publication: string, client: Client) {
   const { draft_id, add, remove, dry_run } = draftTagsInput.parse(input);
   const results: Result[] = [
@@ -114,15 +115,17 @@ export async function updateDraftTags(input: DraftTagsInput, publication: string
   catch (error) { if (error instanceof DraftTagError) throw error; throw new DraftTagError("response_invalid", results); }
   if (results.some(row => !byId.has(row.tag_id))) throw new DraftTagError("unknown_tag", results);
   for (const row of results) row.outcome = row.requested === "add" ? before.has(row.tag_id) ? "already_present" : "planned" : before.has(row.tag_id) ? "planned" : "already_absent";
-  const finish = (write_attempts: number, note: string) => draftTagsOutput.parse({ publication, draft_id, dry_run, write_attempts, results, note });
-  if (dry_run) return finish(0, "Plan only. No tags were changed.");
+  const finish = (write_attempts: number, draft_state_after: z.output<typeof draftTagsOutput>["draft_state_after"], note: string) =>
+    draftTagsOutput.parse({ publication, draft_id, dry_run, write_attempts, draft_state_after, results, note });
+  if (dry_run) return finish(0, "not_checked", "Plan only. No tags were changed.");
   const pending = results.filter(row => row.outcome === "planned");
-  if (!pending.length) return finish(0, "Requested associations already match. No writes were sent.");
+  if (!pending.length) return finish(0, "not_checked", "Requested associations already match. No writes were sent.");
   // The draft may have been published between the first read and the first write.
   try { checkedDraft(await client.getDraft(draft_id), publicationId, draft_id, results); }
   catch (error) {
     for (const row of results) row.outcome = "not_attempted";
     if (error instanceof DraftTagError && error.code === "draft_published") throw new DraftTagError("draft_published", results);
+    if (error instanceof DraftTagError && error.code === "draft_scheduled") throw new DraftTagError("draft_scheduled", results);
     throw new DraftTagError("draft_unverifiable", results);
   }
   let write_attempts = 0;
@@ -143,10 +146,26 @@ export async function updateDraftTags(input: DraftTagsInput, publication: string
     }
   }
   for (const row of pending) if (row.outcome === "planned") row.outcome = "not_attempted";
+  let draft_state_after: z.output<typeof draftTagsOutput>["draft_state_after"] = "unverifiable";
+  try {
+    checkedDraft(await client.getDraft(draft_id), publicationId, draft_id, results);
+    draft_state_after = "unpublished";
+  } catch (error) {
+    if (error instanceof DraftTagError && (error.code === "draft_published" || error.code === "draft_scheduled")) draft_state_after = "changed";
+  }
   // A failed readback leaves accepted writes unverified; it never triggers another write.
   try {
     const after = checkedAssociations(await client.request(`/api/v1/post/${draft_id}/tag`), publicationId, draft_id, results);
-    for (const row of pending) if (row.outcome === "unverified" && (row.requested === "add" ? after.has(row.tag_id) : !after.has(row.tag_id))) row.outcome = "verified";
+    for (const row of pending) {
+      if (!(row.requested === "add" ? after.has(row.tag_id) : !after.has(row.tag_id))) continue;
+      if (row.outcome === "unverified" && draft_state_after === "unpublished") row.outcome = "verified";
+      else if (row.outcome === "unknown" || row.outcome === "retryable") row.outcome = "observed_after_unconfirmed_write";
+    }
   } catch { /* No partial readback is trusted. */ }
-  return finish(write_attempts, "One readback checked accepted writes. Unverified or unknown outcomes need review in Substack before an explicit retry.");
+  const note = draft_state_after === "unpublished"
+    ? "One readback checked association state. Unverified or unconfirmed outcomes need review in Substack before an explicit retry."
+    : draft_state_after === "changed"
+      ? "The draft changed state during the operation. Tags may now be on a published or scheduled post. Review in Substack before any explicit retry."
+      : "The draft state could not be verified after writing. It may have changed during the operation, and tags may now be on a published or scheduled post. Review in Substack before any explicit retry.";
+  return finish(write_attempts, draft_state_after, note);
 }

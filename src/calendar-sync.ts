@@ -11,7 +11,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { SubstackClient } from "./api/client.js";
 import { createServer } from "./server.js";
-import { resolvePublications } from "./auth/resolve-publications.js";
+import { resolveSelectedPublications } from "./auth/resolve-publications.js";
 
 const exec = promisify(execFile);
 import { stateSchema, ingest, parseBooking, processContacts, type SyncState, type BookingMessage, type Call } from "./calendar-consent.js";
@@ -36,7 +36,7 @@ async function main() {
   try {
     const state = existsSync(statePath) ? stateSchema.parse(JSON.parse(readFileSync(statePath, "utf8"))) : stateSchema.parse({ version: 1, publication_url: config.publication_url, organizer_email: config.organizer_email, seen_ids: [], contacts: {}, attempts: {} });
     if (state.publication_url !== config.publication_url || state.organizer_email !== config.organizer_email) throw new Error("State belongs to a different publication or organizer.");
-    const creds = resolvePublications();
+    const creds = await resolveSelectedPublications();
     const selected = creds.find(p => p.key === config.publication_key);
     if (!selected || selected.missing.length || selected.publicationUrl.replace(/\/$/, "") !== config.publication_url.replace(/\/$/, "")) throw new Error("Missing or mismatched publication credentials.");
     const gws = async (operation: "list" | "get", params: Record<string, unknown>) => {

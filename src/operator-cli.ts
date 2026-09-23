@@ -4,7 +4,7 @@ import { validateHeaderValue } from "node:http";
 import { z } from "zod";
 import { createServer } from "./server.js";
 import { SubstackClient } from "./api/client.js";
-import { resolvePublications } from "./auth/resolve-publications.js";
+import { resolvePublications, resolveSelectedPublications } from "./auth/resolve-publications.js";
 import { doctor } from "./doctor.js";
 import { searchInput } from "./api/search.js";
 import { draftEditorUrl } from "./api/draft-export.js";
@@ -12,7 +12,7 @@ import { readBoundedFile } from "./utils/bounded-file.js";
 import packageMetadata from "../package.json" with { type: "json" };
 import { RANK_METRICS, RANK_MAX_LIMIT } from "./api/rankings.js";
 
-export async function runStatus(args: string[], load = resolvePublications,
+export async function runStatus(args: string[], load: () => ReturnType<typeof resolvePublications> | Promise<ReturnType<typeof resolvePublications>> = resolveSelectedPublications,
   io = { out: (text: string) => console.log(text), error: (text: string) => console.error(text) }): Promise<number> {
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) {
     io.out("Usage: substack-mcp status [--json]\nOffline configuration status; never launches a browser or checks remote authentication. Use doctor --json --check-auth for an opt-in authenticated read."); return 0;
@@ -184,7 +184,7 @@ function conversionRejection(text: string) {
 }
 
 /** Uses the real MCP handlers so projection, pagination, conversion and write semantics stay shared. */
-export async function runOperator(args: string[], load = resolvePublications,
+export async function runOperator(args: string[], load: () => ReturnType<typeof resolvePublications> | Promise<ReturnType<typeof resolvePublications>> = resolveSelectedPublications,
   io = { out: (text: string) => console.log(text), error: (text: string) => console.error(text) }): Promise<number> {
   if (args.length >= 2 && ["--help", "-h"].includes(args.at(-1)!) && args.length <= 3) { io.out(usage); return 0; }
   let options: ReturnType<typeof parse>;
@@ -209,7 +209,7 @@ export async function runOperator(args: string[], load = resolvePublications,
   const client = new Client({ name: "substack-operator-cli", version: "1" });
   let configured = false;
   try {
-    const publications = load();
+    const publications = await load();
     const selected = options.publication ? publications.find(p => p.key === options.publication) : publications.length === 1 ? publications[0] : undefined;
     if (!selected) {
       io.error(JSON.stringify({ format_version: 1, ok: false, command, code: "publication_required", message: "Select a configured --publication key; required when multiple publications are configured." })); return 2;

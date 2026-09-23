@@ -12,6 +12,10 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 - `update_draft_tags` plans or applies bounded tag assignments on unpublished drafts, with dry-run default, a pre-write state check, and per-tag readback outcomes (#50).
 - `get_publication_stats` and `get_growth_sources` expose bounded dashboard and growth analytics with explicit missing, unavailable, and truncation states.
 - Five anonymous public reading tools for profiles, profile feeds, Note threads, archives and posts. Public reads send no session credentials and enforce an HTTPS host allowlist.
+- Opt-in OS keychain credential storage via `SUBSTACK_CREDENTIAL_STORE=keychain`,
+  with login, doctor diagnostics and non-destructive file-to-keychain migration.
+  macOS support is implemented, not yet verified on real macOS — please report
+  results. Linux support is verified with mocks only.
 
 ### Changed
 - `get_post_analytics` reads exact post detail first and reports when it falls back to the bounded published-feed scan.

@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { SubstackClient } from "./api/client.js";
 import { createServer, extraPublicReadOrigins, type PublicationConfig } from "./server.js";
 import { fetchRemoteImage } from "./utils/remote-image.js";
-import { resolvePublications } from "./auth/resolve-publications.js";
+import { resolveSelectedPublications } from "./auth/resolve-publications.js";
 import { startHttpServer, type HttpTransportOptions } from "./transport/http.js";
 
 /**
@@ -107,7 +107,7 @@ async function main() {
   // Env vars take precedence; a stored session (from `substack-mcp-login`)
   // fills any gaps. See resolve-publications.ts for the multi-publication
   // SUBSTACK_PUB_<KEY>_* scheme this falls back from.
-  const pubCreds = resolvePublications();
+  const pubCreds = await resolveSelectedPublications();
   const multi = pubCreds.length > 1;
   const userAgent = process.env.SUBSTACK_USER_AGENT;
   const timeoutMs = resolveTimeoutMs(process.env.SUBSTACK_REQUEST_TIMEOUT_MS);

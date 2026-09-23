@@ -1,4 +1,4 @@
-import { resolvePublications } from "./auth/resolve-publications.js";
+import { resolvePublications, resolveSelectedPublications } from "./auth/resolve-publications.js";
 import { SubstackClient } from "./api/client.js";
 import { planDraftUpdate, applyDraftUpdate, draftChangesInput, draftPlanOutput, DraftChangeError } from "./api/draft-changes.js";
 import { readBoundedFile } from "./utils/bounded-file.js";
@@ -10,7 +10,7 @@ async function readJson(path: string): Promise<unknown> {
   return JSON.parse(await readBoundedFile(path, MAX_INPUT_BYTES));
 }
 
-export async function runDrafts(args: string[], load = resolvePublications,
+export async function runDrafts(args: string[], load: () => ReturnType<typeof resolvePublications> | Promise<ReturnType<typeof resolvePublications>> = resolveSelectedPublications,
   io = { out: (text: string) => console.log(text), error: (text: string) => console.error(text) }): Promise<number> {
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) { io.out(usage); return 0; }
   const action = args[0];
@@ -31,7 +31,7 @@ export async function runDrafts(args: string[], load = resolvePublications,
     return 2;
   }
   try {
-    const pubs = load(), key = options["--publication"];
+    const pubs = await load(), key = options["--publication"];
     const selected = key ? pubs.find(p => p.key === key) : pubs.length === 1 ? pubs[0] : undefined;
     if (!selected) throw new Error("Select a configured publication with --publication; required when multiple publications are configured.");
     const client = new SubstackClient(selected.publicationUrl, selected.sessionToken, selected.userId, process.env.SUBSTACK_USER_AGENT,

@@ -1,6 +1,6 @@
 {
   "name": "@conorbronsdon/substack-mcp",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Safe creator operations for Substack: rich drafts, Notes, analytics, and consented subscribers. Long-form posts stay draft-only; Notes publish immediately.",
   "type": "module",
   "bin": {

@@ -54,8 +54,12 @@ Notes publish immediately; image uploads can expose a public URL. Subscriber
 additions require consent and default to dry-run. These are distinct side effects
 and need appropriate authorization in the calling application.
 
-Remote image fetching, community interactions, an OS keychain backend, MCPB and
-hosted multi-tenant operation are outside 1.0. Container support starts with Linux
+Public community reads (profiles, profile feeds, Note threads, archives and public
+posts) arrived in 1.3 as anonymous, allowlisted reads; community writes such as
+comments and restacks, reader subscriptions and inbox remain unsupported. The
+optional OS keychain backend (1.3) is verified on Windows only; macOS and Linux
+paths are covered by mocked tests. MCPB and hosted multi-tenant operation remain
+out of scope. Container support starts with Linux
 amd64; see [containers](containers.md) for public-artifact verification and the
 separate OCI attestation follow-up.
 

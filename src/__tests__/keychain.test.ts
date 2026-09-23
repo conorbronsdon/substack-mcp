@@ -15,14 +15,15 @@ function fake(platform: NodeJS.Platform) {
   const calls: { file: string; args: string[]; input: string }[] = [];
   const run: KeychainRunner = async (file, args, input) => {
     calls.push({ file, args, input });
-    const operation = platform === "linux" ? args[0] === "store" ? "write" : args[0] === "lookup" ? "read" : "delete"
+    const operation = platform === "linux" ? args[0] === "store" ? "write" : args[0] === "lookup" ? "read" : args[0] === "search" ? "search" : "delete"
       : platform === "darwin" ? args[0] === "-i" ? "write" : args[0] === "find-generic-password" ? "read" : "delete"
       : input.includes("$v.Add(") ? "write" : input.includes("$v.Remove($c)") ? "delete" : "read";
     const account = platform === "win32" ? Buffer.from(/\$a=.*?FromBase64String\('([^']+)'\)/.exec(input)![1], "base64").toString() : platform === "darwin" ? operation === "write" ? / -a ([^ ]+)/.exec(input)![1] : args[args.indexOf("-a") + 1] : args.at(-1)!;
     if (operation === "write") {
-      entries.set(account, platform === "win32" ? Buffer.from(/\$s=.*?FromBase64String\('([^']+)'\)/.exec(input)![1], "base64").toString() : platform === "darwin" ? JSON.parse(input.slice(input.indexOf(" -w ") + 4).trim()) : input.trim());
+      entries.set(account, platform === "win32" ? Buffer.from(/\$s=.*?FromBase64String\('([^']+)'\)/.exec(input)![1], "base64").toString() : platform === "darwin" ? Buffer.from(/ -X ([0-9a-f]+)\n$/.exec(input)![1], "hex").toString("utf8") : input.trim());
       return { code: 0, stdout: "", stderr: "" };
     }
+    if (operation === "search") return entries.has(account) ? { code: 0, stdout: `attribute.account = ${account}`, stderr: "" } : { code: 1, stdout: "", stderr: "" };
     if (operation === "delete") { entries.delete(account); return { code: 0, stdout: "", stderr: "" }; }
     const value = entries.get(account);
     return value ? { code: 0, stdout: value, stderr: "" } : { code: platform === "darwin" ? 44 : platform === "win32" ? 3 : 1, stdout: "", stderr: "" };
@@ -34,20 +35,30 @@ describe("opt-in keychain", () => {
   it.each(["linux", "darwin", "win32"] as NodeJS.Platform[])("round trips %s with secret only on stdin", async platform => {
     const { keychain, calls } = fake(platform);
     await keychain.write("work", sample);
+    if (platform === "linux") expect(calls[0].args).toEqual(["search", "--unlock", "service", "substack-mcp", "account", "work"]);
     expect(JSON.stringify(calls.at(-1)!.args)).not.toContain(sample.sessionToken);
     expect(await keychain.read("work")).toMatchObject(sample);
     await expect(keychain.write("work", sample)).rejects.toMatchObject({ code: "profile_exists" });
     await keychain.delete("work"); expect(await keychain.read("work")).toBeNull();
     for (const call of calls) {
       expect(JSON.stringify(call.args)).not.toContain(sample.sessionToken);
-      expect(call.input.includes(sample.sessionToken) || call.input.includes(Buffer.from(sample.sessionToken).toString("base64")) || !call.input.includes("savedAt")).toBe(true);
+      expect(call.input.includes(sample.sessionToken) || call.input.includes(Buffer.from(sample.sessionToken).toString("base64")) || call.input.includes(Buffer.from(sample.sessionToken).toString("hex")) || !call.input.includes("savedAt")).toBe(true);
     }
-    const write = calls.find(c => c.input.includes("savedAt") || c.input.includes("$v.Add("))!;
+    const write = calls.find(c => c.args[0] === "-i" || c.args[0] === "store" || c.input.includes("$v.Add("))!;
     expect(write.file).toBe(platform === "darwin" ? "/usr/bin/security" : platform === "linux" ? "secret-tool" : "powershell.exe");
     expect(write.args).toEqual(platform === "darwin" ? ["-i"] : platform === "linux" ? ["store", "--label=substack-mcp", "service", "substack-mcp", "account", "work"] : ["-NoProfile", "-NonInteractive", "-Command", "-"]);
     if (platform === "win32") {
       expect(write.input).toContain("PasswordVault,Windows.Security.Credentials,ContentType=WindowsRuntime");
       expect(calls.find(c => c.input.includes("$v.Retrieve("))!.input).toContain("InnerException.HResult -eq -2147023728");
+      const encodedSecret = /\$s=.*?FromBase64String\('([^']+)'\)/.exec(write.input)![1];
+      expect(JSON.parse(Buffer.from(encodedSecret, "base64").toString("utf8"))).toMatchObject(sample);
+      expect(write.input).toContain(encodedSecret);
+      expect(write.input).not.toContain(sample.sessionToken);
+      expect(JSON.stringify(write.args)).not.toContain(sample.sessionToken);
+      expect(JSON.stringify(write.args)).not.toContain(encodedSecret);
+    }
+    if (platform === "darwin") {
+      expect(write.input).toMatch(/^add-generic-password -U -a work -s substack-mcp -X [0-9a-f]+\n$/);
       expect(write.input).not.toContain(sample.sessionToken);
     }
   });
@@ -62,9 +73,12 @@ describe("opt-in keychain", () => {
     try { await broken.read("work"); } catch (error) { expect((error as Error).message).not.toContain(secret); }
     const timeout = createKeychain("linux", async () => { throw new Error(secret); });
     await expect(timeout.read("work")).rejects.toBeInstanceOf(CredentialStoreError);
+    const dbus = createKeychain("linux", async () => ({ code: 1, stdout: "", stderr: "dbus error" }));
+    await expect(dbus.read("work")).rejects.toMatchObject({ code: "keychain_unavailable" });
   });
   it("defaults to file and rejects invalid configuration before lookup", async () => {
     expect(credentialStore({})).toBe("file");
+    expect(credentialStore({ SUBSTACK_CREDENTIAL_STORE: "" })).toBe("file");
     expect(() => credentialStore({ SUBSTACK_CREDENTIAL_STORE: "bogus" })).toThrow();
     await expect(resolveSelectedPublications({ SUBSTACK_CREDENTIAL_STORE: "bogus" })).rejects.toMatchObject({ code: "invalid_credential_store" });
   });
@@ -111,14 +125,41 @@ describe("opt-in keychain", () => {
       ? { code: 0, stdout: "", stderr: "" }
       : { code: 1, stdout: "", stderr: "" });
     await expect(keychain.write("default", sample)).rejects.toMatchObject({ code: "keychain_unavailable" });
+    const stale = createKeychain("linux", async (_file, args) => args[0] === "store"
+      ? { code: 0, stdout: "", stderr: "" }
+      : { code: 0, stdout: JSON.stringify({ ...sample, savedAt: "2020-01-01T00:00:00.000Z" }), stderr: "" });
+    await expect(stale.write("default", sample)).rejects.toMatchObject({ code: "keychain_unavailable" });
+  });
+  it("checks locked Linux named entries before a non-force write", async () => {
+    const calls: string[] = [];
+    const locked = createKeychain("linux", async (_file, args) => {
+      calls.push(args[0]);
+      if (args[0] === "search") return { code: 0, stdout: "attribute.account = work", stderr: "" };
+      return { code: 1, stdout: "", stderr: "" };
+    });
+    await expect(locked.write("work", sample)).rejects.toMatchObject({ code: "profile_exists" });
+    expect(calls).toEqual(["search"]);
+    const failed = createKeychain("linux", async (_file, args) => {
+      calls.push(args[0]);
+      return { code: 1, stdout: "", stderr: "dbus error" };
+    });
+    await expect(failed.write("work", sample)).rejects.toMatchObject({ code: "keychain_unavailable" });
+    expect(calls).toEqual(["search", "search"]);
+  });
+  it("reads both decoded and hex macOS password output", async () => {
+    const raw = JSON.stringify({ ...sample, savedAt: "2026-01-01T00:00:00.000Z" });
+    for (const stdout of [raw, Buffer.from(raw).toString("hex")]) {
+      const keychain = createKeychain("darwin", async () => ({ code: 0, stdout, stderr: "" }));
+      await expect(keychain.read("work")).resolves.toMatchObject(sample);
+    }
   });
   it("reports selected storage and keychain availability without credential values", async () => {
     vi.stubEnv("SUBSTACK_CREDENTIAL_STORE", "keychain");
     const publications = () => [{ key: "first", label: "First", ...sample, source: "stored" as const, missing: [] }];
     const available = await doctor(false, publications, async () => true);
-    expect(available).toMatchObject({ credential_store: "keychain", keychain_availability: "available", ok: true });
+    expect(available).toMatchObject({ credential_store: "keychain", keychain_cli: "reachable", ok: true });
     const unavailable = await doctor(false, publications, async () => { throw new Error(sample.sessionToken); });
-    expect(unavailable).toMatchObject({ credential_store: "keychain", keychain_availability: "unavailable", ok: false });
+    expect(unavailable).toMatchObject({ credential_store: "keychain", keychain_cli: "unavailable", ok: false });
     expect(JSON.stringify(unavailable)).not.toContain(sample.sessionToken);
   });
 });

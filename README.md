@@ -109,13 +109,17 @@ MCP client manages secrets for you.
 
 **Optional OS keychain:** set `SUBSTACK_CREDENTIAL_STORE=keychain` in both the
 login process and the MCP client's environment. macOS uses Keychain via
-`/usr/bin/security`; Linux needs libsecret and `secret-tool` plus an unlocked
-Secret Service; Windows uses Credential Manager through PowerShell's
+`/usr/bin/security` (implemented, not yet verified on real macOS — please report
+results); Linux needs libsecret and `secret-tool` plus an unlocked Secret Service
+(verified with mocks only); Windows uses Credential Manager through PowerShell's
 `PasswordVault`. Login writes the selected account to the keychain, and the
 server reads it there. Explicit keychain selection never reads the encrypted
 file as a fallback. The keychain helps against other OS users, copied disks,
 and some malware limited to file access. Code running as your user can usually
 query the keychain. Keep the OS account and running code trusted.
+On Linux, `secret-tool lookup` can exit 1 without an error message for either
+an absent entry or a locked keyring. Named writes without `--force` search and
+unlock first, and refuse overwrites when an entry is found.
 
 #### Named profiles and migration
 

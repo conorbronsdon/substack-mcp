@@ -11,6 +11,8 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ### Added
 - Opt-in OS keychain credential storage via `SUBSTACK_CREDENTIAL_STORE=keychain`,
   with login, doctor diagnostics and non-destructive file-to-keychain migration.
+  macOS support is implemented, not yet verified on real macOS — please report
+  results. Linux support is verified with mocks only.
 
 ### Fixed
 - Release recovery accepts an npm `dist.integrity` only when it is a canonical base64 sha512

@@ -11,12 +11,12 @@ export async function doctor(checkAuth = false, resolve: () => ReturnType<typeof
   let store: "file" | "keychain";
   try { store = credentialStore(); }
   catch { return { ...metadata, ok: false, code: "invalid_configuration", publications: [], guidance: "SUBSTACK_CREDENTIAL_STORE must be file or keychain." }; }
-  let keychainAvailability: "available" | "unavailable" | "not_selected" = "not_selected";
+  let keychainCli: "reachable" | "unavailable" | "not_selected" = "not_selected";
   if (store === "keychain") {
-    try { if (!await probe()) throw new Error(); keychainAvailability = "available"; }
-    catch { keychainAvailability = "unavailable"; }
+    try { if (!await probe()) throw new Error(); keychainCli = "reachable"; }
+    catch { keychainCli = "unavailable"; }
   }
-  const storeMetadata = { ...metadata, credential_store: store, keychain_availability: keychainAvailability };
+  const storeMetadata = { ...metadata, credential_store: store, keychain_cli: keychainCli };
   let publications: ReturnType<typeof resolvePublications>;
   try { publications = await resolve(); }
   catch { return { ...storeMetadata, ok: false, code: "invalid_configuration", publications: [], guidance: "Check publication triplets, duplicate keys, selected profiles and keychain access. SUBSTACK_PROFILES cannot be combined with publication credential variables. No credential values are printed." }; }
@@ -49,7 +49,7 @@ export async function doctor(checkAuth = false, resolve: () => ReturnType<typeof
       configuration: valid ? "valid" : "invalid", missing: p.missing, authentication,
       user_identity: "not_verified" });
   }
-  return { ...storeMetadata, ok: keychainAvailability !== "unavailable" && reports.every(p => p.configuration === "valid" && (!checkAuth || p.authentication === "authenticated_read_succeeded")),
+  return { ...storeMetadata, ok: keychainCli !== "unavailable" && reports.every(p => p.configuration === "valid" && (!checkAuth || p.authentication === "authenticated_read_succeeded")),
     mode: checkAuth ? "authenticated_read" : "configuration_only", publications: reports,
     guidance: "Use an HTTPS publication origin and a positive numeric user ID. For expired sessions run substack-mcp login; use --profile for a named session. Authenticated reads do not verify the configured user ID or write permissions." };
 }

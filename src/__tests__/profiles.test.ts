@@ -88,6 +88,14 @@ describe("named profile storage", () => {
     expect(JSON.parse(io.error.mock.calls[0][0]).code).toBe("profile_exists");
     expect(JSON.stringify(io.out.mock.calls)).not.toContain(sample.sessionToken);
   });
+  it("keeps file profile commands working with an unrelated store setting", async () => {
+    saveSession(sample);
+    vi.stubEnv("SUBSTACK_CREDENTIAL_STORE", "odd-value");
+    const io = { out: vi.fn(), error: vi.fn() };
+    expect(await runProfiles(["list"], io)).toBe(0);
+    expect(await runProfiles(["migrate", "--name", "work"], io)).toBe(0);
+    expect(loadProfile("work")).toMatchObject(sample);
+  });
   it("copies legacy and named file credentials into keychain without deleting source files", async () => {
     saveSession(sample); saveProfile("work", sample);
     const entries = new Map<string, string>();
@@ -104,6 +112,9 @@ describe("named profile storage", () => {
     expect(JSON.parse(entries.get("work")!).sessionToken).toBe(sample.sessionToken);
     expect(loadSession()).toMatchObject(sample); expect(loadProfile("work")).toMatchObject(sample);
     expect(await runProfiles(["migrate", "--to", "keychain"], io, keychain)).toBe(1);
+    io.error.mockClear();
+    expect(await runProfiles(["migrate", "--to", "keychain", "--name", "work"], io, keychain)).toBe(1);
+    expect(JSON.parse(io.error.mock.calls[0][0])).toMatchObject({ code: "profile_exists", message: expect.stringContaining("--force") });
     expect(JSON.stringify(io.out.mock.calls)).not.toContain(sample.sessionToken);
   });
 });

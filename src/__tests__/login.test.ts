@@ -80,4 +80,19 @@ describe("browser login contract", () => {
     expect(loadSession()).toBeNull();
     expect(f.deps.out.mock.calls.flat().join("\n")).toContain('"storage":"keychain"');
   });
+  it("refuses an existing named keychain profile before launching the browser", async () => {
+    vi.stubEnv("SUBSTACK_CREDENTIAL_STORE", "keychain");
+    const f = fixture();
+    const calls: string[] = [];
+    const keychain = createKeychain("linux", async (_file, args) => {
+      calls.push(args[0]);
+      return { code: 0, stdout: JSON.stringify({ publicationUrl: "https://example.com", sessionToken: "example-existing-token", userId: "42", savedAt: "2026-01-01T00:00:00.000Z" }), stderr: "" };
+    });
+    expect(await runLogin(["https://example.com", "--user-id", "42", "--profile", "work"], { ...f.deps, keychain })).toBe(1);
+    expect(calls).toEqual(["lookup"]);
+    expect(f.deps.loadChromium).not.toHaveBeenCalled();
+    expect(f.deps.ask).not.toHaveBeenCalled();
+    expect(f.fetch).not.toHaveBeenCalled();
+    expect(f.deps.error.mock.calls.flat().join(" ")).toContain("--force");
+  });
 });

@@ -12,22 +12,22 @@ export class CredentialStoreError extends Error {
   constructor(public readonly code: "invalid_credential_store" | "keychain_unavailable" | "invalid_keychain_data" | "profile_exists", message: string) { super(message); this.name = "CredentialStoreError"; }
 }
 export function credentialStore(env: NodeJS.ProcessEnv = process.env): "file" | "keychain" {
-  const value = env.SUBSTACK_CREDENTIAL_STORE ?? "file";
+  const value = env.SUBSTACK_CREDENTIAL_STORE || "file";
   if (value !== "file" && value !== "keychain") throw new CredentialStoreError("invalid_credential_store", "SUBSTACK_CREDENTIAL_STORE must be file or keychain.");
   return value;
 }
 type Platform = NodeJS.Platform;
-type Operation = "read" | "write" | "delete";
+type Operation = "read" | "write" | "delete" | "search";
 function command(platform: Platform, operation: Operation, account: string, secret?: string) {
   if (platform === "darwin") {
     const file = "/usr/bin/security";
     if (operation === "write") {
       // security -i reads a command from stdin; the password never enters argv.
-      return { file, args: ["-i"], input: `add-generic-password -U -a ${account} -s ${SERVICE} -w ${JSON.stringify(secret)}\n` };
+      return { file, args: ["-i"], input: `add-generic-password -U -a ${account} -s ${SERVICE} -X ${Buffer.from(secret ?? "", "utf8").toString("hex")}\n` };
     }
     return { file, args: [operation === "read" ? "find-generic-password" : "delete-generic-password", "-a", account, "-s", SERVICE, ...(operation === "read" ? ["-w"] : [])], input: "" };
   }
-  if (platform === "linux") return { file: "secret-tool", args: operation === "write" ? ["store", `--label=${SERVICE}`, "service", SERVICE, "account", account] : [operation === "read" ? "lookup" : "clear", "service", SERVICE, "account", account], input: operation === "write" ? `${secret}\n` : "" };
+  if (platform === "linux") return { file: "secret-tool", args: operation === "write" ? ["store", `--label=${SERVICE}`, "service", SERVICE, "account", account] : operation === "search" ? ["search", "--unlock", "service", SERVICE, "account", account] : [operation === "read" ? "lookup" : "clear", "service", SERVICE, "account", account], input: operation === "write" ? `${secret}\n` : "" };
   if (platform === "win32") {
     // -Command - consumes stdin as commands, so encoded values live in its
     // single stdin script line. Neither value reaches the process argv.
@@ -60,10 +60,19 @@ export const runKeychainCommand: KeychainRunner = (file, args, input) => new Pro
   child.stdin.on("error", () => {}); child.stdin.end(input);
 });
 function accountKey(key: string): string { return key === "default" ? key : profileKey(key); }
-function parseSession(raw: string): StoredSession {
+function parseSession(raw: string, allowHex = false): StoredSession {
   try {
-    if (Buffer.byteLength(raw) > MAX_BYTES) throw new Error();
-    const value = stored.parse(JSON.parse(raw));
+    let decoded = raw;
+    if (allowHex) {
+      try { JSON.parse(raw); }
+      catch {
+        const hex = raw.trim();
+        if (!/^(?:[0-9a-fA-F]{2})+$/.test(hex) || hex.length > MAX_BYTES * 2) throw new Error();
+        decoded = Buffer.from(hex, "hex").toString("utf8");
+      }
+    }
+    if (Buffer.byteLength(decoded) > MAX_BYTES) throw new Error();
+    const value = stored.parse(JSON.parse(decoded));
     validateCredentials(value.publicationUrl, value.sessionToken, value.userId);
     return value;
   } catch { throw new CredentialStoreError("invalid_keychain_data", "Stored keychain credentials are malformed or oversized. Re-run login for this account."); }
@@ -80,11 +89,18 @@ export function createKeychain(platform: Platform = process.platform, run: Keych
       const absent = platform === "darwin" ? result.code === 44 : platform === "win32" ? result.code === 3 : result.code === 1 && result.stderr.trim() === "";
       if (absent) return null;
       if (result.code !== 0) throw new CredentialStoreError("keychain_unavailable", "OS keychain lookup failed. Unlock it and check its CLI installation; no file fallback was used.");
-      return parseSession(result.stdout);
+      return parseSession(result.stdout, platform === "darwin");
     },
     async write(account: string, value: Omit<StoredSession, "savedAt">, force = false) {
       accountKey(account); validateCredentials(value.publicationUrl, value.sessionToken, value.userId);
-      if (!force && account !== "default" && await this.read(account)) throw new CredentialStoreError("profile_exists", "Keychain profile already exists; use --force to replace it.");
+      if (!force && account !== "default") {
+        if (platform === "linux") {
+          // lookup can return exit 1 with empty stderr for a locked item as well as an absent one.
+          const found = await call("search", account);
+          if (found.code === 0 && (found.stdout || found.stderr)) throw new CredentialStoreError("profile_exists", "Keychain profile already exists; use --force to replace it.");
+          if (found.code !== 0 && (found.code !== 1 || found.stderr.trim() || found.stdout.trim())) throw new CredentialStoreError("keychain_unavailable", "OS keychain search failed. Unlock it and inspect the account before retrying.");
+        } else if (await this.read(account)) throw new CredentialStoreError("profile_exists", "Keychain profile already exists; use --force to replace it.");
+      }
       const secret = JSON.stringify({ ...value, savedAt: new Date().toISOString() } satisfies StoredSession);
       if (Buffer.byteLength(secret) > MAX_BYTES) throw new CredentialStoreError("invalid_keychain_data", "Credentials exceed keychain storage bounds.");
       const result = await call("write", account, secret);

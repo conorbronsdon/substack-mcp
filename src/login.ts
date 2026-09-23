@@ -63,6 +63,17 @@ export async function runLogin(args: string[], deps: typeof defaults & { keychai
     try { assertProfileAvailable(options.profile, options.force); }
     catch { deps.error("Profile already exists or cannot be replaced. Choose another key, inspect storage, or explicitly use --force for an existing regular profile."); return 1; }
   }
+  if (options.profile && store === "keychain" && !options.force) {
+    try {
+      if (await (deps.keychain ?? createKeychain()).read(options.profile)) {
+        deps.error("Profile already exists. Choose another key or explicitly use --force.");
+        return 1;
+      }
+    } catch {
+      deps.error("Keychain profile lookup failed. Unlock the keychain and inspect the account before retrying.");
+      return 1;
+    }
+  }
   let browser: LoginBrowser | undefined;
   try {
     const publicationUrl = options.publicationUrl ?? publicationOrigin(await deps.ask("Publication HTTPS origin: "));

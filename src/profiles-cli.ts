@@ -15,7 +15,7 @@ export async function runProfiles(args: string[], io = { out: (text: string) => 
     try { profileKey(key); } catch { io.error(JSON.stringify({ format_version: 1, ok: false, code: "invalid_profile_key", message: "Use a lowercase letter followed by letters, digits or hyphens; at most 64 characters." })); return 2; }
   }
   try {
-    credentialStore();
+    if (toKeychain) credentialStore();
     if (list) io.out(JSON.stringify({ format_version: 1, ok: true, command: "profiles list", profiles: listProfiles() }));
     else if (toKeychain) {
       const session = key ? loadProfile(key) : loadSession();
@@ -26,7 +26,7 @@ export async function runProfiles(args: string[], io = { out: (text: string) => 
     } else { migrateProfile(args[2], args.includes("--force")); io.out(JSON.stringify({ format_version: 1, ok: true, command: "profiles migrate", profile: args[2], legacy_session_retained: true })); }
     return 0;
   } catch (error) {
-    const exists = (error as NodeJS.ErrnoException).code === "EEXIST";
+    const exists = ["EEXIST", "profile_exists"].includes((error as NodeJS.ErrnoException).code ?? "");
     io.error(JSON.stringify({ format_version: 1, ok: false, code: exists ? "profile_exists" : "profile_operation_failed", message: exists ? "Profile already exists. Choose another name or explicitly use --force." : "Profile operation failed. Check local storage and legacy credentials; inspect saved profiles before retrying. The legacy session was not modified." }));
     return 1;
   }

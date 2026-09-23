@@ -67,10 +67,13 @@ a date; its timezone is whatever the string states.
 
 ## One post by ID
 
-`get_post_analytics` first reads the exact post detail by ID. A 403/404, malformed
-body, or ID mismatch triggers the bounded published-feed scan, searching the 500
+`get_post_analytics` first reads the exact post detail by ID and accepts it only
+when `is_published` is true and `post_date` is non-null. Draft detail returns
+`detail_fallback_reason: "not_published"`. A 403/404, malformed body, ID mismatch,
+or other detail error triggers the bounded published-feed scan, searching the 500
 most recent posts. `source` identifies the path; `detail_fallback_reason`
-explains a fallback. When the post is not found,
+explains a fallback (`upstream_error` for other detail failures). Detail 401 and
+429 errors propagate. When the post is not found,
 `search_result` says why. `archive_exhausted` is only reported when the pages agree: a short final
 page with no contradicting total, or full pages that exactly reach a total reported identically on
 every page. Every page is still a separate offset read, not an atomic snapshot. If one post is
@@ -97,6 +100,8 @@ default 30. Each field has a `value`, `status` (`reported`, `null`, `absent`),
 `unit`, `window`, source endpoint, capture time, and currency where applicable. A failed group has
 `status: "unavailable"` and a typed reason. Neither missing nor unavailable
 means zero. The two endpoints use different definitions and are not reconciled.
+When `pledgeCurrency` is null or absent, the pledge metric reports currency
+`not_reported`; a null `isBestseller` is returned as `is_bestseller: null`.
 
 | Field | Unit | Window | Source | Missing data |
 | --- | --- | --- | --- | --- |
@@ -123,7 +128,12 @@ the local limit or processing bound cut that array. `truncated.nodes`,
 `truncated.depth`, and `truncated.timeseries` report processing caps of 500
 nodes, depth 3, and 400 points per metric. Upstream metric names pass through.
 `include_timeseries` defaults to false. `include_events` defaults to false and
-adds one events read when true. These results do not prove complete upstream
+adds one events read when true. The `events` result is `{ "status": "available",
+"items": [...] }` on success or `{ "status": "unavailable", "reason": "..." }`
+when that read fails, while the successfully read sources remain available.
+An events 401 or caller cancellation stops the call. Failure reasons distinguish
+HTTP status, timeout, oversized response, rejected redirect, unexpected HTML,
+and malformed data. These results do not prove complete upstream
 attribution or a stable snapshot. Referral URLs, logo URLs and upstream
 publication IDs are omitted from the default source projection.
 

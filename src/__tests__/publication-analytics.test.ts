@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { getGrowthSources, getPublicationStats } from "../api/publication-analytics.js";
+import { getGrowthSources, getPublicationStats, growthSourcesInput } from "../api/publication-analytics.js";
 import { SubstackClient } from "../api/client.js";
 import { createServer } from "../server.js";
+import { ResponseError, SubstackAPIError, TimeoutError } from "../utils/errors.js";
 
 afterEach(() => vi.unstubAllGlobals());
 const summary = { appSubscribers: 1, appSubscribersLast30Days: 2, subscribers: 3, subscribersLast30Days: 4, totalEmail: 5, totalEmailLast30Days: 6, views: 7, viewsDelta: 8, openRate: 42.5, openRateDiff: -1.2, pledgesAmount: 9, numPledges: 10, pledgeCurrency: "USD", isBestseller: false };
@@ -24,18 +25,71 @@ describe("publication analytics projections", () => {
     expect(result.summary).toEqual({ status: "unavailable", reason: "malformed" });
     expect(result.range.status).toBe("available");
   });
-  it("marks a failed range group unavailable, including a valid input rejected upstream", async () => {
-    const result = await getPublicationStats({ range_days: 365 }, async path => { if (path.includes("summary-v2")) throw new Error("upstream rejection"); return summary; });
-    expect(result.range).toEqual({ status: "unavailable", reason: "malformed" });
+  it("accepts null currency and bestseller without losing the summary", async () => {
+    const result = await getPublicationStats({}, async path => path.endsWith("/summary") ? { ...summary, pledgeCurrency: null, isBestseller: null } : range);
+    expect(result.summary).toMatchObject({ status: "available", is_bestseller: null, metrics: { pledgesAmount: { currency: "not_reported" } } });
+  });
+  it.each([
+    [new ResponseError("example-endpoint", "response_too_large"), "response_too_large"],
+    [new ResponseError("example-endpoint", "redirect_rejected"), "redirect_rejected"],
+    [new ResponseError("example-endpoint", "unexpected_html"), "unexpected_html"],
+    [new ResponseError("example-endpoint", "malformed_json"), "malformed"],
+    [new TimeoutError("example-endpoint", 100), "timeout"],
+    [new SubstackAPIError(403, "example", "example-endpoint"), "http_403"],
+  ])("classifies a failed group as %s", async (error, expected) => {
+    const result = await getPublicationStats({}, async path => { if (path.includes("summary-v2")) throw error; return summary; });
+    expect(result.range).toEqual({ status: "unavailable", reason: expected });
     expect(result.summary.status).toBe("available");
+  });
+  it.each([new ResponseError("example-endpoint", "request_cancelled"), new Error("example-code-bug")])("rethrows cancellation and code errors", async error => {
+    await expect(getPublicationStats({}, async path => { if (path.includes("summary-v2")) throw error; return summary; })).rejects.toBe(error);
   });
   it("reports local limits and nested truncation, with optional events as a second read", async () => {
     const read = vi.fn(async path => path.includes("/events?") ? { pubEvents: [] } : { sourceMetrics: [{ ...source([source([source([source()])])]), href: "example-private-referral", logoUrl: "example-private-logo", pubId: "example-private-id" }, source()], totals: [{ name: "users", total: 4 }] });
     const result = await getGrowthSources({ ...dates, limit: 1, include_events: true }, read);
-    expect(result).toMatchObject({ returned: 1, total_sources: 2, has_more: true, truncated: { depth: true, nodes: false, timeseries: false }, events: [] });
+    expect(result).toMatchObject({ returned: 1, total_sources: 2, has_more: true, truncated: { depth: true, nodes: false, timeseries: false }, events: { status: "available", items: [] } });
     expect(result.sources[0].metrics[0].name).toBe("example-new-metric");
     expect(JSON.stringify(result)).not.toContain("example-private");
     expect(read).toHaveBeenCalledTimes(2);
+  });
+  it("projects populated events, capping long Note text used as the title", async () => {
+    // Live-shaped: Note events carry the Note body as `title` (785 characters observed) and omit slug/url.
+    const events = [
+      { id: 1, date: "2026-09-20T12:00:00.000Z", title: "x".repeat(785), type: "note" },
+      { id: 2, date: "2026-09-21T12:00:00.000Z", title: "Example post", slug: "example-post", type: "text", url: "https://example.test/p/example-post" },
+    ];
+    const result = await getGrowthSources({ ...dates, include_events: true }, async path => path.includes("/events?") ? { pubEvents: events } : { sourceMetrics: [source()], totals: [] });
+    expect(result.events).toMatchObject({ status: "available" });
+    const items = result.events?.status === "available" ? result.events.items : [];
+    expect(items.map(item => [item.title.length, item.title_truncated, item.slug, item.url])).toEqual([[300, true, null, null], [12, false, "example-post", "https://example.test/p/example-post"]]);
+  });
+  it.each([
+    [new SubstackAPIError(403, "example", "example-events"), "http_403"],
+    [new SubstackAPIError(404, "example", "example-events"), "http_404"],
+    [new SubstackAPIError(429, "example", "example-events"), "http_429"],
+    [new SubstackAPIError(500, "example", "example-events"), "http_5xx"],
+    [{ pubEvents: "invalid" }, "malformed"],
+  ])("preserves sources when optional events fail: %s", async (failure, expected) => {
+    const result = await getGrowthSources({ ...dates, include_events: true }, async path => {
+      if (!path.includes("/events?")) return { sourceMetrics: [source()], totals: [] };
+      if (failure instanceof Error) throw failure;
+      return failure;
+    });
+    expect(result).toMatchObject({ returned: 1, events: { status: "unavailable", reason: expected } });
+  });
+  it("propagates authentication failure from optional events", async () => {
+    await expect(getGrowthSources({ ...dates, include_events: true }, async path => {
+      if (path.includes("/events?")) throw new SubstackAPIError(401, "example", "example-events");
+      return { sourceMetrics: [source()], totals: [] };
+    })).rejects.toMatchObject({ statusCode: 401 });
+  });
+  it("accepts 366 inclusive days and tomorrow UTC, but rejects the next day and 367 days", () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-23T23:59:59Z"));
+    expect(growthSourcesInput.safeParse({ from_date: "2025-09-24", to_date: "2026-09-24" }).success).toBe(true);
+    expect(growthSourcesInput.safeParse({ from_date: "2025-09-23", to_date: "2026-09-24" }).success).toBe(false);
+    expect(growthSourcesInput.safeParse({ from_date: "2026-09-24", to_date: "2026-09-24" }).success).toBe(true);
+    expect(growthSourcesInput.safeParse({ from_date: "2026-09-25", to_date: "2026-09-25" }).success).toBe(false);
+    vi.restoreAllMocks();
   });
   it("rejects reversed dates before fetching and rejects malformed upstream shapes", async () => {
     const read = vi.fn(async () => ({}));
@@ -113,6 +167,20 @@ describe("analytics MCP routing", () => {
       expect(JSON.stringify(result)).not.toContain("example-private");
     } finally { await c.close(); }
   });
+  it.each([false, true])("keeps growth sources through MCP when optional events are available=%s", async available => {
+    const fetchMock = vi.fn(async (url: string) => url.includes("/events?")
+      ? available ? Response.json({ pubEvents: [] }) : new Response("example-private", { status: 403 })
+      : Response.json({ sourceMetrics: [source()], totals: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const c = await connected(false);
+    try {
+      const result = await c.client.callTool({ name: "get_growth_sources", arguments: { ...dates, include_events: true } });
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent).toMatchObject({ returned: 1, events: available ? { status: "available", items: [] } : { status: "unavailable", reason: "http_403" } });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(JSON.stringify(result)).not.toContain("example-private");
+    } finally { await c.close(); }
+  });
   it("propagates a 401 as an authentication failure even after a successful summary", async () => {
     vi.stubGlobal("fetch", vi.fn(async (url: string) => url.endsWith("/summary") ? Response.json(summary) : new Response("example-private", { status: 401 })));
     const c = await connected(false);
@@ -130,17 +198,75 @@ describe("analytics MCP routing", () => {
     const c = await connected(false);
     try {
       const result = await c.client.callTool({ name: "get_publication_stats", arguments: {} });
-      expect(result.structuredContent).toMatchObject({ summary: { status: "unavailable", reason: "malformed" }, range: { status: "available" } });
+      expect(result.structuredContent).toMatchObject({ summary: { status: "unavailable", reason: "response_too_large" }, range: { status: "available" } });
     } finally { await c.close(); }
   });
   it("gets one exact post without scanning the feed", async () => {
-    const fetchMock = vi.fn(async () => Response.json({ posts: [{ id: 42, title: "Example", post_date: null, stats: { views: 5 } }] }));
+    const fetchMock = vi.fn(async () => Response.json({ posts: [{ id: 42, title: "Example", is_published: true, post_date: "2026-09-01T00:00:00Z", stats: { views: 5 } }] }));
     vi.stubGlobal("fetch", fetchMock);
     const c = await connected(false);
     try {
       const result = await c.client.callTool({ name: "get_post_analytics", arguments: { post_id: 42 } });
       expect(result.isError).toBeFalsy();
       expect(result.structuredContent).toMatchObject({ id: 42, views: 5, source: "post_detail" });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally { await c.close(); }
+  });
+  it.each([
+    [false, null],
+    [false, "2026-09-01T00:00:00Z"],
+    [true, null],
+  ])("falls back for unpublished detail (is_published=%s, post_date=%s)", async (is_published, post_date) => {
+    const fetchMock = vi.fn(async (url: string) => Response.json(url.includes("/detail/")
+      ? { posts: [{ id: 42, title: "Example draft", is_published, post_date, stats: { views: 99 } }] }
+      : { posts: [], total: 0 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const c = await connected(false);
+    try {
+      const result = await c.client.callTool({ name: "get_post_analytics", arguments: { post_id: 42 } });
+      expect(result.structuredContent).toMatchObject({ found: false, source: "published_feed_scan", detail_fallback_reason: "not_published" });
+      expect(JSON.stringify(result)).not.toContain("Example draft");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally { await c.close(); }
+  });
+  it("accepts published detail with null statistics", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ posts: [{ id: 42, is_published: true, post_date: "2026-09-01T00:00:00Z", stats: null }] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const c = await connected(false);
+    try {
+      const result = await c.client.callTool({ name: "get_post_analytics", arguments: { post_id: 42 } });
+      expect(result.structuredContent).toMatchObject({ found: true, source: "post_detail", stats_available: false });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally { await c.close(); }
+  });
+  it.each([500, 400, 410])("falls back after detail HTTP %s", async status => {
+    const fetchMock = vi.fn(async (url: string) => url.includes("/detail/") ? new Response("example-upstream", { status }) : Response.json({ posts: [{ id: 42, stats: { views: 3 } }], total: 1 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const c = await connected(false);
+    try {
+      const result = await c.client.callTool({ name: "get_post_analytics", arguments: { post_id: 42 } });
+      expect(result.structuredContent).toMatchObject({ found: true, source: "published_feed_scan", detail_fallback_reason: "upstream_error" });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally { await c.close(); }
+  });
+  it("falls back after a detail timeout", async () => {
+    const fetchMock = vi.fn(async (url: string) => { if (url.includes("/detail/")) throw new TimeoutError("example-detail", 100); return Response.json({ posts: [], total: 0 }); });
+    vi.stubGlobal("fetch", fetchMock);
+    const c = await connected(false);
+    try {
+      const result = await c.client.callTool({ name: "get_post_analytics", arguments: { post_id: 42 } });
+      expect(result.structuredContent).toMatchObject({ found: false, source: "published_feed_scan", detail_fallback_reason: "upstream_error" });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally { await c.close(); }
+  });
+  it.each([401, 429])("propagates detail HTTP %s without scanning", async status => {
+    const fetchMock = vi.fn(async () => new Response("example-upstream", { status }));
+    vi.stubGlobal("fetch", fetchMock);
+    const c = await connected(false);
+    try {
+      const result = await c.client.callTool({ name: "get_post_analytics", arguments: { post_id: 42 } });
+      expect(result.isError).toBe(true);
+      expect(JSON.parse((result.content as { text: string }[])[0].text)).toMatchObject({ status });
       expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally { await c.close(); }
   });

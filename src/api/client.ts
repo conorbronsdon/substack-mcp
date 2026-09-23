@@ -431,24 +431,26 @@ export class SubstackClient {
     return (await this.findPostAnalytics(postId)).post;
   }
 
-  async findExactPostAnalytics(postId: number): Promise<PostAnalyticsSearch & { source: "post_detail" | "published_feed_scan"; detail_fallback_reason?: "not_found" | "malformed" | "id_mismatch" | "forbidden" }> {
+  async findExactPostAnalytics(postId: number): Promise<PostAnalyticsSearch & { source: "post_detail" | "published_feed_scan"; detail_fallback_reason?: "not_found" | "malformed" | "id_mismatch" | "forbidden" | "not_published" | "upstream_error" }> {
     const path = `/api/v1/post_management/detail/${postId}?offset=0&limit=1`;
-    let fallback: "not_found" | "malformed" | "id_mismatch" | "forbidden" | undefined;
+    let fallback: "not_found" | "malformed" | "id_mismatch" | "forbidden" | "not_published" | "upstream_error" | undefined;
     try {
       const raw = await this.request<unknown>(`${this.publicationUrl}${path}`);
       const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullish();
       const stats = z.object({ views: count, sent: count, delivered: count, opened: count, signups: count, subscribes: count, estimated_value: z.number().finite().nullish() });
-      const detail = z.object({ posts: z.array(z.object({ id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER), title: z.string().max(10_000).nullish(), post_date: z.string().max(100).nullish(), stats, comment_count: count, reaction_count: count })).length(1) });
+      const detail = z.object({ posts: z.array(z.object({ id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER), title: z.string().max(10_000).nullish(), post_date: z.string().max(100).nullish(), is_published: z.boolean().nullish(), stats: stats.nullish(), comment_count: count, reaction_count: count })).length(1) });
       const parsed = detail.safeParse(raw);
       if (!parsed.success) fallback = "malformed";
       else if (parsed.data.posts[0].id !== postId) fallback = "id_mismatch";
+      else if (parsed.data.posts[0].is_published !== true || parsed.data.posts[0].post_date == null) fallback = "not_published";
       else return { post: parsed.data.posts[0] as unknown as SubstackPost, outcome: "found", scanned: 1, feed_capped: null, source: "post_detail" };
     } catch (error) {
       if (error instanceof SubstackAPIError && error.statusCode === 401) throw error;
+      if (error instanceof SubstackAPIError && error.statusCode === 429) throw error;
       if (error instanceof SubstackAPIError && error.statusCode === 404) fallback = "not_found";
       else if (error instanceof SubstackAPIError && error.statusCode === 403) fallback = "forbidden";
-      else if (error instanceof ResponseError) fallback = "malformed";
-      else throw error;
+      else if (error instanceof ResponseError && ["malformed_json", "unexpected_html"].includes(error.code)) fallback = "malformed";
+      else fallback = "upstream_error";
     }
     const search = await this.findPostAnalytics(postId);
     return { ...search, source: "published_feed_scan", detail_fallback_reason: fallback };

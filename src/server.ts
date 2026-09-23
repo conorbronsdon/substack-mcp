@@ -173,7 +173,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
   });
 
   registerTool("get_growth_sources", {
-    description: "Read growth sources for an ordered date range of at most 366 days ending no later than tomorrow UTC. One authenticated read, or two when include_events is true; no writes. Returns up to 20 top-level sources by default, at most 50, in Substack's users-descending order. Processes at most 500 nodes, depth 3 and 400 timeseries points per metric; truncation flags identify cut data. total_sources and has_more describe only the unpaginated response's top-level array, not all upstream sources or complete attribution.",
+    description: "Read growth sources for an ordered inclusive date range of at most 366 days ending no later than tomorrow UTC. One authenticated read, or two when include_events is true; no writes. Optional events report available items or an unavailable reason without discarding sources; authentication failure still stops the call. Returns up to 20 top-level sources by default, at most 50, in Substack's users-descending order. Processes at most 500 nodes, depth 3 and 400 timeseries points per metric; truncation flags identify cut data. total_sources and has_more describe only the unpaginated response's top-level array, not all upstream sources or complete attribution.",
     inputSchema: growthSourcesInput.innerType().extend(publicationField()).strict(),
     outputSchema: growthSourcesOutput.shape,
     annotations: buildAnnotations("get_growth_sources"),
@@ -450,7 +450,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     {
       description:
         "Get performance stats (views, emails sent/delivered/opened, signups, subscribes, estimated value, comments, reactions) for a published post by ID. " +
-        `First reads the exact post detail (one authenticated read). On 403/404, malformed detail, or an ID mismatch, searches at most the ${ANALYTICS_SCAN_DEPTH} most recent published posts with up to 10 more reads. No writes. A feed-scan miss is bounded, not proof the post never existed; separate pages can shift. stats_available is false when a found post has no statistics. Per-post rates are upstream 0–1 fractions and are not added to this legacy projection.`,
+        `First reads the exact post detail (one authenticated read) and requires a published post with a post date. A draft, 403/404, malformed detail, ID mismatch, or other detail error except 401/429 triggers a scan of at most the ${ANALYTICS_SCAN_DEPTH} most recent published posts with up to 10 more reads. No writes. A feed-scan miss is bounded, not proof the post never existed; separate pages can shift. stats_available is false when a found post has no statistics. Per-post rates are upstream 0–1 fractions and are not added to this legacy projection.`,
       inputSchema: {
         post_id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).describe("The published post ID to get stats for"),
         ...publicationField(),

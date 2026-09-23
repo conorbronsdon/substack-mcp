@@ -787,41 +787,108 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "additionalProperties": false,
       "properties": {
         "events": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "date": {
-                "$ref": "#/properties/sources/items/properties/source",
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "items": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "date": {
+                        "$ref": "#/properties/sources/items/properties/source",
+                      },
+                      "id": {
+                        "exclusiveMinimum": 0,
+                        "type": "integer",
+                      },
+                      "slug": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                      "title": {
+                        "maxLength": 300,
+                        "type": "string",
+                      },
+                      "title_truncated": {
+                        "type": "boolean",
+                      },
+                      "type": {
+                        "$ref": "#/properties/sources/items/properties/source",
+                      },
+                      "url": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                    },
+                    "required": [
+                      "id",
+                      "date",
+                      "title",
+                      "title_truncated",
+                      "slug",
+                      "type",
+                      "url",
+                    ],
+                    "type": "object",
+                  },
+                  "maxItems": 500,
+                  "type": "array",
+                },
+                "status": {
+                  "const": "available",
+                  "type": "string",
+                },
               },
-              "id": {
-                "exclusiveMinimum": 0,
-                "type": "integer",
-              },
-              "slug": {
-                "$ref": "#/properties/sources/items/properties/source",
-              },
-              "title": {
-                "$ref": "#/properties/sources/items/properties/source",
-              },
-              "type": {
-                "$ref": "#/properties/sources/items/properties/source",
-              },
-              "url": {
-                "$ref": "#/properties/sources/items/properties/source",
-              },
+              "required": [
+                "status",
+                "items",
+              ],
+              "type": "object",
             },
-            "required": [
-              "id",
-              "date",
-              "title",
-              "slug",
-              "type",
-              "url",
-            ],
-            "type": "object",
-          },
-          "maxItems": 500,
-          "type": "array",
+            {
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "http_401",
+                    "http_403",
+                    "http_404",
+                    "http_429",
+                    "http_5xx",
+                    "http_other",
+                    "malformed",
+                    "timeout",
+                    "response_too_large",
+                    "redirect_rejected",
+                    "unexpected_html",
+                  ],
+                  "type": "string",
+                },
+                "status": {
+                  "const": "unavailable",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+              ],
+              "type": "object",
+            },
+          ],
         },
         "from_date": {
           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
@@ -1109,6 +1176,8 @@ exports[`stable output contracts > classifies any public schema drift as potenti
             "malformed",
             "id_mismatch",
             "forbidden",
+            "not_published",
+            "upstream_error",
           ],
           "type": "string",
         },
@@ -1646,7 +1715,10 @@ exports[`stable output contracts > classifies any public schema drift as potenti
                   "type": "string",
                 },
                 "is_bestseller": {
-                  "type": "boolean",
+                  "type": [
+                    "boolean",
+                    "null",
+                  ],
                 },
                 "metrics": {
                   "additionalProperties": {
@@ -1737,6 +1809,9 @@ exports[`stable output contracts > classifies any public schema drift as potenti
                     "http_other",
                     "malformed",
                     "timeout",
+                    "response_too_large",
+                    "redirect_rejected",
+                    "unexpected_html",
                   ],
                   "type": "string",
                 },
@@ -4351,41 +4426,108 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "additionalProperties": false,
       "properties": {
         "events": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "date": {
-                "$ref": "#/properties/sources/items/properties/source",
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "items": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "date": {
+                        "$ref": "#/properties/sources/items/properties/source",
+                      },
+                      "id": {
+                        "exclusiveMinimum": 0,
+                        "type": "integer",
+                      },
+                      "slug": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                      "title": {
+                        "maxLength": 300,
+                        "type": "string",
+                      },
+                      "title_truncated": {
+                        "type": "boolean",
+                      },
+                      "type": {
+                        "$ref": "#/properties/sources/items/properties/source",
+                      },
+                      "url": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                    },
+                    "required": [
+                      "id",
+                      "date",
+                      "title",
+                      "title_truncated",
+                      "slug",
+                      "type",
+                      "url",
+                    ],
+                    "type": "object",
+                  },
+                  "maxItems": 500,
+                  "type": "array",
+                },
+                "status": {
+                  "const": "available",
+                  "type": "string",
+                },
               },
-              "id": {
-                "exclusiveMinimum": 0,
-                "type": "integer",
-              },
-              "slug": {
-                "$ref": "#/properties/sources/items/properties/source",
-              },
-              "title": {
-                "$ref": "#/properties/sources/items/properties/source",
-              },
-              "type": {
-                "$ref": "#/properties/sources/items/properties/source",
-              },
-              "url": {
-                "$ref": "#/properties/sources/items/properties/source",
-              },
+              "required": [
+                "status",
+                "items",
+              ],
+              "type": "object",
             },
-            "required": [
-              "id",
-              "date",
-              "title",
-              "slug",
-              "type",
-              "url",
-            ],
-            "type": "object",
-          },
-          "maxItems": 500,
-          "type": "array",
+            {
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "http_401",
+                    "http_403",
+                    "http_404",
+                    "http_429",
+                    "http_5xx",
+                    "http_other",
+                    "malformed",
+                    "timeout",
+                    "response_too_large",
+                    "redirect_rejected",
+                    "unexpected_html",
+                  ],
+                  "type": "string",
+                },
+                "status": {
+                  "const": "unavailable",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+              ],
+              "type": "object",
+            },
+          ],
         },
         "from_date": {
           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
@@ -4655,6 +4797,8 @@ exports[`stable output contracts > classifies any public schema drift as potenti
             "malformed",
             "id_mismatch",
             "forbidden",
+            "not_published",
+            "upstream_error",
           ],
           "type": "string",
         },
@@ -5150,7 +5294,10 @@ exports[`stable output contracts > classifies any public schema drift as potenti
                   "type": "string",
                 },
                 "is_bestseller": {
-                  "type": "boolean",
+                  "type": [
+                    "boolean",
+                    "null",
+                  ],
                 },
                 "metrics": {
                   "additionalProperties": {
@@ -5241,6 +5388,9 @@ exports[`stable output contracts > classifies any public schema drift as potenti
                     "http_other",
                     "malformed",
                     "timeout",
+                    "response_too_large",
+                    "redirect_rejected",
+                    "unexpected_html",
                   ],
                   "type": "string",
                 },

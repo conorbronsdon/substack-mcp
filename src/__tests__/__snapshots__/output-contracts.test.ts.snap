@@ -744,6 +744,318 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
+        "from_date": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": "string",
+        },
+        "include_events": {
+          "default": false,
+          "type": "boolean",
+        },
+        "include_timeseries": {
+          "default": false,
+          "type": "boolean",
+        },
+        "limit": {
+          "default": 20,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+        "to_date": {
+          "$ref": "#/properties/from_date",
+        },
+      },
+      "required": [
+        "from_date",
+        "to_date",
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "get_growth_sources",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "items": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "date": {
+                        "$ref": "#/properties/sources/items/properties/source",
+                      },
+                      "id": {
+                        "exclusiveMinimum": 0,
+                        "type": "integer",
+                      },
+                      "slug": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                      "title": {
+                        "maxLength": 300,
+                        "type": "string",
+                      },
+                      "title_truncated": {
+                        "type": "boolean",
+                      },
+                      "type": {
+                        "$ref": "#/properties/sources/items/properties/source",
+                      },
+                      "url": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                    },
+                    "required": [
+                      "id",
+                      "date",
+                      "title",
+                      "title_truncated",
+                      "slug",
+                      "type",
+                      "url",
+                    ],
+                    "type": "object",
+                  },
+                  "maxItems": 500,
+                  "type": "array",
+                },
+                "status": {
+                  "const": "available",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "items",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "http_401",
+                    "http_403",
+                    "http_404",
+                    "http_429",
+                    "http_5xx",
+                    "http_other",
+                    "malformed",
+                    "timeout",
+                    "response_too_large",
+                    "redirect_rejected",
+                    "unexpected_html",
+                  ],
+                  "type": "string",
+                },
+                "status": {
+                  "const": "unavailable",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+        "from_date": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": "string",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "publication": {
+          "type": "string",
+        },
+        "returned": {
+          "minimum": 0,
+          "type": "integer",
+        },
+        "sources": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "category": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+              "children": {
+                "items": {
+                  "$ref": "#/properties/sources/items",
+                },
+                "maxItems": 500,
+                "type": "array",
+              },
+              "metrics": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "$ref": "#/properties/sources/items/properties/source",
+                    },
+                    "timeseries": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "date": {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          "value": {
+                            "$ref": "#/properties/sources/items/properties/metrics/items/properties/total",
+                          },
+                        },
+                        "required": [
+                          "date",
+                          "value",
+                        ],
+                        "type": "object",
+                      },
+                      "maxItems": 400,
+                      "type": "array",
+                    },
+                    "timeseries_truncated": {
+                      "type": "boolean",
+                    },
+                    "total": {
+                      "type": "number",
+                    },
+                  },
+                  "required": [
+                    "name",
+                    "total",
+                    "timeseries_truncated",
+                  ],
+                  "type": "object",
+                },
+                "maxItems": 100,
+                "type": "array",
+              },
+              "original_source_name": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+              "source": {
+                "maxLength": 500,
+                "type": "string",
+              },
+              "source_name": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+            },
+            "required": [
+              "source",
+              "source_name",
+              "original_source_name",
+              "category",
+              "metrics",
+              "children",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "to_date": {
+          "$ref": "#/properties/from_date",
+        },
+        "total_sources": {
+          "minimum": 0,
+          "type": "integer",
+        },
+        "totals": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+              "total": {
+                "$ref": "#/properties/sources/items/properties/metrics/items/properties/total",
+              },
+            },
+            "required": [
+              "name",
+              "total",
+            ],
+            "type": "object",
+          },
+          "maxItems": 500,
+          "type": "array",
+        },
+        "truncated": {
+          "additionalProperties": false,
+          "properties": {
+            "depth": {
+              "type": "boolean",
+            },
+            "nodes": {
+              "type": "boolean",
+            },
+            "timeseries": {
+              "type": "boolean",
+            },
+          },
+          "required": [
+            "nodes",
+            "depth",
+            "timeseries",
+          ],
+          "type": "object",
+        },
+      },
+      "required": [
+        "publication",
+        "from_date",
+        "to_date",
+        "sources",
+        "totals",
+        "returned",
+        "total_sources",
+        "has_more",
+        "truncated",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
         "post_id": {
           "description": "The post ID to retrieve",
           "exclusiveMinimum": 0,
@@ -858,6 +1170,17 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "delivered": {
           "$ref": "#/properties/views",
         },
+        "detail_fallback_reason": {
+          "enum": [
+            "not_found",
+            "malformed",
+            "id_mismatch",
+            "forbidden",
+            "not_published",
+            "upstream_error",
+          ],
+          "type": "string",
+        },
         "estimated_value": {
           "anyOf": [
             {
@@ -915,6 +1238,13 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         },
         "signups": {
           "$ref": "#/properties/views",
+        },
+        "source": {
+          "enum": [
+            "post_detail",
+            "published_feed_scan",
+          ],
+          "type": "string",
         },
         "stats_available": {
           "type": "boolean",
@@ -1321,6 +1651,189 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "data",
         "fields_not_returned_by_api",
         "identity_scope",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+        "range_days": {
+          "default": 30,
+          "maximum": 365,
+          "minimum": 1,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "get_publication_stats",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "publication": {
+          "type": "string",
+        },
+        "range": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/summary/anyOf/0",
+            },
+            {
+              "$ref": "#/properties/summary/anyOf/1",
+            },
+          ],
+        },
+        "range_days": {
+          "maximum": 365,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "captured_at": {
+                  "type": "string",
+                },
+                "is_bestseller": {
+                  "type": [
+                    "boolean",
+                    "null",
+                  ],
+                },
+                "metrics": {
+                  "additionalProperties": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "captured_at": {
+                        "format": "date-time",
+                        "type": "string",
+                      },
+                      "currency": {
+                        "maxLength": 32,
+                        "type": "string",
+                      },
+                      "source": {
+                        "maxLength": 80,
+                        "type": "string",
+                      },
+                      "status": {
+                        "enum": [
+                          "reported",
+                          "absent",
+                          "null",
+                        ],
+                        "type": "string",
+                      },
+                      "unit": {
+                        "enum": [
+                          "count",
+                          "percent_0_100",
+                          "currency_amount",
+                          "views",
+                        ],
+                        "type": "string",
+                      },
+                      "value": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                      "window": {
+                        "maxLength": 120,
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "value",
+                      "status",
+                      "unit",
+                      "window",
+                      "source",
+                      "captured_at",
+                    ],
+                    "type": "object",
+                  },
+                  "type": "object",
+                },
+                "source": {
+                  "type": "string",
+                },
+                "status": {
+                  "const": "available",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "source",
+                "captured_at",
+                "metrics",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "http_401",
+                    "http_403",
+                    "http_404",
+                    "http_429",
+                    "http_5xx",
+                    "http_other",
+                    "malformed",
+                    "timeout",
+                    "response_too_large",
+                    "redirect_rejected",
+                    "unexpected_html",
+                  ],
+                  "type": "string",
+                },
+                "status": {
+                  "const": "unavailable",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+      },
+      "required": [
+        "publication",
+        "range_days",
+        "summary",
+        "range",
       ],
       "type": "object",
     },
@@ -4035,6 +4548,309 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
+        "from_date": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": "string",
+        },
+        "include_events": {
+          "default": false,
+          "type": "boolean",
+        },
+        "include_timeseries": {
+          "default": false,
+          "type": "boolean",
+        },
+        "limit": {
+          "default": 20,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "to_date": {
+          "$ref": "#/properties/from_date",
+        },
+      },
+      "required": [
+        "from_date",
+        "to_date",
+      ],
+      "type": "object",
+    },
+    "name": "get_growth_sources",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "items": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "date": {
+                        "$ref": "#/properties/sources/items/properties/source",
+                      },
+                      "id": {
+                        "exclusiveMinimum": 0,
+                        "type": "integer",
+                      },
+                      "slug": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                      "title": {
+                        "maxLength": 300,
+                        "type": "string",
+                      },
+                      "title_truncated": {
+                        "type": "boolean",
+                      },
+                      "type": {
+                        "$ref": "#/properties/sources/items/properties/source",
+                      },
+                      "url": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                    },
+                    "required": [
+                      "id",
+                      "date",
+                      "title",
+                      "title_truncated",
+                      "slug",
+                      "type",
+                      "url",
+                    ],
+                    "type": "object",
+                  },
+                  "maxItems": 500,
+                  "type": "array",
+                },
+                "status": {
+                  "const": "available",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "items",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "http_401",
+                    "http_403",
+                    "http_404",
+                    "http_429",
+                    "http_5xx",
+                    "http_other",
+                    "malformed",
+                    "timeout",
+                    "response_too_large",
+                    "redirect_rejected",
+                    "unexpected_html",
+                  ],
+                  "type": "string",
+                },
+                "status": {
+                  "const": "unavailable",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+        "from_date": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": "string",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "publication": {
+          "type": "string",
+        },
+        "returned": {
+          "minimum": 0,
+          "type": "integer",
+        },
+        "sources": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "category": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+              "children": {
+                "items": {
+                  "$ref": "#/properties/sources/items",
+                },
+                "maxItems": 500,
+                "type": "array",
+              },
+              "metrics": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "$ref": "#/properties/sources/items/properties/source",
+                    },
+                    "timeseries": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "date": {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          "value": {
+                            "$ref": "#/properties/sources/items/properties/metrics/items/properties/total",
+                          },
+                        },
+                        "required": [
+                          "date",
+                          "value",
+                        ],
+                        "type": "object",
+                      },
+                      "maxItems": 400,
+                      "type": "array",
+                    },
+                    "timeseries_truncated": {
+                      "type": "boolean",
+                    },
+                    "total": {
+                      "type": "number",
+                    },
+                  },
+                  "required": [
+                    "name",
+                    "total",
+                    "timeseries_truncated",
+                  ],
+                  "type": "object",
+                },
+                "maxItems": 100,
+                "type": "array",
+              },
+              "original_source_name": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+              "source": {
+                "maxLength": 500,
+                "type": "string",
+              },
+              "source_name": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+            },
+            "required": [
+              "source",
+              "source_name",
+              "original_source_name",
+              "category",
+              "metrics",
+              "children",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "to_date": {
+          "$ref": "#/properties/from_date",
+        },
+        "total_sources": {
+          "minimum": 0,
+          "type": "integer",
+        },
+        "totals": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+              "total": {
+                "$ref": "#/properties/sources/items/properties/metrics/items/properties/total",
+              },
+            },
+            "required": [
+              "name",
+              "total",
+            ],
+            "type": "object",
+          },
+          "maxItems": 500,
+          "type": "array",
+        },
+        "truncated": {
+          "additionalProperties": false,
+          "properties": {
+            "depth": {
+              "type": "boolean",
+            },
+            "nodes": {
+              "type": "boolean",
+            },
+            "timeseries": {
+              "type": "boolean",
+            },
+          },
+          "required": [
+            "nodes",
+            "depth",
+            "timeseries",
+          ],
+          "type": "object",
+        },
+      },
+      "required": [
+        "publication",
+        "from_date",
+        "to_date",
+        "sources",
+        "totals",
+        "returned",
+        "total_sources",
+        "has_more",
+        "truncated",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
         "post_id": {
           "description": "The post ID to retrieve",
           "exclusiveMinimum": 0,
@@ -4131,6 +4947,17 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "delivered": {
           "$ref": "#/properties/views",
         },
+        "detail_fallback_reason": {
+          "enum": [
+            "not_found",
+            "malformed",
+            "id_mismatch",
+            "forbidden",
+            "not_published",
+            "upstream_error",
+          ],
+          "type": "string",
+        },
         "estimated_value": {
           "anyOf": [
             {
@@ -4188,6 +5015,13 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         },
         "signups": {
           "$ref": "#/properties/views",
+        },
+        "source": {
+          "enum": [
+            "post_detail",
+            "published_feed_scan",
+          ],
+          "type": "string",
         },
         "stats_available": {
           "type": "boolean",
@@ -4563,6 +5397,178 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "data",
         "fields_not_returned_by_api",
         "identity_scope",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "range_days": {
+          "default": 30,
+          "maximum": 365,
+          "minimum": 1,
+          "type": "integer",
+        },
+      },
+      "type": "object",
+    },
+    "name": "get_publication_stats",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "publication": {
+          "type": "string",
+        },
+        "range": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/summary/anyOf/0",
+            },
+            {
+              "$ref": "#/properties/summary/anyOf/1",
+            },
+          ],
+        },
+        "range_days": {
+          "maximum": 365,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "captured_at": {
+                  "type": "string",
+                },
+                "is_bestseller": {
+                  "type": [
+                    "boolean",
+                    "null",
+                  ],
+                },
+                "metrics": {
+                  "additionalProperties": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "captured_at": {
+                        "format": "date-time",
+                        "type": "string",
+                      },
+                      "currency": {
+                        "maxLength": 32,
+                        "type": "string",
+                      },
+                      "source": {
+                        "maxLength": 80,
+                        "type": "string",
+                      },
+                      "status": {
+                        "enum": [
+                          "reported",
+                          "absent",
+                          "null",
+                        ],
+                        "type": "string",
+                      },
+                      "unit": {
+                        "enum": [
+                          "count",
+                          "percent_0_100",
+                          "currency_amount",
+                          "views",
+                        ],
+                        "type": "string",
+                      },
+                      "value": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                      "window": {
+                        "maxLength": 120,
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "value",
+                      "status",
+                      "unit",
+                      "window",
+                      "source",
+                      "captured_at",
+                    ],
+                    "type": "object",
+                  },
+                  "type": "object",
+                },
+                "source": {
+                  "type": "string",
+                },
+                "status": {
+                  "const": "available",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "source",
+                "captured_at",
+                "metrics",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "http_401",
+                    "http_403",
+                    "http_404",
+                    "http_429",
+                    "http_5xx",
+                    "http_other",
+                    "malformed",
+                    "timeout",
+                    "response_too_large",
+                    "redirect_rejected",
+                    "unexpected_html",
+                  ],
+                  "type": "string",
+                },
+                "status": {
+                  "const": "unavailable",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+      },
+      "required": [
+        "publication",
+        "range_days",
+        "summary",
+        "range",
       ],
       "type": "object",
     },

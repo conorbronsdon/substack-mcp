@@ -24,6 +24,8 @@ const READ_TOOLS: ToolName[] = [
   "list_publication_tags",
   "get_post_tags",
   "rank_posts",
+  "get_publication_stats",
+  "get_growth_sources",
   "get_publication",
   "search_posts",
   "preflight_draft",

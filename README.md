@@ -247,6 +247,8 @@ authoritative wording.
 | `get_sections` | List your publication's sections (categories) with their IDs |
 | `get_post_analytics` | Get a published post's stats (views, opens, signups, subscribes, reactions) by ID |
 | `rank_posts` | [Rank posts](docs/analytics-rankings.md) by views, opens, sends, rates, signups, subscribes, estimated value or date, keeping null and missing values distinct |
+| `get_publication_stats` | [Read dashboard summary and ranged publication metrics](docs/analytics-rankings.md), with missing and unavailable states |
+| `get_growth_sources` | [Read bounded growth source attribution](docs/analytics-rankings.md) and optional events |
 | `list_scheduled_posts` | List posts scheduled for future publication (read-only; scheduling stays in Substack's editor) |
 
 ### Archive search and draft review

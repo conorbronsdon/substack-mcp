@@ -25,7 +25,7 @@ const expectedTools = [
   'list_scheduled_posts', 'list_subscribers', 'update_draft', 'update_draft_tags', 'upload_image',
   'search_posts', 'preflight_draft', 'plan_draft_update',
   'get_publication',
-  'list_publication_tags', 'get_post_tags', 'rank_posts',
+  'list_publication_tags', 'get_post_tags', 'rank_posts', 'get_publication_stats', 'get_growth_sources',
 ].sort();
 
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
@@ -138,7 +138,7 @@ try {
   assert.equal(client.getServerVersion()?.version, pkg.version, 'MCP handshake version must match npm');
   const { tools } = await client.listTools({}, { timeout: 10_000 });
   assert.deepEqual(tools.map(tool => tool.name).sort(), expectedTools);
-  assert.equal(tools.filter(tool => tool.outputSchema).length, 22, "Object tools must advertise output schemas");
+  assert.equal(tools.filter(tool => tool.outputSchema).length, 24, "Object tools must advertise output schemas");
   for (const tool of tools) assert.equal(typeof tool.annotations?.readOnlyHint, 'boolean', `Missing annotation: ${tool.name}`);
   console.log(`Installed ${pkg.name}@${pkg.version}: ${packed.files.length} files, both bins load, handshake version agrees, all ${tools.length} tools present.`);
 } finally {

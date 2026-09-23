@@ -13,6 +13,7 @@ import {
   SubstackScheduledPost,
 } from "./types.js";
 import { requestJson, requestText } from "./request.js";
+import { DEFAULT_BROWSER_USER_AGENT } from "./browser-user-agent.js";
 import { SubscriberService } from "./subscribers.js";
 import { searchPosts } from "./search.js";
 import { getPublication } from "./publication.js";
@@ -109,10 +110,7 @@ export class SubstackClient {
     // (the default Node/undici UA, "node", etc.) with HTTP 403 "error code:
     // 1010" on some publications — notably custom domains. Default to a browser
     // UA; allow override via SUBSTACK_USER_AGENT.
-    this.userAgent =
-      userAgent ||
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+    this.userAgent = userAgent || DEFAULT_BROWSER_USER_AGENT;
     // A zero, negative, or non-finite override would abort every request
     // instantly (or never), so it falls back to the default rather than
     // silently breaking the client.

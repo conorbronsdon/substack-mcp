@@ -248,6 +248,31 @@ authoritative wording.
 | `get_post_analytics` | Get a published post's stats (views, opens, signups, subscribes, reactions) by ID |
 | `rank_posts` | [Rank posts](docs/analytics-rankings.md) by views, opens, sends, rates, signups, subscribes, estimated value or date, keeping null and missing values distinct |
 | `list_scheduled_posts` | List posts scheduled for future publication (read-only; scheduling stays in Substack's editor) |
+| `get_user_profile` | Read a minimal public user profile by handle, anonymously |
+| `get_profile_feed` | Read one public profile feed page with cursor continuation, anonymously |
+| `get_note_thread` | Read a public Note, ancestors and one replies page, anonymously |
+| `list_public_posts` | Read a bounded public archive page, anonymously |
+| `get_public_post` | Read an anonymous public post by URL with body status and truncation flags |
+
+### Public reading
+
+These five tools use a separate anonymous reader. It sends only `User-Agent` and
+`Accept`, never the configured publication cookie or other credentials. The
+configured publication selects the default archive origin; callers may supply an
+allowlisted HTTPS publication origin. Allowed hosts are `substack.com`, one-label
+`*.substack.com`, configured publication origins, and exact origins in
+`SUBSTACK_PUBLIC_READ_ORIGINS` (comma-separated HTTPS origins without ports,
+paths or userinfo). Redirects are rejected. With multiple publications, the
+`publication` key remains required for every tool.
+
+Profile feed pages are upstream-sized; `next_cursor` means more may be available.
+Thread pages can omit replies when `more_branches` or `next_cursor` is present.
+Archive full pages have `has_more: null` because no total is returned. Public
+post `body_status` is a heuristic based on audience and body presence; it does
+not establish full access. The anonymous reader does not use subscription
+entitlements. Reader subscriptions and inbox are unsupported: the configured
+publication session received 401 on the `substack.com` reader-account routes,
+which require a separate reader session this server does not manage.
 
 ### Archive search and draft review
 

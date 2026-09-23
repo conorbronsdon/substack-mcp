@@ -2,6 +2,7 @@ import { z } from "zod";
 import { MarkdownConversionError } from "./utils/markdown-to-prosemirror.js";
 import { TOOL_KINDS } from "./annotations.js";
 import { SubstackAPIError, TimeoutError, ResponseError } from "./utils/errors.js";
+import { PublicReadError } from "./api/public-reader.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
@@ -96,7 +97,7 @@ export function contractRegistrar(server: McpServer): McpServer["registerTool"] 
       try { return contractResult(name, await callback(...args), schema); }
       catch (error) {
         if (error instanceof MarkdownConversionError) return { isError: true, content: [{ type: "text", text: JSON.stringify({ code: "markdown_conversion_failed", message: "Markdown exceeds conversion bounds or uses an unsupported structure. Simplify the input before retrying; no write was attempted.", write_attempts: 0 }) }] };
-        const code = error instanceof TimeoutError ? "timeout" : error instanceof ResponseError ? error.code : error instanceof SubstackAPIError ? "upstream_error" : "tool_execution_failed";
+        const code = error instanceof PublicReadError ? error.code : error instanceof TimeoutError ? "timeout" : error instanceof ResponseError ? error.code : error instanceof SubstackAPIError ? "upstream_error" : "tool_execution_failed";
         return failure(name, code, error);
       }
     });

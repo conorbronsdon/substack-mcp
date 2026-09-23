@@ -67,8 +67,10 @@ a date; its timezone is whatever the string states.
 
 ## One post by ID
 
-`get_post_analytics` reads a single post's statistics from the published feed,
-searching the 500 most recent published posts. When the post is not found,
+`get_post_analytics` first reads the exact post detail by ID. A 403/404, malformed
+body, or ID mismatch triggers the bounded published-feed scan, searching the 500
+most recent posts. `source` identifies the path; `detail_fallback_reason`
+explains a fallback. When the post is not found,
 `search_result` says why. `archive_exhausted` is only reported when the pages agree: a short final
 page with no contradicting total, or full pages that exactly reach a total reported identically on
 every page. Every page is still a separate offset read, not an atomic snapshot. If one post is
@@ -86,6 +88,44 @@ not proof that the post never existed. Retry when the feed may be changing.
 feed's `isCapped` flag, uninterpreted, or `null` when Substack omits it. A found
 post has `stats_available: false` when Substack returned no statistics for it;
 its metric fields are then `null`, not zero.
+
+## Publication dashboard metrics
+
+`get_publication_stats` makes two reads: `publish-dashboard/summary` and
+`publish-dashboard/summary-v2?range=<range_days>`. The range is 1–365 days,
+default 30. Each field has a `value`, `status` (`reported`, `null`, `absent`),
+`unit`, `window`, source endpoint, capture time, and currency where applicable. A failed group has
+`status: "unavailable"` and a typed reason. Neither missing nor unavailable
+means zero. The two endpoints use different definitions and are not reconciled.
+
+| Field | Unit | Window | Source | Missing data |
+| --- | --- | --- | --- | --- |
+| `appSubscribers`, `subscribers`, `totalEmail`, `numPledges` | count | Dashboard summary window undocumented | `summary` | `null` or `absent` |
+| `appSubscribersLast30Days`, `subscribersLast30Days`, `totalEmailLast30Days` | count | Last 30 days | `summary` | `null` or `absent` |
+| `views`, `viewsDelta` | views | Dashboard summary window undocumented | `summary` | `null` or `absent` |
+| `openRate`, `openRateDiff` | percent on 0–100 scale | Dashboard summary window undocumented | `summary` | `null` or `absent` |
+| `pledgesAmount` | currency amount, `pledgeCurrency` | Dashboard summary window undocumented | `summary` | `null` or `absent` |
+| `totalSubscribersStart/End`, `paidSubscribersStart/End` | count | Trailing `range_days`, start/end | `summary-v2` | `null` or `absent` |
+| `totalViewsStart/End` | views | Trailing `range_days`, start/end | `summary-v2` | `null` or `absent` |
+| `arrStart/End`, `pledgedArrStart/End` | currency amount; currency `not_reported` | Trailing `range_days`, start/end | `summary-v2` | `null` or `absent` |
+
+Dashboard `openRate` and `openRateDiff` use a 0–100 scale. Per-post
+`open_rate` and `click_through_rate` use 0–1 fractions. Rate denominators are
+not documented.
+
+## Growth sources
+
+`get_growth_sources` reads an ordered inclusive date span of at most 366 days,
+ending no later than tomorrow UTC. It returns up to 20 top-level sources by
+default, at most 50, in Substack's `users` descending order. `total_sources`
+is the top-level array length in this unpaginated response; `has_more` means
+the local limit or processing bound cut that array. `truncated.nodes`,
+`truncated.depth`, and `truncated.timeseries` report processing caps of 500
+nodes, depth 3, and 400 points per metric. Upstream metric names pass through.
+`include_timeseries` defaults to false. `include_events` defaults to false and
+adds one events read when true. These results do not prove complete upstream
+attribution or a stable snapshot. Referral URLs, logo URLs and upstream
+publication IDs are omitted from the default source projection.
 
 ## Errors
 

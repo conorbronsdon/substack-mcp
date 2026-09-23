@@ -17,9 +17,8 @@ export interface SubstackPublication {
 }
 
 /**
- * Per-post performance metrics. Substack has no dedicated per-post stats
- * endpoint — these fields ride along on each row of the
- * `post_management/published` feed. All are optional because Substack omits
+ * Per-post performance metrics. Detail and published-feed rows carry these
+ * fields. All are optional because Substack omits
  * them for posts that were never emailed.
  */
 export interface PostStats {

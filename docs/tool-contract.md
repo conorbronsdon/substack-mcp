@@ -4,7 +4,7 @@ The 1.x public interface consists of tool names, input/output fields, side-effec
 annotations, documented CLI JSON/exit codes, and configuration selection rules.
 Substack's upstream endpoints are undocumented and may change independently.
 
-All 20 object-returning tools declare `outputSchema`, return `structuredContent`,
+All 23 object-returning tools declare `outputSchema`, return `structuredContent`,
 and retain the same object as serialized text JSON. Existing object field names
 are preserved. Four legacy array tools (`list_drafts`, `list_scheduled_posts`,
 `get_post_comments`, `get_sections`) retain text JSON arrays without an object

@@ -19,6 +19,7 @@ import { exportDraft, exportDraftInput, exportDraftOutput, draftEditorUrl } from
 import { publicationOutput } from "./api/publication.js";
 import { listTagsInput, postTagsInput, listTagsOutput, postTagsOutput } from "./api/tags.js";
 import { rankPostsInput, rankPostsOutput, RANK_MAX_LIMIT } from "./api/rankings.js";
+import { publicationStatsInput, publicationStatsOutput, growthSourcesInput, growthSourcesOutput, AnalyticsUnavailableError } from "./api/publication-analytics.js";
 import { SubstackAPIError } from "./utils/errors.js";
 import { planDraftUpdate, applyDraftUpdate, draftChangesInput, draftApplyInput, draftPlanOutput, draftApplyOutput, DraftChangeError } from "./api/draft-changes.js";
 
@@ -153,6 +154,37 @@ export function createServer(publications: PublicationConfig[], options: ServerO
       throw error;
     }
     const result = rankPostsOutput.parse({ ...ranked, publication: publication ?? pubKeys[0] });
+    return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+  });
+
+  registerTool("get_publication_stats", {
+    description: "Read dashboard summary and summary-v2 for a trailing range of 1–365 days (default 30). Two authenticated reads, no writes. Each metric states its unit, window, source and missing state. Summary windows beyond named Last30Days fields are undocumented; summary values are not reconciled with summary-v2. A failed group is unavailable, never zero. ARR currency is not reported. Both groups unavailable with HTTP 403/404 means analytics access is unavailable.",
+    inputSchema: publicationStatsInput.extend(publicationField()).strict(),
+    outputSchema: publicationStatsOutput.shape,
+    annotations: buildAnnotations("get_publication_stats"),
+  }, async ({ publication, ...input }) => {
+    try {
+      const result = publicationStatsOutput.parse({ ...await clientFor(publication).publicationStats(input), publication: publication ?? pubKeys[0] });
+      return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+    } catch (error) {
+      if (error instanceof AnalyticsUnavailableError) return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: "analytics_unavailable", status: error.statusCode, message: "Substack did not provide dashboard statistics for this publication or account. No writes were attempted." }) }] };
+      throw error;
+    }
+  });
+
+  registerTool("get_growth_sources", {
+    description: "Read growth sources for an ordered date range of at most 366 days ending no later than tomorrow UTC. One authenticated read, or two when include_events is true; no writes. Returns up to 20 top-level sources by default, at most 50, in Substack's users-descending order. Processes at most 500 nodes, depth 3 and 400 timeseries points per metric; truncation flags identify cut data. total_sources and has_more describe only the unpaginated response's top-level array, not all upstream sources or complete attribution.",
+    inputSchema: growthSourcesInput.innerType().extend(publicationField()).strict(),
+    outputSchema: growthSourcesOutput.shape,
+    annotations: buildAnnotations("get_growth_sources"),
+  }, async ({ publication, ...input }) => {
+    let growth;
+    try { growth = await clientFor(publication).growthSources(input as z.input<typeof growthSourcesInput>); }
+    catch (error) {
+      if (error instanceof SubstackAPIError && (error.statusCode === 403 || error.statusCode === 404)) return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: "analytics_unavailable", status: error.statusCode, message: "Substack did not provide growth statistics for this publication or account. No writes were attempted." }) }] };
+      throw error;
+    }
+    const result = growthSourcesOutput.parse({ ...growth, publication: publication ?? pubKeys[0] });
     return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
   });
 
@@ -418,7 +450,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     {
       description:
         "Get performance stats (views, emails sent/delivered/opened, signups, subscribes, estimated value, comments, reactions) for a published post by ID. " +
-        `Substack has no per-post stats endpoint, so this searches your ${ANALYTICS_SCAN_DEPTH} most recent published posts for the ID; returns a not-found note if it isn't among them, saying whether the search reached the end of the feed, reached its bound, or found the feed's pages incomplete or inconsistent. Pages are separate reads, so concurrent publishing or deletion can hide a post. stats_available is false when a found post has no statistics.`,
+        `First reads the exact post detail (one authenticated read). On 403/404, malformed detail, or an ID mismatch, searches at most the ${ANALYTICS_SCAN_DEPTH} most recent published posts with up to 10 more reads. No writes. A feed-scan miss is bounded, not proof the post never existed; separate pages can shift. stats_available is false when a found post has no statistics. Per-post rates are upstream 0–1 fractions and are not added to this legacy projection.`,
       inputSchema: {
         post_id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).describe("The published post ID to get stats for"),
         ...publicationField(),
@@ -426,7 +458,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
       annotations: buildAnnotations("get_post_analytics"),
     },
     async ({ post_id, publication }: { post_id: number; publication?: string }) => {
-      const search = await clientFor(publication).findPostAnalytics(post_id);
+      const search = await clientFor(publication).findExactPostAnalytics(post_id);
       const post = search.post;
       if (!post) {
         return {
@@ -437,6 +469,8 @@ export function createServer(publications: PublicationConfig[], options: ServerO
                 {
                   found: false,
                   post_id,
+                  source: search.source,
+                  detail_fallback_reason: search.detail_fallback_reason,
                   search_result: search.outcome,
                   scanned: search.scanned,
                   feed_capped: search.feed_capped,
@@ -461,6 +495,8 @@ export function createServer(publications: PublicationConfig[], options: ServerO
             text: JSON.stringify(
               {
                 found: true,
+                source: search.source,
+                detail_fallback_reason: search.detail_fallback_reason,
                 stats_available: post.stats !== undefined && post.stats !== null,
                 id: post.id,
                 title: post.title,

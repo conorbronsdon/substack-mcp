@@ -8,6 +8,12 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+### Added
+- `get_publication_stats` and `get_growth_sources` expose bounded dashboard and growth analytics with explicit missing, unavailable, and truncation states.
+
+### Changed
+- `get_post_analytics` reads exact post detail first and reports when it falls back to the bounded published-feed scan.
+
 ### Fixed
 - Release recovery accepts an npm `dist.integrity` only when it is a canonical base64 sha512
   digest (exactly 64 bytes, 88 characters with `==` padding, re-encoding to the same text).

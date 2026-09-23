@@ -3135,6 +3135,162 @@ exports[`stable output contracts > classifies any public schema drift as potenti
   },
   {
     "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "add": {
+          "default": [],
+          "items": {
+            "format": "uuid",
+            "type": "string",
+          },
+          "maxItems": 20,
+          "type": "array",
+        },
+        "draft_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "dry_run": {
+          "default": true,
+          "type": "boolean",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+        "remove": {
+          "$ref": "#/properties/add",
+          "default": [],
+        },
+      },
+      "required": [
+        "draft_id",
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "update_draft_tags",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "draft_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "draft_state_after": {
+          "enum": [
+            "unpublished",
+            "changed",
+            "unverifiable",
+            "not_checked",
+          ],
+          "type": "string",
+        },
+        "dry_run": {
+          "type": "boolean",
+        },
+        "note": {
+          "maxLength": 1000,
+          "type": "string",
+        },
+        "publication": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "results": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "hidden": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "outcome": {
+                "enum": [
+                  "already_present",
+                  "already_absent",
+                  "planned",
+                  "verified",
+                  "unverified",
+                  "rejected",
+                  "retryable",
+                  "unknown",
+                  "observed_after_unconfirmed_write",
+                  "not_attempted",
+                ],
+                "type": "string",
+              },
+              "requested": {
+                "enum": [
+                  "add",
+                  "remove",
+                ],
+                "type": "string",
+              },
+              "tag_id": {
+                "format": "uuid",
+                "type": "string",
+              },
+              "tag_name": {
+                "anyOf": [
+                  {
+                    "maxLength": 1000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "tag_id",
+              "tag_name",
+              "hidden",
+              "requested",
+              "outcome",
+            ],
+            "type": "object",
+          },
+          "maxItems": 40,
+          "type": "array",
+        },
+        "write_attempts": {
+          "maximum": 40,
+          "minimum": 0,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "publication",
+        "draft_id",
+        "dry_run",
+        "draft_state_after",
+        "write_attempts",
+        "results",
+        "note",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
       "destructiveHint": false,
       "openWorldHint": true,
       "readOnlyHint": false,
@@ -6078,6 +6234,153 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "unsupported_nodes",
         "message",
         "limitations",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "add": {
+          "default": [],
+          "items": {
+            "format": "uuid",
+            "type": "string",
+          },
+          "maxItems": 20,
+          "type": "array",
+        },
+        "draft_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "dry_run": {
+          "default": true,
+          "type": "boolean",
+        },
+        "remove": {
+          "$ref": "#/properties/add",
+          "default": [],
+        },
+      },
+      "required": [
+        "draft_id",
+      ],
+      "type": "object",
+    },
+    "name": "update_draft_tags",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "draft_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "draft_state_after": {
+          "enum": [
+            "unpublished",
+            "changed",
+            "unverifiable",
+            "not_checked",
+          ],
+          "type": "string",
+        },
+        "dry_run": {
+          "type": "boolean",
+        },
+        "note": {
+          "maxLength": 1000,
+          "type": "string",
+        },
+        "publication": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "results": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "hidden": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "outcome": {
+                "enum": [
+                  "already_present",
+                  "already_absent",
+                  "planned",
+                  "verified",
+                  "unverified",
+                  "rejected",
+                  "retryable",
+                  "unknown",
+                  "observed_after_unconfirmed_write",
+                  "not_attempted",
+                ],
+                "type": "string",
+              },
+              "requested": {
+                "enum": [
+                  "add",
+                  "remove",
+                ],
+                "type": "string",
+              },
+              "tag_id": {
+                "format": "uuid",
+                "type": "string",
+              },
+              "tag_name": {
+                "anyOf": [
+                  {
+                    "maxLength": 1000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "tag_id",
+              "tag_name",
+              "hidden",
+              "requested",
+              "outcome",
+            ],
+            "type": "object",
+          },
+          "maxItems": 40,
+          "type": "array",
+        },
+        "write_attempts": {
+          "maximum": 40,
+          "minimum": 0,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "publication",
+        "draft_id",
+        "dry_run",
+        "draft_state_after",
+        "write_attempts",
+        "results",
+        "note",
       ],
       "type": "object",
     },

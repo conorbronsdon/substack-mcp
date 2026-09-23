@@ -18,6 +18,7 @@ import { preflightDraft } from "./utils/draft-preflight.js";
 import { exportDraft, exportDraftInput, exportDraftOutput, draftEditorUrl } from "./api/draft-export.js";
 import { publicationOutput } from "./api/publication.js";
 import { listTagsInput, postTagsInput, listTagsOutput, postTagsOutput } from "./api/tags.js";
+import { draftTagsShape, draftTagsInput, draftTagsOutput, DraftTagError, type DraftTagsInput } from "./api/draft-tags.js";
 import { rankPostsInput, rankPostsOutput, RANK_MAX_LIMIT } from "./api/rankings.js";
 import { SubstackAPIError } from "./utils/errors.js";
 import { planDraftUpdate, applyDraftUpdate, draftChangesInput, draftApplyInput, draftPlanOutput, draftApplyOutput, DraftChangeError } from "./api/draft-changes.js";
@@ -595,6 +596,24 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     annotations: buildAnnotations("update_draft"),
   }, async ({ publication, ...input }) =>
     draftChangeResponse(() => applyDraftUpdate(clientFor(publication), draftApplyInput.parse(input), publication ?? pubKeys[0])));
+
+  registerTool("update_draft_tags", {
+    description: "Assign or remove up to 20 distinct tag IDs per direction on a draft; refuses published or scheduled drafts before writing; not atomic — see draft_state_after. Dry-run defaults to true. Reads publication context, definitions, draft and associations (four reads); a live change rechecks the draft before writing, then reads draft state and associations after writing (up to seven reads total). Sends at most 40 sequential writes, each once, with no automatic retry. Only a confirmed request observed in readback while the draft remains unpublished is verified. Hidden tags are allowed and reported. Draft tags may become public when you later publish the draft in Substack.",
+    inputSchema: { ...draftTagsShape, ...publicationField() },
+    outputSchema: draftTagsOutput.shape,
+    annotations: buildAnnotations("update_draft_tags"),
+  }, async (args) => {
+    const { publication, ...input } = args as DraftTagsInput & { publication?: string };
+    const validated = draftTagsInput.parse(input);
+    try {
+      const result = await clientFor(publication).updateDraftTags(validated, publication ?? pubKeys[0]);
+      return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+    } catch (error) {
+      if (!(error instanceof DraftTagError)) throw error;
+      return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: error.code,
+        message: "Draft tag safety check failed. No write was attempted.", write_attempts: 0, draft_state_after: "not_checked", results: error.results }) }] };
+    }
+  });
 
   registerTool(
     "upload_image",

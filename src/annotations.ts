@@ -81,6 +81,7 @@ export const TOOL_KINDS = {
   // Additive writes to private draft state (nothing reachable outside account)
   create_draft: "draft-write",
   update_draft: "draft-update",
+  update_draft_tags: "draft-update",
   // Additive write returning a publicly-fetchable CDN URL
   upload_image: "public-upload",
   // Immediate public publishes (Substack Notes)

@@ -22,7 +22,7 @@ const expectedTools = [
   'add_free_subscriber', 'create_draft', 'create_note', 'create_note_with_link',
   'get_draft', 'get_post', 'get_post_analytics', 'get_post_comments', 'get_sections',
   'get_subscriber', 'get_subscriber_count', 'list_drafts', 'list_published_posts',
-  'list_scheduled_posts', 'list_subscribers', 'update_draft', 'upload_image',
+  'list_scheduled_posts', 'list_subscribers', 'update_draft', 'update_draft_tags', 'upload_image',
   'search_posts', 'preflight_draft', 'plan_draft_update',
   'get_publication',
   'list_publication_tags', 'get_post_tags', 'rank_posts',
@@ -30,7 +30,7 @@ const expectedTools = [
 
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
   'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/authoring.md', 'docs/export.md', 'docs/analytics-rankings.md', 'docs/remote-images.md', 'docs/draft-changes.md',
-  'docs/workflow.md', 'docs/tool-contract.md', 'docs/plugins.md', 'docs/containers.md',
+  'docs/workflow.md', 'docs/tool-contract.md', 'docs/draft-tags.md', 'docs/plugins.md', 'docs/containers.md',
   'docs/compatibility.md', 'docs/release-checklist.md', 'docs/distribution.md', 'docs/typescript-api.md', 'docs/operator-cli.md', 'docs/http-transport.md', 'docs/errors.md', 'dist/index.js', 'dist/login.js'];
 let transport;
 try {
@@ -138,7 +138,7 @@ try {
   assert.equal(client.getServerVersion()?.version, pkg.version, 'MCP handshake version must match npm');
   const { tools } = await client.listTools({}, { timeout: 10_000 });
   assert.deepEqual(tools.map(tool => tool.name).sort(), expectedTools);
-  assert.equal(tools.filter(tool => tool.outputSchema).length, 21, "Object tools must advertise output schemas");
+  assert.equal(tools.filter(tool => tool.outputSchema).length, 22, "Object tools must advertise output schemas");
   for (const tool of tools) assert.equal(typeof tool.annotations?.readOnlyHint, 'boolean', `Missing annotation: ${tool.name}`);
   console.log(`Installed ${pkg.name}@${pkg.version}: ${packed.files.length} files, both bins load, handshake version agrees, all ${tools.length} tools present.`);
 } finally {

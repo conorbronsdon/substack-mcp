@@ -179,6 +179,21 @@ describe("loss-aware reverse Markdown conversion", () => {
     expect(JSON.stringify(convertMarkdown(result.markdown!).document)).not.toContain("One\\\\");
     expect(reverse([paragraph(text("One"), { type: "hard_break" }, text("Two"))]).status).toBe("converted");
   });
+  it.each([
+    ["paragraph start", [{ type: "footnoteAnchor", attrs: { number: 1 } }, text(": note")], "/content/0/content/0"],
+    ["after a hard break", [text("Line"), { type: "hard_break" }, { type: "footnoteAnchor", attrs: { number: 1 } }, text(": note")], "/content/0/content/2"],
+  ])("reports a footnote anchor followed by a colon at the %s, which reimports as a definition", (_name, inlineContent, path) => {
+    const footnote = { type: "footnote", attrs: { number: 1 }, content: [paragraph(text("Def"))] };
+    const result = reverse([paragraph(...inlineContent), footnote]);
+    expect(result.status).toBe("partial");
+    expect(result.unsupported_nodes).toContainEqual(expect.objectContaining({ path, type: "footnoteAnchor" }));
+    // Mid-line anchors and a space before the colon reimport as the same paragraph.
+    for (const safe of [[text("Word "), { type: "footnoteAnchor", attrs: { number: 1 } }, text(": note")], [{ type: "footnoteAnchor", attrs: { number: 1 } }, text(" : note")]]) {
+      const exported = reverse([paragraph(...safe), footnote]);
+      expect(exported.status).toBe("converted");
+      expect(convertMarkdown(exported.markdown!).document.content[0].type).toBe("paragraph");
+    }
+  });
   it("round-trips a footnote attached to text before an image without diagnostics", () => {
     const imported = convertMarkdown("A[^1] ![img](https://example.com/a.png) B\n\n[^1]: One").document;
     const exported = prosemirrorToMarkdown(JSON.stringify(imported));

@@ -33,14 +33,17 @@ without partial printing. Draft and subscriber output is private.
 Failed reads still print `code: "read_failed"` to stderr with exit 1, and add a
 `category`: `authentication`, `rate_limited`, `timeout`, `not_found`,
 `invalid_request`, `upstream_unavailable`, `response_invalid`,
-`response_too_large`, `cancelled`, `output_limit`, `configuration` or `unknown`.
+`response_too_large`, `cancelled`, `output_limit`, `configuration`,
+`statistics_unavailable` (for `analytics_unavailable`; a new login will not help) or `unknown`.
 When the MCP boundary reported them, `upstream_code`, `status`, `status_source`
 and a validated `retry_after` are included. Upstream messages, response bodies
 and exception text are never printed, and nothing is retried automatically.
 
 `drafts create` reads a UTF-8 Markdown file of at most 1 MiB, converts it with
 the same rules as `create_draft` and writes one unpublished draft; it never
-publishes, schedules or deletes. Unsupported Markdown stops before any request
+publishes, schedules or deletes. The path must name the file itself: symbolic
+links and directories are refused with `invalid_input_file` before credentials
+load. Unsupported Markdown stops before any request
 with `unsupported_markdown` and `unsupported_nodes`; add `--allow-unsupported`
 only after reviewing them. Success data includes the draft `id` and
 `editor_url`. A configuration failure reports `write_not_attempted`. Any later

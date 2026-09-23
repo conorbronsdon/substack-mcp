@@ -216,6 +216,7 @@ describe("analytics MCP routing", () => {
     [false, null],
     [false, "2026-09-01T00:00:00Z"],
     [true, null],
+    [true, ""],
   ])("falls back for unpublished detail (is_published=%s, post_date=%s)", async (is_published, post_date) => {
     const fetchMock = vi.fn(async (url: string) => Response.json(url.includes("/detail/")
       ? { posts: [{ id: 42, title: "Example draft", is_published, post_date, stats: { views: 99 } }] }

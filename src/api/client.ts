@@ -442,7 +442,7 @@ export class SubstackClient {
       const parsed = detail.safeParse(raw);
       if (!parsed.success) fallback = "malformed";
       else if (parsed.data.posts[0].id !== postId) fallback = "id_mismatch";
-      else if (parsed.data.posts[0].is_published !== true || parsed.data.posts[0].post_date == null) fallback = "not_published";
+      else if (parsed.data.posts[0].is_published !== true || !parsed.data.posts[0].post_date) fallback = "not_published";
       else return { post: parsed.data.posts[0] as unknown as SubstackPost, outcome: "found", scanned: 1, feed_capped: null, source: "post_detail" };
     } catch (error) {
       if (error instanceof SubstackAPIError && error.statusCode === 401) throw error;

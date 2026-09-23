@@ -262,11 +262,16 @@ configured publication selects the default archive origin; callers may supply an
 allowlisted HTTPS publication origin. Allowed hosts are `substack.com`, one-label
 `*.substack.com`, configured publication origins, and exact origins in
 `SUBSTACK_PUBLIC_READ_ORIGINS` (comma-separated HTTPS origins without ports,
-paths or userinfo). Redirects are rejected. With multiple publications, the
-`publication` key remains required for every tool.
+paths or userinfo). Redirects are rejected. A `*.substack.com` publication may
+redirect to its custom domain (for example, `lenny.substack.com`); JSON reads do
+not follow that redirect. Add the custom HTTPS origin to
+`SUBSTACK_PUBLIC_READ_ORIGINS` and read through that origin. With multiple
+publications, the `publication` key remains required for every tool.
 
-Profile feed pages are upstream-sized; `next_cursor` means more may be available.
-Thread pages can omit replies when `more_branches` or `next_cursor` is present.
+Profile feed pages are upstream-sized; `has_more: null` means the upstream omitted
+continuation metadata. Thread pages can omit replies when `more_branches` or
+`next_cursor` is present; `completeness: "unknown"` means continuation metadata
+was omitted.
 Archive full pages have `has_more: null` because no total is returned. Public
 post `body_status` is a heuristic based on audience and body presence; it does
 not establish full access. The anonymous reader does not use subscription
@@ -406,6 +411,9 @@ Don't mix the two styles: if any `SUBSTACK_PUB_<KEY>_*` var is set, the plain `S
 Substack session tokens expire periodically (typically ~90 days). If you get authentication errors, grab a fresh `connect.sid` cookie from your browser and update the env var (make sure ad blockers are disabled when copying the cookie) — or, if you used the browser login, just re-run `substack-mcp-login` to refresh the stored session.
 
 ## Custom domains & Cloudflare
+
+This section covers authenticated creator API calls. Anonymous public reading
+uses the [public reading](#public-reading) origin rules above.
 
 Substack publications served on a custom domain (e.g. `blog.example.com`) sit behind Cloudflare, which can reject non-browser requests with `403 error code: 1010`. To avoid this, the server sends a browser `User-Agent` and a `Referer` by default, and addresses the publication by its canonical `*.substack.com` host.
 

@@ -932,11 +932,19 @@ exports[`stable output contracts > classifies any public schema drift as potenti
           "enum": [
             "complete_page",
             "more_available",
+            "unknown",
           ],
           "type": "string",
         },
         "more_branches": {
-          "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+          "anyOf": [
+            {
+              "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
         },
         "next_cursor": {
           "anyOf": [
@@ -1450,7 +1458,10 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "additionalProperties": false,
       "properties": {
         "has_more": {
-          "type": "boolean",
+          "type": [
+            "boolean",
+            "null",
+          ],
         },
         "items": {
           "items": {
@@ -1487,6 +1498,27 @@ exports[`stable output contracts > classifies any public schema drift as potenti
                       {
                         "maxLength": 4096,
                         "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "author_handle": {
+                    "anyOf": [
+                      {
+                        "pattern": "^[A-Za-z0-9_]{1,64}$",
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "author_user_id": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/user_id",
                       },
                       {
                         "type": "null",
@@ -1564,6 +1596,8 @@ exports[`stable output contracts > classifies any public schema drift as potenti
                   "id",
                   "body_text",
                   "body_truncated",
+                  "author_user_id",
+                  "author_handle",
                   "ancestor_path",
                   "is_reply",
                   "children_count",
@@ -5094,11 +5128,19 @@ exports[`stable output contracts > classifies any public schema drift as potenti
           "enum": [
             "complete_page",
             "more_available",
+            "unknown",
           ],
           "type": "string",
         },
         "more_branches": {
-          "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+          "anyOf": [
+            {
+              "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
         },
         "next_cursor": {
           "anyOf": [
@@ -5565,7 +5607,10 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "additionalProperties": false,
       "properties": {
         "has_more": {
-          "type": "boolean",
+          "type": [
+            "boolean",
+            "null",
+          ],
         },
         "items": {
           "items": {
@@ -5602,6 +5647,27 @@ exports[`stable output contracts > classifies any public schema drift as potenti
                       {
                         "maxLength": 4096,
                         "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "author_handle": {
+                    "anyOf": [
+                      {
+                        "pattern": "^[A-Za-z0-9_]{1,64}$",
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "author_user_id": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/user_id",
                       },
                       {
                         "type": "null",
@@ -5679,6 +5745,8 @@ exports[`stable output contracts > classifies any public schema drift as potenti
                   "id",
                   "body_text",
                   "body_truncated",
+                  "author_user_id",
+                  "author_handle",
                   "ancestor_path",
                   "is_reply",
                   "children_count",

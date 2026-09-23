@@ -11,7 +11,8 @@ const handle = z.string().regex(/^[A-Za-z0-9_]{1,64}$/);
 const originInput = z.string().max(2048);
 const urlInput = z.string().max(4096);
 const comment = z.object({ id, body: z.string().max(1_000_000).nullish(), ancestor_path: z.string().max(4096).nullish(),
-  parent_id: id.nullish(), user_id: id.nullish(), date: short.nullish(), deleted: z.boolean().nullish(),
+  parent_id: id.nullish(), user_id: id.nullish(), user_handle: handle.nullish(),
+  user: z.object({ handle: handle.nullish() }).nullish(), date: short.nullish(), deleted: z.boolean().nullish(),
   status: short.nullish(), children_count: count.nullish(), reaction_count: count.nullish(), restacks: count.nullish() });
 const post = z.object({ id, title: short.nullish(), canonical_url: urlInput.nullish() });
 const item = z.object({ entity_key: short, type: short, context: z.object({ type: short, timestamp: short }),
@@ -21,10 +22,10 @@ const profile = z.object({ id, name: short.nullish(), handle, bio: short.nullish
   publicationUsers: z.array(z.object({ role: short.nullish(), is_primary: z.boolean().nullish(), publication: z.object({
     id, name: short.nullish(), subdomain: short.nullish(), custom_domain: short.nullish(),
   }) })).max(100).optional() });
-const feed = z.object({ items: z.array(item).max(50), nextCursor: cursor.or(z.literal("")) });
+const feed = z.object({ items: z.array(item).max(50), nextCursor: cursor.or(z.literal("")).nullish() });
 const branch = z.object({ comment, descendantComments: z.array(comment).max(500) });
 const replies = z.object({ rootComment: comment, commentBranches: z.array(branch).max(500),
-  moreBranches: count, nextCursor: cursor.nullable() });
+  moreBranches: count.nullish(), nextCursor: cursor.or(z.literal("")).nullish() });
 const archivePost = post.extend({ subtitle: short.nullish(), slug: short.nullish(), post_date: short.nullish(),
   audience: short.nullish(), wordcount: count.nullish(), reaction_count: count.nullish(),
   comment_count: count.nullish(), restacks: count.nullish() });
@@ -45,15 +46,15 @@ const projectedComment = z.object({ id, body_text: z.string().max(4000).nullable
 const projectedPost = z.object({ id, title: short.nullable(), canonical_url: urlInput.nullable(), publication_name: short.nullable() });
 const projectedRow = z.object({ kind: z.enum(["note", "post", "restack", "other"]), entity_key: short,
   date: short.nullable(), note: z.object({ id, body_text: z.string().max(4000).nullable(), body_truncated: z.boolean(),
-    ancestor_path: z.string().max(4096).nullable(), is_reply: z.boolean().nullable(), children_count: count.nullable(),
+    author_user_id: id.nullable(), author_handle: handle.nullable(), ancestor_path: z.string().max(4096).nullable(), is_reply: z.boolean().nullable(), children_count: count.nullable(),
     reaction_count: count.nullable(), restacks: count.nullable(), url: urlInput.nullable() }).optional(), post: projectedPost.optional() });
 export const profileOutput = z.object({ id, name: short.nullable(), handle, bio: short.nullable(), photo_url: urlInput.nullable(),
   primary_publication: z.object({ id, name: short.nullable(), subdomain: short.nullable(), custom_domain: short.nullable() }).nullable() });
 export const feedOutput = z.object({ user_id: id, items: z.array(projectedRow).max(50), returned: count.max(50),
-  next_cursor: cursor.nullable(), has_more: z.boolean() });
+  next_cursor: cursor.nullable(), has_more: z.boolean().nullable() });
 export const threadOutput = z.object({ ancestors: z.array(projectedComment).max(100), root: projectedComment,
   branches: z.array(z.object({ reply: projectedComment, descendants: z.array(projectedComment).max(100) })).max(100),
-  more_branches: count, next_cursor: cursor.nullable(), completeness: z.enum(["complete_page", "more_available"]),
+  more_branches: count.nullable(), next_cursor: cursor.nullable(), completeness: z.enum(["complete_page", "more_available", "unknown"]),
   truncated: z.boolean() });
 export const archiveOutput = z.object({ publication_url: originInput, sort: z.enum(["new", "top"]), query: z.string().nullable(),
   offset: count, limit: count.min(1).max(50), returned: count.max(50), next_offset: count.nullable(),
@@ -62,7 +63,7 @@ export const publicPostOutput = z.object({ ...archivePost.shape, body_html: z.st
   body_truncated: z.boolean(), body_status: z.enum(["full_public", "paywalled_or_truncated", "absent"]) });
 
 export class PublicReadError extends SubstackAPIError {
-  constructor(public code: "host_not_allowed" | "invalid_upstream_response" | "not_found", status: number) {
+  constructor(public code: "host_not_allowed" | "invalid_url" | "invalid_arguments" | "invalid_upstream_response" | "not_found", status: number) {
     super(status, "Public read could not be verified.", "public_read", undefined, "client");
   }
 }
@@ -96,6 +97,15 @@ function pathParent(c: z.output<typeof comment>, present: Set<number>): number |
   return Number.isSafeInteger(value) && value !== c.id && present.has(value) ? value : null;
 }
 
+export function publicReadOrigin(value: string): string | null {
+  if (/^https?:\/\/[^/?#]*%/i.test(value)) return null;
+  const origin = publicationOrigin(value);
+  if (!origin) return null;
+  const hostname = new URL(origin).hostname;
+  return !/^\d+\.\d+\.\d+\.\d+$/.test(hostname) && !hostname.includes(":") &&
+    hostname !== "localhost" && !hostname.endsWith(".") ? origin : null;
+}
+
 /** No credential property or client reference exists on this transport. */
 export class PublicReader {
   private origins: Set<string>;
@@ -103,22 +113,18 @@ export class PublicReader {
   private timeoutMs: number;
   constructor(config: { allowedOrigins: string[]; userAgent: string; timeoutMs: number }) {
     this.origins = new Set(config.allowedOrigins.map(value => {
-      const origin = publicationOrigin(value);
-      if (!origin || !this.safeOrigin(origin)) throw new PublicReadError("host_not_allowed", 400);
+      const origin = publicReadOrigin(value);
+      if (!origin) throw new PublicReadError("host_not_allowed", 400);
       return origin;
     }));
     this.userAgent = config.userAgent;
     this.timeoutMs = config.timeoutMs;
   }
-  private safeOrigin(origin: string): boolean {
-    const hostname = new URL(origin).hostname;
-    return !/^\d+\.\d+\.\d+\.\d+$/.test(hostname) && !hostname.includes(":") && hostname !== "localhost";
-  }
   private checkUrl(raw: string): URL {
     let url: URL;
-    if (/[\s\x00-\x1f\x7f\\]/.test(raw)) throw new PublicReadError("host_not_allowed", 400);
+    if (/[\s\x00-\x1f\x7f\\]/.test(raw) || /^https?:\/\/[^/?#]*%/i.test(raw)) throw new PublicReadError("host_not_allowed", 400);
     try { url = new URL(raw); } catch { throw new PublicReadError("host_not_allowed", 400); }
-    if (url.protocol !== "https:" || url.username || url.password || url.port || !this.safeOrigin(url.origin) ||
+    if (url.protocol !== "https:" || url.username || url.password || url.port || !publicReadOrigin(url.origin) ||
         !(url.origin === "https://substack.com" || this.origins.has(url.origin) ||
           /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.substack\.com$/.test(url.hostname))) {
       throw new PublicReadError("host_not_allowed", 400);
@@ -143,13 +149,16 @@ export class PublicReader {
       photo_url: p.photo_url ?? null, primary_publication: primary });
   }
   async getFeed(value: z.input<typeof feedInput>) {
-    const input = feedInput.parse(value);
+    const parsed = feedInput.safeParse(value);
+    if (!parsed.success) throw new PublicReadError("invalid_arguments", 400);
+    const input = parsed.data;
     const user_id = input.user_id ?? (await this.getProfile({ handle: input.handle! })).id;
     const params = input.cursor ? `?cursor=${encodeURIComponent(input.cursor)}` : "";
     const data = parse(feed, await this.read(`https://substack.com/api/v1/reader/feed/profile/${user_id}${params}`));
     const items = data.items.map(row => {
-      const kind = row.comment ? "note" : /restack/i.test(`${row.type} ${row.context?.type ?? ""}`) ? "restack" : row.post ? "post" : "other";
+      const kind = /restack/i.test(`${row.type} ${row.context?.type ?? ""}`) ? "restack" : row.comment ? "note" : row.post ? "post" : "other";
       const note = row.comment ? { id: row.comment.id, ...textBody(row.comment.body), ancestor_path: row.comment.ancestor_path ?? null,
+        author_user_id: row.comment.user_id ?? null, author_handle: row.comment.user?.handle ?? row.comment.user_handle ?? null,
         is_reply: row.comment.ancestor_path == null ? null : row.comment.ancestor_path !== "",
         children_count: row.comment.children_count ?? null, reaction_count: row.comment.reaction_count ?? null,
         restacks: row.comment.restacks ?? null, url: null } : undefined;
@@ -159,7 +168,8 @@ export class PublicReader {
         ...(note ? { note } : {}), ...(projectedPost ? { post: projectedPost } : {}) };
     });
     const next_cursor = data.nextCursor || null;
-    return feedOutput.parse({ user_id, items, returned: items.length, next_cursor, has_more: next_cursor !== null });
+    return feedOutput.parse({ user_id, items, returned: items.length, next_cursor,
+      has_more: data.nextCursor === undefined ? null : next_cursor !== null });
   }
   async getThread(value: z.input<typeof threadInput>) {
     const input = threadInput.parse(value);
@@ -185,19 +195,20 @@ export class PublicReader {
       ...selectedBranches.flatMap(b => [b.reply.id, ...b.descendants.map(d => d.id)])]);
     const branches = selectedBranches.map(b => ({ reply: projected(b.reply, input.comment_id),
       descendants: b.descendants.map(d => projected(d, pathParent(d, present))) }));
-    const next_cursor = second.nextCursor ?? null;
+    const next_cursor = second.nextCursor || null;
     const root = { ...first.item.comment,
       deleted: second.rootComment.deleted ?? first.item.comment.deleted,
       status: second.rootComment.status ?? first.item.comment.status };
     return threadOutput.parse({ ancestors: selectedAncestors.map(c => projected(c, pathParent(c, present))),
       root: projected(root, pathParent(root, present)), branches,
-      more_branches: second.moreBranches, next_cursor,
-      completeness: second.moreBranches > 0 || next_cursor !== null || truncated ? "more_available" : "complete_page", truncated });
+      more_branches: second.moreBranches ?? null, next_cursor,
+      completeness: (second.moreBranches ?? 0) > 0 || next_cursor !== null || truncated ? "more_available"
+        : second.moreBranches == null || second.nextCursor === undefined ? "unknown" : "complete_page", truncated });
   }
   async listPosts(value: z.input<typeof archiveInput>, defaultOrigin: string) {
     const input = archiveInput.parse(value);
     const origin = this.checkUrl(input.publication_url ?? defaultOrigin);
-    if (origin.pathname !== "/" || origin.search || origin.hash) throw new PublicReadError("host_not_allowed", 400);
+    if (origin.pathname !== "/" || origin.search || origin.hash) throw new PublicReadError("invalid_url", 400);
     const params = new URLSearchParams({ sort: input.sort, offset: String(input.offset), limit: String(input.limit) });
     if (input.query) params.set("search", input.query);
     const posts = parse(z.array(archivePost).max(50), await this.read(`${origin.origin}/api/v1/archive?${params}`));
@@ -210,7 +221,7 @@ export class PublicReader {
   async getPost(value: z.input<typeof publicPostInput>) {
     const input = publicPostInput.parse(value);
     const url = this.checkUrl(input.url);
-    if (url.search || url.hash || !/^\/p\/[A-Za-z0-9_-]{1,200}\/?$/.test(url.pathname)) throw new PublicReadError("host_not_allowed", 400);
+    if (url.search || url.hash || !/^\/p\/[A-Za-z0-9_-]{1,200}\/?$/.test(url.pathname)) throw new PublicReadError("invalid_url", 400);
     const slug = url.pathname.split("/")[2];
     const data = parse(fullPost, await this.read(`${url.origin}/api/v1/posts/${slug}`, 3_000_000));
     const body = data.body_html ?? null;

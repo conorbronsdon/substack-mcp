@@ -53,9 +53,12 @@ function failure(name: string, code: string, error?: unknown): CallToolResult {
   const status = api && Number.isInteger(api.statusCode) && api.statusCode >= 100 && api.statusCode <= 599 ? api.statusCode : undefined;
   const retry = api?.retryAfter;
   const retryAfter = retry && (/^\d{1,10}$/.test(retry) || (/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(retry) && Number.isFinite(Date.parse(retry)))) ? retry : undefined;
+  const publicMessage = error instanceof PublicReadError && error.code === "host_not_allowed"
+    ? "Allowed origins are https://substack.com, one-label https://*.substack.com, configured publication origins, and exact origins in SUBSTACK_PUBLIC_READ_ORIGINS. Add custom domains to SUBSTACK_PUBLIC_READ_ORIGINS. No writes were attempted."
+    : undefined;
   return { isError: true, content: [{ type: "text", text: JSON.stringify({ code, status, status_source: api?.statusSource, retry_after: retryAfter,
-    message: write ? "Tool operation or result could not be verified. A write may have occurred; reconcile in Substack before any explicit retry. No automatic retry was performed."
-      : "The read could not be verified within its response contract. Check configuration, authentication and upstream availability. No writes were attempted." }) }] };
+    message: publicMessage ?? (write ? "Tool operation or result could not be verified. A write may have occurred; reconcile in Substack before any explicit retry. No automatic retry was performed."
+      : "The read could not be verified within its response contract. Check configuration, authentication and upstream availability. No writes were attempted.") }) }] };
 }
 
 /** Validate before returning anything; never echo a malformed private upstream value. */

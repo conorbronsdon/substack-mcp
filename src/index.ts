@@ -2,7 +2,7 @@
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SubstackClient } from "./api/client.js";
-import { createServer, type PublicationConfig } from "./server.js";
+import { createServer, extraPublicReadOrigins, type PublicationConfig } from "./server.js";
 import { fetchRemoteImage } from "./utils/remote-image.js";
 import { resolvePublications } from "./auth/resolve-publications.js";
 import { startHttpServer, type HttpTransportOptions } from "./transport/http.js";
@@ -135,6 +135,8 @@ async function main() {
       throw new Error(`Invalid configuration for publication "${p.key}": ${error instanceof Error ? error.message : "Credential validation failed."} Run substack-mcp doctor --json to inspect each publication; run substack-mcp-login to set up a session.`);
     }
   });
+
+  extraPublicReadOrigins();
 
   const transportMode = process.env.MCP_TRANSPORT ?? "stdio";
   if (transportMode === "http") {

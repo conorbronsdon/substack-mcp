@@ -20,9 +20,10 @@ import { publicationOutput } from "./api/publication.js";
 import { listTagsInput, postTagsInput, listTagsOutput, postTagsOutput } from "./api/tags.js";
 import { rankPostsInput, rankPostsOutput, RANK_MAX_LIMIT } from "./api/rankings.js";
 import { SubstackAPIError } from "./utils/errors.js";
-import { PublicReader, profileInput, feedInput, threadInput, archiveInput, publicPostInput,
+import { PublicReader, publicReadOrigin, profileInput, feedInput, threadInput, archiveInput, publicPostInput,
   profileOutput, feedOutput, threadOutput, archiveOutput, publicPostOutput } from "./api/public-reader.js";
 import { DEFAULT_BROWSER_USER_AGENT } from "./api/browser-user-agent.js";
+import { DEFAULT_REQUEST_TIMEOUT_MS } from "./api/client.js";
 import { planDraftUpdate, applyDraftUpdate, draftChangesInput, draftApplyInput, draftPlanOutput, draftApplyOutput, DraftChangeError } from "./api/draft-changes.js";
 
 async function draftChangeResponse(run: () => Promise<Record<string, unknown>>) {
@@ -62,6 +63,17 @@ export interface ServerOptions {
   fetchRemoteImage?: RemoteImageFetcher;
 }
 
+export function extraPublicReadOrigins(): string[] {
+  return (process.env.SUBSTACK_PUBLIC_READ_ORIGINS ?? "").split(",").map(value => value.trim()).filter(Boolean).map(value => {
+    const origin = publicReadOrigin(value);
+    if (origin) return origin;
+    const match = value.match(/^([A-Za-z][A-Za-z0-9+.-]*:\/\/)?([^/?#]*)/);
+    const entry = `${match?.[1] ?? ""}${(match?.[2] ?? value).split("@").at(-1) ?? ""}`
+      .replace(/[\x00-\x1f\x7f-\x9f"\\]/g, "?").slice(0, 200);
+    throw new Error(`Invalid SUBSTACK_PUBLIC_READ_ORIGINS entry "${entry}": use an HTTPS origin without a path, query, credentials or custom port.`);
+  });
+}
+
 export function createServer(publications: PublicationConfig[], options: ServerOptions = {}): McpServer {
   if (publications.length === 0) {
     throw new Error("createServer requires at least one publication configuration.");
@@ -75,10 +87,11 @@ export function createServer(publications: PublicationConfig[], options: ServerO
   const registerTool = contractRegistrar(server);
   const multi = publications.length > 1;
   const pubKeys = publications.map((p) => p.key) as [string, ...string[]];
-  const extraPublicOrigins = (process.env.SUBSTACK_PUBLIC_READ_ORIGINS ?? "").split(",").map(value => value.trim()).filter(Boolean);
+  const extraPublicOrigins = extraPublicReadOrigins();
+  const timeout = Number(process.env.SUBSTACK_REQUEST_TIMEOUT_MS);
   const publicReader = new PublicReader({ allowedOrigins: [...publications.map(p => p.client.origin), ...extraPublicOrigins],
     userAgent: process.env.SUBSTACK_USER_AGENT || DEFAULT_BROWSER_USER_AGENT,
-    timeoutMs: Number(process.env.SUBSTACK_REQUEST_TIMEOUT_MS) > 0 ? Number(process.env.SUBSTACK_REQUEST_TIMEOUT_MS) : 30_000 });
+    timeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : DEFAULT_REQUEST_TIMEOUT_MS });
 
   // With exactly one publication configured, every tool's schema is left
   // untouched — no `publication` field at all — so single-publication

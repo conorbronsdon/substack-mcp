@@ -48,6 +48,10 @@ function errorCode(result: Awaited<ReturnType<Client["callTool"]>>) {
   expect(result.isError).toBe(true);
   return JSON.parse((result.content as { text: string }[])[0].text).code;
 }
+function errorBody(result: Awaited<ReturnType<Client["callTool"]>>) {
+  expect(result.isError).toBe(true);
+  return JSON.parse((result.content as { text: string }[])[0].text) as { code: string; message: string };
+}
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
 describe("anonymous public reader tools", () => {
@@ -63,6 +67,30 @@ describe("anonymous public reader tools", () => {
       expect(feed.items[0].note.body_text).toHaveLength(4000); expect(feed.items[0].note.body_truncated).toBe(true);
       expect(calls).toHaveLength(3);
       expect(calls.at(-1)?.search).toBe("?cursor=start%20page");
+    } finally { await s.close(); }
+  });
+  it.each([
+    [null, false], ["", false], [undefined, null],
+  ])("projects a live-shaped final feed page with nextCursor %s", async (nextCursor, hasMore) => {
+    const row = { entity_key: "note:42", type: "comment", context: { type: "comment", timestamp: "2026-09-23" },
+      comment: c(42, { user_id: 84 }), post: null, publication: null };
+    mockPublicFetch(() => ({ data: { items: [row], ...(nextCursor === undefined ? {} : { nextCursor }) } }));
+    const s = await connected();
+    try {
+      const result = output(await s.client.callTool({ name: "get_profile_feed", arguments: { user_id: 7 } }));
+      expect(result).toMatchObject({ returned: 1, next_cursor: null, has_more: hasMore });
+      expect(result.items[0].note.author_user_id).toBe(84);
+    } finally { await s.close(); }
+  });
+  it.each([["restack", "comment"], ["comment", "restack"]])("keeps a restack with a comment attributed to its comment author (%s/%s)", async (type, contextType) => {
+    mockPublicFetch(() => ({ data: { items: [{ entity_key: "restack:42", type, context: { type: contextType, timestamp: "2026-09-23" },
+      comment: c(42, { user_id: 84, user: { handle: "other_reader" }, body: "Restack text" }), post: { id: 9, title: "Post" } }], nextCursor: null } }));
+    const s = await connected();
+    try {
+      const row = output(await s.client.callTool({ name: "get_profile_feed", arguments: { user_id: 7 } })).items[0];
+      expect(row.kind).toBe("restack");
+      expect(row.note).toMatchObject({ body_text: "Restack text", author_user_id: 84, author_handle: "other_reader" });
+      expect(row.post.id).toBe(9);
     } finally { await s.close(); }
   });
   it("keeps thread structure, markers and continuation with two reads", async () => {
@@ -93,6 +121,23 @@ describe("anonymous public reader tools", () => {
       expect(result).toMatchObject({ truncated: true, completeness: "more_available" });
     } finally { await s.close(); }
   });
+  it.each([
+    [{ nextCursor: "", moreBranches: 0 }, "complete_page", 0],
+    [{ nextCursor: null, moreBranches: 0 }, "complete_page", 0],
+    [{ moreBranches: 0 }, "unknown", 0],
+    [{ nextCursor: null }, "unknown", null],
+    [{ nextCursor: null, moreBranches: null }, "unknown", null],
+    [{}, "unknown", null],
+  ])("handles replies continuation %j", async (continuation, completeness, moreBranches) => {
+    mockPublicFetch(url => url.pathname.endsWith("/replies") ?
+      { data: { rootComment: c(42), commentBranches: [], ...continuation } } :
+      { data: { item: { entity_key: "note:42", type: "comment", context: { type: "comment", timestamp: "2026-09-23" }, comment: c(42) } } });
+    const s = await connected();
+    try {
+      expect(output(await s.client.callTool({ name: "get_note_thread", arguments: { comment_id: 42 } })))
+        .toMatchObject({ completeness, more_branches: moreBranches, next_cursor: null });
+    } finally { await s.close(); }
+  });
   it("routes default archive origin by publication and reports full-page uncertainty", async () => {
     const { calls } = mockPublicFetch(() => ({ data: [p(1), p(2)] }));
     const s = await connected(true);
@@ -113,6 +158,37 @@ describe("anonymous public reader tools", () => {
       expect(output(await s.client.callTool({ name: "list_public_posts", arguments: { publication_url: "https://example-extra.test" } })).returned).toBe(0);
       expect(calls[0].origin).toBe("https://example-extra.test");
       expect(errorCode(await s.client.callTool({ name: "list_public_posts", arguments: { publication_url: "https://other-extra.test" } }))).toBe("host_not_allowed");
+      const denied = errorBody(await s.client.callTool({ name: "list_public_posts", arguments: { publication_url: "https://other-extra.test" } }));
+      expect(denied.message).toContain("https://substack.com");
+      expect(denied.message).toContain("*.substack.com");
+      expect(denied.message).toContain("SUBSTACK_PUBLIC_READ_ORIGINS");
+      expect(denied.message).toContain("Add custom domains to SUBSTACK_PUBLIC_READ_ORIGINS");
+    } finally { await s.close(); }
+  });
+  it("names invalid public origin configuration before transport connection without showing path data", () => {
+    vi.stubEnv("SUBSTACK_PUBLIC_READ_ORIGINS", "https://example-user:example-password@example-extra.test/private?token=example-secret");
+    expect(() => createServer([{ key: "first", label: "First", client: new SubstackClient(firstOrigin, "example-first-token", "1") }]))
+      .toThrow(/SUBSTACK_PUBLIC_READ_ORIGINS.*example-extra\.test/);
+    try { createServer([{ key: "first", label: "First", client: new SubstackClient(firstOrigin, "example-first-token", "1") }]); }
+    catch (error) {
+      expect(String(error)).not.toContain("example-secret");
+      expect(String(error)).not.toContain("example-password");
+      expect(String(error)).not.toContain("example-user");
+    }
+  });
+  it.each(["https://substack.com.", "https://x.substack.com."])("rejects a configured trailing-dot origin %s", value => {
+    vi.stubEnv("SUBSTACK_PUBLIC_READ_ORIGINS", value);
+    expect(() => createServer([{ key: "first", label: "First", client: new SubstackClient(firstOrigin, "example-first-token", "1") }]))
+      .toThrow("SUBSTACK_PUBLIC_READ_ORIGINS");
+  });
+  it.each(["Infinity", "1e999"])("falls back to the default public timeout for %s", async raw => {
+    vi.stubEnv("SUBSTACK_REQUEST_TIMEOUT_MS", raw);
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    mockPublicFetch(() => ({ data: profile }));
+    const s = await connected();
+    try {
+      output(await s.client.callTool({ name: "get_user_profile", arguments: { handle: "example_reader" } }));
+      expect(timeout).toHaveBeenCalledWith(30_000);
     } finally { await s.close(); }
   });
   it("classifies public post bodies conservatively and 404s as not_found", async () => {
@@ -144,12 +220,6 @@ describe("anonymous public reader tools", () => {
       expect(Buffer.byteLength(unicode.body_html, "utf8")).toBe(500_000);
     } finally { await s.close(); }
   });
-  it("does not turn a feed missing continuation metadata into a complete page", async () => {
-    mockPublicFetch(() => ({ data: { items: [] } }));
-    const s = await connected();
-    try { expect(errorCode(await s.client.callTool({ name: "get_profile_feed", arguments: { user_id: 7 } }))).toBe("invalid_upstream_response"); }
-    finally { await s.close(); }
-  });
   it("does not follow a public JSON redirect", async () => {
     const { calls } = mockPublicFetch(() => ({ status: 302, data: {}, headers: { location: "https://evil.com/steal" } }));
     const s = await connected();
@@ -163,14 +233,29 @@ describe("anonymous public reader tools", () => {
     const s = await connected();
     try {
       const origins = ["http://x.substack.com", "https://evil.com", "https://substack.com.evil.com",
-        "https://a.b.substack.com", "https://127.0.0.1", "https://user:pass@x.substack.com", "https://x.substack.com:444", "https://x.substack.com\n"];
+        "https://a.b.substack.com", "https://127.0.0.1", "https://user:pass@x.substack.com", "https://x.substack.com:444", "https://x.substack.com\n",
+        "https://x.substack.com\\evil.com", "https://substack.com.", "https://x.substack.com.", "https://x%2esubstack.com"];
       for (const publication_url of origins) expect(errorCode(await s.client.callTool({ name: "list_public_posts", arguments: { publication_url } }))).toBe("host_not_allowed");
       for (const url of origins.map(o => `${o}/p/post`)) expect(errorCode(await s.client.callTool({ name: "get_public_post", arguments: { url } }))).toBe("host_not_allowed");
-      for (const args of [{}, { user_id: 1, handle: "example_reader" }, { user_id: 1, cursor: "bad\nvalue" }])
-        expect((await s.client.callTool({ name: "get_profile_feed", arguments: args })).isError).toBe(true);
+      for (const args of [{}, { user_id: 1, handle: "example_reader" }])
+        expect(errorCode(await s.client.callTool({ name: "get_profile_feed", arguments: args }))).toBe("invalid_arguments");
+      expect((await s.client.callTool({ name: "get_profile_feed", arguments: { user_id: 1, cursor: "bad\nvalue" } })).isError).toBe(true);
       expect((await s.client.callTool({ name: "get_note_thread", arguments: { comment_id: 1, cursor: "bad\nvalue" } })).isError).toBe(true);
       expect((await s.client.callTool({ name: "list_public_posts", arguments: { limit: 51 } })).isError).toBe(true);
       expect(fetchMock).not.toHaveBeenCalled();
+    } finally { await s.close(); }
+  });
+  it("normalizes an uppercase allowed host and distinguishes invalid paths, queries and slugs", async () => {
+    const { calls } = mockPublicFetch(url => ({ data: url.pathname.includes("archive") ? [] : { ...p(1), body_html: "Body" } }));
+    const s = await connected();
+    try {
+      expect(output(await s.client.callTool({ name: "list_public_posts", arguments: { publication_url: "https://X.SUBSTACK.COM" } })).publication_url)
+        .toBe("https://x.substack.com");
+      for (const publication_url of ["https://x.substack.com/p/post", "https://x.substack.com/?q=1"])
+        expect(errorCode(await s.client.callTool({ name: "list_public_posts", arguments: { publication_url } }))).toBe("invalid_url");
+      for (const url of ["https://x.substack.com/other", "https://x.substack.com/p/bad.slug", "https://x.substack.com/p/post?q=1"])
+        expect(errorCode(await s.client.callTool({ name: "get_public_post", arguments: { url } }))).toBe("invalid_url");
+      expect(calls).toHaveLength(1);
     } finally { await s.close(); }
   });
   it("fails closed on malformed branches and oversized upstream JSON", async () => {

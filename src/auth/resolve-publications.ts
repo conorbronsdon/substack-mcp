@@ -46,6 +46,7 @@
 import { resolveCredentials, type ResolvedCredentials } from "./resolve-credentials.js";
 import { loadSession, type StoredSession } from "./session-store.js";
 import { loadProfile, profileKey } from "./profiles.js";
+import { createKeychain, credentialStore } from "./keychain.js";
 
 export interface PublicationCredentials {
   /** Tool-facing `publication` enum value, e.g. "kevin-muldoon". Never surfaced when only one publication is configured. */
@@ -222,4 +223,24 @@ export function resolvePublications(
   }
 
   return result;
+}
+
+/** The synchronous file resolver remains the existing public contract. */
+export async function resolveSelectedPublications(env: NodeJS.ProcessEnv = process.env, keychain = createKeychain()): Promise<PublicationCredentials[]> {
+  if (credentialStore(env) === "file") return resolvePublications(env);
+  if (env.SUBSTACK_PROFILES !== undefined) {
+    const keys = env.SUBSTACK_PROFILES.split(",");
+    if (keys.length > 32 || new Set(keys).size !== keys.length) throw new Error("Select at most 32 distinct profile keys.");
+    keys.forEach(profileKey);
+    const sessions = new Map(await Promise.all(keys.map(async key => [key, await keychain.read(key)] as const)));
+    return resolvePublications(env, () => null, key => {
+      const value = sessions.get(key);
+      if (!value) throw new Error(`Keychain profile "${key}" is missing; no fallback session was selected.`);
+      return value;
+    });
+  }
+  const hasNamedEnv = Object.keys(env).some(key => /^\s*SUBSTACK_PUB_/i.test(key));
+  const needsStored = !hasNamedEnv && ["SUBSTACK_PUBLICATION_URL", "SUBSTACK_SESSION_TOKEN", "SUBSTACK_USER_ID"].some(key => !env[key]);
+  const session = needsStored ? await keychain.read("default") : null;
+  return resolvePublications(env, () => session);
 }

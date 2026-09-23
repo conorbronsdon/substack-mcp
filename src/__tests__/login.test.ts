@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { parseLoginArguments, readSessionCookie, runLogin } from "../login.js";
 import { loadProfile } from "../auth/profiles.js";
 import { loadSession } from "../auth/session-store.js";
+import { createKeychain } from "../auth/keychain.js";
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "substack-login-test-")); vi.stubEnv("SUBSTACK_MCP_HOME", dir); });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); expect(dir.startsWith(join(tmpdir(), "substack-login-test-"))).toBe(true); rmSync(dir, { recursive: true, force: true }); });
@@ -65,5 +66,18 @@ describe("browser login contract", () => {
     const context = { cookies: vi.fn(async () => [{ name: "connect.sid", value: "one" }, { name: "connect.sid", value: "two" }]) };
     await expect(readSessionCookie(context, "https://example.com")).rejects.toThrow("Ambiguous");
     expect(context.cookies).toHaveBeenCalledExactlyOnceWith("https://example.com");
+  });
+  it("writes the selected keychain during browser login without creating a file", async () => {
+    vi.stubEnv("SUBSTACK_CREDENTIAL_STORE", "keychain");
+    const f = fixture();
+    let stored = "";
+    const keychain = createKeychain("linux", async (_file, args, input) => {
+      if (args[0] === "store") { stored = input; return { code: 0, stdout: "", stderr: "" }; }
+      return stored ? { code: 0, stdout: stored, stderr: "" } : { code: 1, stdout: "", stderr: "" };
+    });
+    expect(await runLogin(["https://example.com", "--user-id", "42", "--profile", "work"], { ...f.deps, keychain })).toBe(0);
+    expect(JSON.parse(stored).sessionToken).toBe("example-publication-token");
+    expect(loadSession()).toBeNull();
+    expect(f.deps.out.mock.calls.flat().join("\n")).toContain('"storage":"keychain"');
   });
 });

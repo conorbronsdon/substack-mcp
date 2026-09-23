@@ -7,6 +7,7 @@ import { loadProfile, saveProfile, migrateProfile, listProfiles, profileKey } fr
 import { loadSession, saveSession } from "../auth/session-store.js";
 import { resolvePublications } from "../auth/resolve-publications.js";
 import { runProfiles } from "../profiles-cli.js";
+import { createKeychain } from "../auth/keychain.js";
 
 vi.mock("node:fs", async importOriginal => {
   const actual = await importOriginal<typeof import("node:fs")>();
@@ -85,6 +86,24 @@ describe("named profile storage", () => {
     expect(JSON.parse(io.out.mock.calls[0][0])).toMatchObject({ profile: "work", legacy_session_retained: true });
     expect(await runProfiles(["migrate", "--name", "work"], io)).toBe(1);
     expect(JSON.parse(io.error.mock.calls[0][0]).code).toBe("profile_exists");
+    expect(JSON.stringify(io.out.mock.calls)).not.toContain(sample.sessionToken);
+  });
+  it("copies legacy and named file credentials into keychain without deleting source files", async () => {
+    saveSession(sample); saveProfile("work", sample);
+    const entries = new Map<string, string>();
+    const keychain = createKeychain("linux", async (_file, args, input) => {
+      const key = args.at(-1)!;
+      if (args[0] === "store") { entries.set(key, input); return { code: 0, stdout: "", stderr: "" }; }
+      const stored = entries.get(key);
+      return { code: stored ? 0 : 1, stdout: stored ?? "", stderr: "" };
+    });
+    const io = { out: vi.fn(), error: vi.fn() };
+    expect(await runProfiles(["migrate", "--to", "keychain"], io, keychain)).toBe(0);
+    expect(await runProfiles(["migrate", "--to", "keychain", "--name", "work"], io, keychain)).toBe(0);
+    expect(JSON.parse(entries.get("default")!).sessionToken).toBe(sample.sessionToken);
+    expect(JSON.parse(entries.get("work")!).sessionToken).toBe(sample.sessionToken);
+    expect(loadSession()).toMatchObject(sample); expect(loadProfile("work")).toMatchObject(sample);
+    expect(await runProfiles(["migrate", "--to", "keychain"], io, keychain)).toBe(1);
     expect(JSON.stringify(io.out.mock.calls)).not.toContain(sample.sessionToken);
   });
 });

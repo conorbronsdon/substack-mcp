@@ -101,11 +101,21 @@ Without `--profile`, login saves `~/.substack-mcp/session.json` (directory overr
 `SUBSTACK_MCP_HOME`). The server uses this legacy session when publication
 credential environment variables and `SUBSTACK_PROFILES` are unset.
 
-**Storage:** sessions use AES-256-GCM with a key derived from the OS account and
+**Default storage (`SUBSTACK_CREDENTIAL_STORE=file`):** sessions use AES-256-GCM with a key derived from the OS account and
 machine. File permissions request `0600`; Windows access also depends on directory
 ACLs. This is a machine-bound file, not an OS keychain or secret vault. Code
 running as your OS user can derive the key. Use environment credentials if your
 MCP client manages secrets for you.
+
+**Optional OS keychain:** set `SUBSTACK_CREDENTIAL_STORE=keychain` in both the
+login process and the MCP client's environment. macOS uses Keychain via
+`/usr/bin/security`; Linux needs libsecret and `secret-tool` plus an unlocked
+Secret Service; Windows uses Credential Manager through PowerShell's
+`PasswordVault`. Login writes the selected account to the keychain, and the
+server reads it there. Explicit keychain selection never reads the encrypted
+file as a fallback. The keychain helps against other OS users, copied disks,
+and some malware limited to file access. Code running as your user can usually
+query the keychain. Keep the OS account and running code trusted.
 
 #### Named profiles and migration
 
@@ -114,6 +124,9 @@ npx substack-mcp login https://yourblog.substack.com --user-id 12345 --profile w
 npx substack-mcp profiles list
 # Copy an existing legacy session without changing its file:
 npx substack-mcp profiles migrate --name personal
+# Copy a file session or named file profile into the keychain; source remains:
+npx substack-mcp profiles migrate --to keychain
+npx substack-mcp profiles migrate --to keychain --name work
 ```
 
 Keys start with a lowercase ASCII letter and contain only lowercase letters,
@@ -139,7 +152,8 @@ publication key and CLI reads require `--publication`.
 
 To roll back, unset `SUBSTACK_PROFILES` and restore your previous environment
 configuration. Migration preserves the legacy session byte-for-byte. These files
-use the existing encryption format; an OS keychain is not currently supported.
+use the existing encryption format. `profiles list` lists file profiles; select
+keychain profiles explicitly with `SUBSTACK_PROFILES` after migration or login.
 Run `substack-mcp status --json` for offline configuration diagnostics or
 `substack-mcp doctor --check-auth --json` for a bounded read per selected account.
 

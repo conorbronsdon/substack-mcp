@@ -1,14 +1,25 @@
 import packageMetadata from "../package.json" with { type: "json" };
-import { resolvePublications } from "./auth/resolve-publications.js";
+import { resolvePublications, resolveSelectedPublications } from "./auth/resolve-publications.js";
+import { createKeychain, credentialStore } from "./auth/keychain.js";
 import { AuthenticationError, RateLimitError, ResponseError, SubstackAPIError, TimeoutError } from "./utils/errors.js";
 import { requestJson } from "./api/request.js";
 import { publicationOrigin, validateCredentials } from "./auth/validate-credentials.js";
 
-export async function doctor(checkAuth = false, resolve = resolvePublications) {
+export async function doctor(checkAuth = false, resolve: () => ReturnType<typeof resolvePublications> | Promise<ReturnType<typeof resolvePublications>> = resolveSelectedPublications,
+  probe: () => Promise<boolean> = () => createKeychain().available()) {
   const metadata = { version: packageMetadata.version, runtime: { node: process.version, platform: process.platform } };
+  let store: "file" | "keychain";
+  try { store = credentialStore(); }
+  catch { return { ...metadata, ok: false, code: "invalid_configuration", publications: [], guidance: "SUBSTACK_CREDENTIAL_STORE must be file or keychain." }; }
+  let keychainAvailability: "available" | "unavailable" | "not_selected" = "not_selected";
+  if (store === "keychain") {
+    try { if (!await probe()) throw new Error(); keychainAvailability = "available"; }
+    catch { keychainAvailability = "unavailable"; }
+  }
+  const storeMetadata = { ...metadata, credential_store: store, keychain_availability: keychainAvailability };
   let publications: ReturnType<typeof resolvePublications>;
-  try { publications = resolve(); }
-  catch { return { ...metadata, ok: false, code: "invalid_configuration", publications: [], guidance: "Check publication triplets, duplicate keys and selected profiles. SUBSTACK_PROFILES cannot be combined with publication credential variables. No credential values are printed." }; }
+  try { publications = await resolve(); }
+  catch { return { ...storeMetadata, ok: false, code: "invalid_configuration", publications: [], guidance: "Check publication triplets, duplicate keys, selected profiles and keychain access. SUBSTACK_PROFILES cannot be combined with publication credential variables. No credential values are printed." }; }
   const reports = [];
   for (const p of publications) {
     const origin = publicationOrigin(p.publicationUrl);
@@ -38,7 +49,7 @@ export async function doctor(checkAuth = false, resolve = resolvePublications) {
       configuration: valid ? "valid" : "invalid", missing: p.missing, authentication,
       user_identity: "not_verified" });
   }
-  return { ...metadata, ok: reports.every(p => p.configuration === "valid" && (!checkAuth || p.authentication === "authenticated_read_succeeded")),
+  return { ...storeMetadata, ok: keychainAvailability !== "unavailable" && reports.every(p => p.configuration === "valid" && (!checkAuth || p.authentication === "authenticated_read_succeeded")),
     mode: checkAuth ? "authenticated_read" : "configuration_only", publications: reports,
     guidance: "Use an HTTPS publication origin and a positive numeric user ID. For expired sessions run substack-mcp login; use --profile for a named session. Authenticated reads do not verify the configured user ID or write permissions." };
 }

@@ -7,6 +7,7 @@ import { saveSession } from "./auth/session-store.js";
 import { profileKey, saveProfile, assertProfileAvailable } from "./auth/profiles.js";
 import { publicationOrigin, validateCredentials } from "./auth/validate-credentials.js";
 import { doctor } from "./doctor.js";
+import { createKeychain, credentialStore } from "./auth/keychain.js";
 
 const usage = "Usage: substack-mcp-login [publication-url] [--user-id id] [--profile key] [--force]\nAlias: substack-mcp login [same options]\nInteractive browser sign-in. Missing URL/user ID are prompted. User ID must be your own configured Substack ID; a post byline is not identity verification. --profile stores a named session; existing profiles require --force. Requires Playwright. --help is offline.";
 const COOKIE_NAMES = ["connect.sid", "substack.sid"];
@@ -52,11 +53,13 @@ async function loadChromium(): Promise<Chromium> {
   catch { throw new Error("Install the package and Playwright together in a local tools directory: npm install @conorbronsdon/substack-mcp playwright; then npx playwright install chromium; then npx substack-mcp login."); }
 }
 const defaults = { ask, loadChromium, out: (text: string) => console.log(text), error: (text: string) => console.error(text) };
-export async function runLogin(args: string[], deps = defaults): Promise<number> {
+export async function runLogin(args: string[], deps: typeof defaults & { keychain?: ReturnType<typeof createKeychain> } = defaults): Promise<number> {
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) { deps.out(usage); return 0; }
   let options: ReturnType<typeof parseLoginArguments>;
   try { options = parseLoginArguments(args); } catch { deps.error(usage); return 2; }
-  if (options.profile) {
+  let store: "file" | "keychain";
+  try { store = credentialStore(); } catch { deps.error("SUBSTACK_CREDENTIAL_STORE must be file or keychain."); return 2; }
+  if (options.profile && store === "file") {
     try { assertProfileAvailable(options.profile, options.force); }
     catch { deps.error("Profile already exists or cannot be replaced. Choose another key, inspect storage, or explicitly use --force for an existing regular profile."); return 1; }
   }
@@ -81,11 +84,12 @@ export async function runLogin(args: string[], deps = defaults): Promise<number>
     const sessionToken = await readSessionCookie(context, `${publicationUrl}/api/v1/post_management/drafts`);
     validateCredentials(publicationUrl, sessionToken, userId);
     const credentials = { publicationUrl, sessionToken, userId };
-    const check = await doctor(true, () => [{ ...credentials, key: options.profile ?? "default", label: "login", source: "stored", missing: [] }]);
+    const check = await doctor(true, () => [{ ...credentials, key: options.profile ?? "default", label: "login", source: "stored", missing: [] }], async () => true);
     if (!check.ok) throw new Error("Authenticated read did not succeed.");
-    if (options.profile) saveProfile(options.profile, credentials, options.force);
+    if (store === "keychain") await (deps.keychain ?? createKeychain()).write(options.profile ?? "default", credentials, options.force);
+    else if (options.profile) saveProfile(options.profile, credentials, options.force);
     else saveSession(credentials);
-    deps.out(JSON.stringify({ format_version: 1, ok: true, command: "login", profile: options.profile ?? null, authentication: "authenticated_read_succeeded", user_identity: "not_verified", storage: "machine_bound_file" }));
+    deps.out(JSON.stringify({ format_version: 1, ok: true, command: "login", profile: options.profile ?? null, authentication: "authenticated_read_succeeded", user_identity: "not_verified", storage: store === "keychain" ? "keychain" : "machine_bound_file" }));
     deps.out(options.profile ? `Select this profile with SUBSTACK_PROFILES=${options.profile}. Remove publication credential env vars first.` : "Stored legacy session is used when publication credential env vars are unset.");
     return 0;
   } catch {

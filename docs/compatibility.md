@@ -40,8 +40,11 @@ a desktop bundle needs its own packaging and upgrade verification first.
 ## Analytics decision
 
 1.0 retains per-post analytics and subscriber counts, including their CLI read
-commands. Aggregate dashboards, post ranking, segmentation and bulk subscriber
-export remain in [#52](https://github.com/conorbronsdon/substack-mcp/issues/52).
+commands. Post ranking shipped in 1.2 (`rank_posts`); publication dashboard
+metrics and growth attribution shipped in 1.3 (`get_publication_stats`,
+`get_growth_sources`), and `get_post_analytics` now reads the exact post. Subscriber
+segmentation and bulk subscriber export remain in
+[#52](https://github.com/conorbronsdon/substack-mcp/issues/52).
 Prioritize additions against concrete creator questions and verifiable endpoint
 behavior as feedback arrives. Newsletter-user feedback is a post-release input,
 not a prerequisite for the stability release.

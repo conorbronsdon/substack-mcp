@@ -51,6 +51,7 @@ const PUBLISH_TOOLS: ToolName[] = ["create_note", "create_note_with_link"];
 describe("buildAnnotations mapping", () => {
   it("draft replacement is destructive and never hints automatic retries", () => {
     expect(buildAnnotations("update_draft")).toEqual({ readOnlyHint: false, destructiveHint: true, openWorldHint: false, idempotentHint: false });
+    expect(buildAnnotations("update_draft_tags")).toEqual({ readOnlyHint: false, destructiveHint: true, openWorldHint: false, idempotentHint: false });
   });
   it("read -> { readOnlyHint: true } and nothing else", () => {
     const a = buildAnnotations("get_post");
@@ -160,6 +161,7 @@ describe("tool annotation classifications", () => {
   it("the classification groups above cover the whole registry", () => {
     const grouped = [
       "update_draft",
+      "update_draft_tags",
       ...READ_TOOLS,
       ...DRAFT_WRITE_TOOLS,
       ...SUBSCRIBER_WRITE_TOOLS,

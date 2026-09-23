@@ -16,6 +16,7 @@ import { requestJson, requestText } from "./request.js";
 import { SubscriberService } from "./subscribers.js";
 import { searchPosts } from "./search.js";
 import { getPublication } from "./publication.js";
+import { updateDraftTags, type DraftTagsInput } from "./draft-tags.js";
 import { listPublicationTags, getPostTags } from "./tags.js";
 import { rankPosts } from "./rankings.js";
 import { validateCredentials } from "../auth/validate-credentials.js";
@@ -175,6 +176,15 @@ export class SubstackClient {
 
   getPostTags(input: Parameters<typeof getPostTags>[0]) {
     return getPostTags(input, () => this.getPublication(), path => this.request(`${this.publicationUrl}${path}`));
+  }
+
+  updateDraftTags(input: DraftTagsInput, publication: string) {
+    return updateDraftTags(input, publication, {
+      getPublication: () => this.getPublication(),
+      getDraft: id => this.getDraft(id),
+      request: (path, options) => this.request(`${this.publicationUrl}${path}`, options),
+      origin: this.publicationUrl,
+    });
   }
 
   rankPosts(input: Parameters<typeof rankPosts>[0]) {

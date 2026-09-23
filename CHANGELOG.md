@@ -8,6 +8,9 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+### Added
+- `update_draft_tags` plans or applies bounded tag assignments on unpublished drafts, with dry-run default, a pre-write state check, and per-tag readback outcomes (#50).
+
 ### Fixed
 - Release recovery accepts an npm `dist.integrity` only when it is a canonical base64 sha512
   digest (exactly 64 bytes, 88 characters with `==` padding, re-encoding to the same text).

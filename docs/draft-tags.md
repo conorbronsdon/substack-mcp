@@ -1,0 +1,9 @@
+# Draft tag assignment
+
+`update_draft_tags` accepts a positive `draft_id`, UUID arrays `add` and `remove` (up to 20 unique IDs each, disjoint), and `dry_run` (default `true`). At least one tag ID is required. Use `list_publication_tags` to find IDs, including hidden tags. Hidden tags can be assigned; the result marks them. With multiple configured publications, select `publication` explicitly.
+
+Results cover every requested ID, so there is no pagination or continuation. An unknown ID is refused before writing; its name and hidden status are `null`, not guessed.
+
+The tool reads publication context, all tag definitions, the draft and current associations. A dry run returns intended actions with zero writes. A live call rechecks unpublished draft state immediately before the first write, then sends sequential adds followed by removes, at most once per tag, and performs one association readback. It sends no automatic retry. A 400 is reported as `rejected`; 401, 403 or 429 stops further writes as `retryable`; other failures stop as `unknown`. An accepted write is `verified` only if one readback shows the requested association state. This observation does not prove which request caused the state. Check `unverified` and `unknown` outcomes in Substack before another write.
+
+Published, scheduled, sent, unreadable or cross-publication drafts are refused before writing. Unknown tag IDs are refused. Tag assignment on a draft may become public when you later publish it through Substack. Separate reads and writes are not atomic; publication can occur after the final check. The attach and detach request shapes (bodyless `POST` and `DELETE` to `/api/v1/post/{post_id}/tag/{tag_id}`, with a publish-post Referer) come from public client sources and await the maintainer's live check on a disposable draft.

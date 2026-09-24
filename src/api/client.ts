@@ -13,11 +13,16 @@ import {
   SubstackScheduledPost,
 } from "./types.js";
 import { requestJson, requestText } from "./request.js";
+import { DEFAULT_BROWSER_USER_AGENT } from "./browser-user-agent.js";
 import { SubscriberService } from "./subscribers.js";
 import { searchPosts } from "./search.js";
 import { getPublication } from "./publication.js";
+import { updateDraftTags, type DraftTagsInput } from "./draft-tags.js";
 import { listPublicationTags, getPostTags } from "./tags.js";
 import { rankPosts } from "./rankings.js";
+import { getPublicationStats, getGrowthSources } from "./publication-analytics.js";
+import { z } from "zod";
+import { ResponseError, SubstackAPIError } from "../utils/errors.js";
 import { validateCredentials } from "../auth/validate-credentials.js";
 
 /**
@@ -109,10 +114,7 @@ export class SubstackClient {
     // (the default Node/undici UA, "node", etc.) with HTTP 403 "error code:
     // 1010" on some publications — notably custom domains. Default to a browser
     // UA; allow override via SUBSTACK_USER_AGENT.
-    this.userAgent =
-      userAgent ||
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+    this.userAgent = userAgent || DEFAULT_BROWSER_USER_AGENT;
     // A zero, negative, or non-finite override would abort every request
     // instantly (or never), so it falls back to the default rather than
     // silently breaking the client.
@@ -177,8 +179,25 @@ export class SubstackClient {
     return getPostTags(input, () => this.getPublication(), path => this.request(`${this.publicationUrl}${path}`));
   }
 
+  updateDraftTags(input: DraftTagsInput, publication: string) {
+    return updateDraftTags(input, publication, {
+      getPublication: () => this.getPublication(),
+      getDraft: id => this.getDraft(id),
+      request: (path, options) => this.request(`${this.publicationUrl}${path}`, options),
+      origin: this.publicationUrl,
+    });
+  }
+
   rankPosts(input: Parameters<typeof rankPosts>[0]) {
     return rankPosts(input, path => this.request(`${this.publicationUrl}${path}`));
+  }
+
+  publicationStats(input: Parameters<typeof getPublicationStats>[0]) {
+    return getPublicationStats(input, path => this.request(`${this.publicationUrl}${path}`));
+  }
+
+  growthSources(input: Parameters<typeof getGrowthSources>[0]) {
+    return getGrowthSources(input, path => this.request(`${this.publicationUrl}${path}`));
   }
 
   /**
@@ -420,10 +439,34 @@ export class SubstackClient {
     return (await this.findPostAnalytics(postId)).post;
   }
 
+  async findExactPostAnalytics(postId: number): Promise<PostAnalyticsSearch & { source: "post_detail" | "published_feed_scan"; detail_fallback_reason?: "not_found" | "malformed" | "id_mismatch" | "forbidden" | "not_published" | "upstream_error" }> {
+    const path = `/api/v1/post_management/detail/${postId}?offset=0&limit=1`;
+    let fallback: "not_found" | "malformed" | "id_mismatch" | "forbidden" | "not_published" | "upstream_error" | undefined;
+    try {
+      const raw = await this.request<unknown>(`${this.publicationUrl}${path}`);
+      const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullish();
+      const stats = z.object({ views: count, sent: count, delivered: count, opened: count, signups: count, subscribes: count, estimated_value: z.number().finite().nullish() });
+      const detail = z.object({ posts: z.array(z.object({ id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER), title: z.string().max(10_000).nullish(), post_date: z.string().max(100).nullish(), is_published: z.boolean().nullish(), stats: stats.nullish(), comment_count: count, reaction_count: count })).length(1) });
+      const parsed = detail.safeParse(raw);
+      if (!parsed.success) fallback = "malformed";
+      else if (parsed.data.posts[0].id !== postId) fallback = "id_mismatch";
+      else if (parsed.data.posts[0].is_published !== true || !parsed.data.posts[0].post_date) fallback = "not_published";
+      else return { post: parsed.data.posts[0] as unknown as SubstackPost, outcome: "found", scanned: 1, feed_capped: null, source: "post_detail" };
+    } catch (error) {
+      if (error instanceof SubstackAPIError && error.statusCode === 401) throw error;
+      if (error instanceof SubstackAPIError && error.statusCode === 429) throw error;
+      if (error instanceof SubstackAPIError && error.statusCode === 404) fallback = "not_found";
+      else if (error instanceof SubstackAPIError && error.statusCode === 403) fallback = "forbidden";
+      else if (error instanceof ResponseError && ["malformed_json", "unexpected_html"].includes(error.code)) fallback = "malformed";
+      else fallback = "upstream_error";
+    }
+    const search = await this.findPostAnalytics(postId);
+    return { ...search, source: "published_feed_scan", detail_fallback_reason: fallback };
+  }
+
   /**
    * Search the published feed for a post's stats row, reporting why it was not found.
-   *
-   * Substack has no per-post stats endpoint. Each row of the published feed
+   * Each row of the published feed
    * already carries a `stats` object, so page through the feed (newest first)
    * until the matching id turns up. Bounded so a bad id can't scan forever:
    * ANALYTICS_SCAN_DEPTH most recent published posts, awaited one page at a

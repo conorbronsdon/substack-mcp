@@ -2,6 +2,7 @@ import { z } from "zod";
 import { MarkdownConversionError } from "./utils/markdown-to-prosemirror.js";
 import { TOOL_KINDS } from "./annotations.js";
 import { SubstackAPIError, TimeoutError, ResponseError } from "./utils/errors.js";
+import { PublicReadError } from "./api/public-reader.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
@@ -25,7 +26,7 @@ export const objectOutputSchemas: Record<string, z.AnyZodObject> = {
   list_published_posts: z.object({ total: maybeCount, posts: z.array(post).max(50) }),
   get_post: post.extend({ body_html: maybeText }),
   get_draft: draft.extend({ body: maybeText }),
-  get_post_analytics: z.object({ found: z.boolean(), post_id: id.optional(), note: text.optional(), search_result: z.enum(["archive_exhausted", "scan_bound_reached", "feed_incomplete"]).optional(), scanned: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(), /* separate instance: sharing count would make existing fields $ref this one */ feed_capped: z.boolean().nullable().optional(), stats_available: z.boolean().optional(), id: id.optional(), title: maybeText, post_date: maybeText,
+  get_post_analytics: z.object({ found: z.boolean(), source: z.enum(["post_detail", "published_feed_scan"]).optional(), detail_fallback_reason: z.enum(["not_found", "malformed", "id_mismatch", "forbidden", "not_published", "upstream_error"]).optional(), post_id: id.optional(), note: text.optional(), search_result: z.enum(["archive_exhausted", "scan_bound_reached", "feed_incomplete"]).optional(), scanned: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(), /* separate instance: sharing count would make existing fields $ref this one */ feed_capped: z.boolean().nullable().optional(), stats_available: z.boolean().optional(), id: id.optional(), title: maybeText, post_date: maybeText,
     views: maybeCount, sent: maybeCount, delivered: maybeCount, opened: maybeCount, signups: maybeCount, subscribes: maybeCount,
     estimated_value: z.number().finite().nullable().optional(), comment_count: maybeCount, reaction_count: maybeCount }),
   upload_image: z.object({ image_url: text.url() }),
@@ -33,6 +34,10 @@ export const objectOutputSchemas: Record<string, z.AnyZodObject> = {
   create_note_with_link: note.extend({ attachment_id: text }),
   create_draft: z.object({ id, title: maybeText, unsupported_nodes: z.array(z.object({}).passthrough()), message: text }),
   list_subscribers: z.object({ count, subscribers: z.array(subscriber).max(50), lastSync: text.optional() }),
+  search_subscribers: z.object({ total_matching: count, returned: count.max(50), offset: count, limit: count.min(1).max(50), has_more: z.boolean(), next_offset: count.nullable(),
+    applied_filters: z.record(z.union([text, z.number().int(), z.array(text).max(3)])), sort: z.enum(["created_desc", "created_asc", "activity_desc", "activity_asc"]), note: text,
+    subscribers: z.array(subscriber.extend({ activity_rating: z.number().finite().nullable().optional(), created_at: text.nullable().optional(), revenue: z.number().finite().nullable().optional(),
+      is_comp: z.boolean().nullable().optional(), is_founding: z.boolean().nullable().optional(), is_gift: z.boolean().nullable().optional(), is_free_trial: z.boolean().nullable().optional() })).max(50) }),
   get_subscriber: z.object({ email: text.email().max(254), subscriber: subscriber.nullable(), last_sync: text.nullable(), note: text }),
   add_free_subscriber: z.object({ status: z.enum(["existing", "verified", "dry_run", "blocked", "unverified", "busy", "retryable"]), email: text.email().max(254), subscriber: subscriber.optional(), note: text, publication: text, consent_evidence: z.object({ source: text, recorded_at: text }).optional() }),
   search_posts: z.object({ query: text, status: z.enum(["published", "drafts", "scheduled"]), offset: count, limit: count, returned: count, total: count.nullable(), has_more: z.boolean().nullable(), next_offset: count.nullable(), search_scope: text, publication: text,
@@ -52,9 +57,12 @@ function failure(name: string, code: string, error?: unknown): CallToolResult {
   const status = api && Number.isInteger(api.statusCode) && api.statusCode >= 100 && api.statusCode <= 599 ? api.statusCode : undefined;
   const retry = api?.retryAfter;
   const retryAfter = retry && (/^\d{1,10}$/.test(retry) || (/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(retry) && Number.isFinite(Date.parse(retry)))) ? retry : undefined;
+  const publicMessage = error instanceof PublicReadError && error.code === "host_not_allowed"
+    ? "Allowed origins are https://substack.com, one-label https://*.substack.com, configured publication origins, and exact origins in SUBSTACK_PUBLIC_READ_ORIGINS. Add custom domains to SUBSTACK_PUBLIC_READ_ORIGINS. No writes were attempted."
+    : undefined;
   return { isError: true, content: [{ type: "text", text: JSON.stringify({ code, status, status_source: api?.statusSource, retry_after: retryAfter,
-    message: write ? "Tool operation or result could not be verified. A write may have occurred; reconcile in Substack before any explicit retry. No automatic retry was performed."
-      : "The read could not be verified within its response contract. Check configuration, authentication and upstream availability. No writes were attempted." }) }] };
+    message: publicMessage ?? (write ? "Tool operation or result could not be verified. A write may have occurred; reconcile in Substack before any explicit retry. No automatic retry was performed."
+      : "The read could not be verified within its response contract. Check configuration, authentication and upstream availability. No writes were attempted.") }) }] };
 }
 
 /** Validate before returning anything; never echo a malformed private upstream value. */
@@ -96,7 +104,7 @@ export function contractRegistrar(server: McpServer): McpServer["registerTool"] 
       try { return contractResult(name, await callback(...args), schema); }
       catch (error) {
         if (error instanceof MarkdownConversionError) return { isError: true, content: [{ type: "text", text: JSON.stringify({ code: "markdown_conversion_failed", message: "Markdown exceeds conversion bounds or uses an unsupported structure. Simplify the input before retrying; no write was attempted.", write_attempts: 0 }) }] };
-        const code = error instanceof TimeoutError ? "timeout" : error instanceof ResponseError ? error.code : error instanceof SubstackAPIError ? "upstream_error" : "tool_execution_failed";
+        const code = error instanceof PublicReadError ? error.code : error instanceof TimeoutError ? "timeout" : error instanceof ResponseError ? error.code : error instanceof SubstackAPIError ? "upstream_error" : "tool_execution_failed";
         return failure(name, code, error);
       }
     });

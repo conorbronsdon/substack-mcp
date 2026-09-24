@@ -59,15 +59,23 @@ export type ToolKind =
 export const TOOL_KINDS = {
   // Reads
   export_draft: "read",
+  get_user_profile: "read",
+  get_profile_feed: "read",
+  get_note_thread: "read",
+  list_public_posts: "read",
+  get_public_post: "read",
   list_publication_tags: "read",
   get_post_tags: "read",
   rank_posts: "read",
+  get_publication_stats: "read",
+  get_growth_sources: "read",
   get_publication: "read",
   search_posts: "read",
   preflight_draft: "read",
   plan_draft_update: "read",
   get_subscriber_count: "read",
   list_subscribers: "read",
+  search_subscribers: "read",
   get_subscriber: "read",
   add_free_subscriber: "subscriber-write",
   list_published_posts: "read",
@@ -81,6 +89,7 @@ export const TOOL_KINDS = {
   // Additive writes to private draft state (nothing reachable outside account)
   create_draft: "draft-write",
   update_draft: "draft-update",
+  update_draft_tags: "draft-update",
   // Additive write returning a publicly-fetchable CDN URL
   upload_image: "public-upload",
   // Immediate public publishes (Substack Notes)

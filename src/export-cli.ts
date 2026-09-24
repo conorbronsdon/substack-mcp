@@ -2,7 +2,7 @@ import { constants } from "node:fs";
 import { link, lstat, open, rename, unlink } from "node:fs/promises";
 import { dirname, basename, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { resolvePublications } from "./auth/resolve-publications.js";
+import { resolvePublications, resolveSelectedPublications } from "./auth/resolve-publications.js";
 import { SubstackClient } from "./api/client.js";
 import { exportDraft, type DraftExport } from "./api/draft-export.js";
 
@@ -92,14 +92,14 @@ export async function writeExportFiles(result: DraftExport, path: string, format
 }
 
 export async function runExport(
-  args: string[], load = resolvePublications,
+  args: string[], load: () => ReturnType<typeof resolvePublications> | Promise<ReturnType<typeof resolvePublications>> = resolveSelectedPublications,
   io = { out: (text: string) => console.log(text), error: (text: string) => console.error(text) },
 ): Promise<number> {
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) { io.out(usage); return 0; }
   let options: Options;
   try { options = parse(args); } catch (error) { io.error(`${(error as Error).message}\n${usage}`); return 2; }
   try {
-    const publications = load();
+    const publications = await load();
     const selected = options.publication ? publications.find(p => p.key === options.publication) : publications.length === 1 ? publications[0] : undefined;
     if (!selected) throw new Error("Select a configured publication with --publication; required when multiple publications are configured.");
     const client = new SubstackClient(selected.publicationUrl, selected.sessionToken, selected.userId, process.env.SUBSTACK_USER_AGENT,

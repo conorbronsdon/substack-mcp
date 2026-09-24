@@ -744,6 +744,559 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
+        "from_date": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": "string",
+        },
+        "include_events": {
+          "default": false,
+          "type": "boolean",
+        },
+        "include_timeseries": {
+          "default": false,
+          "type": "boolean",
+        },
+        "limit": {
+          "default": 20,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+        "to_date": {
+          "$ref": "#/properties/from_date",
+        },
+      },
+      "required": [
+        "from_date",
+        "to_date",
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "get_growth_sources",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "items": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "date": {
+                        "$ref": "#/properties/sources/items/properties/source",
+                      },
+                      "id": {
+                        "exclusiveMinimum": 0,
+                        "type": "integer",
+                      },
+                      "slug": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                      "title": {
+                        "maxLength": 300,
+                        "type": "string",
+                      },
+                      "title_truncated": {
+                        "type": "boolean",
+                      },
+                      "type": {
+                        "$ref": "#/properties/sources/items/properties/source",
+                      },
+                      "url": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                    },
+                    "required": [
+                      "id",
+                      "date",
+                      "title",
+                      "title_truncated",
+                      "slug",
+                      "type",
+                      "url",
+                    ],
+                    "type": "object",
+                  },
+                  "maxItems": 500,
+                  "type": "array",
+                },
+                "status": {
+                  "const": "available",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "items",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "http_401",
+                    "http_403",
+                    "http_404",
+                    "http_429",
+                    "http_5xx",
+                    "http_other",
+                    "malformed",
+                    "timeout",
+                    "response_too_large",
+                    "redirect_rejected",
+                    "unexpected_html",
+                  ],
+                  "type": "string",
+                },
+                "status": {
+                  "const": "unavailable",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+        "from_date": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": "string",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "publication": {
+          "type": "string",
+        },
+        "returned": {
+          "minimum": 0,
+          "type": "integer",
+        },
+        "sources": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "category": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+              "children": {
+                "items": {
+                  "$ref": "#/properties/sources/items",
+                },
+                "maxItems": 500,
+                "type": "array",
+              },
+              "metrics": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "$ref": "#/properties/sources/items/properties/source",
+                    },
+                    "timeseries": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "date": {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          "value": {
+                            "$ref": "#/properties/sources/items/properties/metrics/items/properties/total",
+                          },
+                        },
+                        "required": [
+                          "date",
+                          "value",
+                        ],
+                        "type": "object",
+                      },
+                      "maxItems": 400,
+                      "type": "array",
+                    },
+                    "timeseries_truncated": {
+                      "type": "boolean",
+                    },
+                    "total": {
+                      "type": "number",
+                    },
+                  },
+                  "required": [
+                    "name",
+                    "total",
+                    "timeseries_truncated",
+                  ],
+                  "type": "object",
+                },
+                "maxItems": 100,
+                "type": "array",
+              },
+              "original_source_name": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+              "source": {
+                "maxLength": 500,
+                "type": "string",
+              },
+              "source_name": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+            },
+            "required": [
+              "source",
+              "source_name",
+              "original_source_name",
+              "category",
+              "metrics",
+              "children",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "to_date": {
+          "$ref": "#/properties/from_date",
+        },
+        "total_sources": {
+          "minimum": 0,
+          "type": "integer",
+        },
+        "totals": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+              "total": {
+                "$ref": "#/properties/sources/items/properties/metrics/items/properties/total",
+              },
+            },
+            "required": [
+              "name",
+              "total",
+            ],
+            "type": "object",
+          },
+          "maxItems": 500,
+          "type": "array",
+        },
+        "truncated": {
+          "additionalProperties": false,
+          "properties": {
+            "depth": {
+              "type": "boolean",
+            },
+            "nodes": {
+              "type": "boolean",
+            },
+            "timeseries": {
+              "type": "boolean",
+            },
+          },
+          "required": [
+            "nodes",
+            "depth",
+            "timeseries",
+          ],
+          "type": "object",
+        },
+      },
+      "required": [
+        "publication",
+        "from_date",
+        "to_date",
+        "sources",
+        "totals",
+        "returned",
+        "total_sources",
+        "has_more",
+        "truncated",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "comment_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "cursor": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "comment_id",
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "get_note_thread",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "ancestors": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "ancestor_path": {
+                "anyOf": [
+                  {
+                    "maxLength": 4096,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "body_text": {
+                "anyOf": [
+                  {
+                    "maxLength": 4000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "body_truncated": {
+                "type": "boolean",
+              },
+              "children_count": {
+                "anyOf": [
+                  {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "date": {
+                "anyOf": [
+                  {
+                    "maxLength": 4000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "deleted": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "id": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer",
+              },
+              "parent_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/id",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "parent_status": {
+                "enum": [
+                  "derived",
+                  "not_derived",
+                ],
+                "type": "string",
+              },
+              "reaction_count": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "restacks": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/date/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "id",
+              "body_text",
+              "body_truncated",
+              "ancestor_path",
+              "parent_id",
+              "parent_status",
+              "date",
+              "deleted",
+              "status",
+              "children_count",
+              "reaction_count",
+              "restacks",
+            ],
+            "type": "object",
+          },
+          "maxItems": 100,
+          "type": "array",
+        },
+        "branches": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "descendants": {
+                "items": {
+                  "$ref": "#/properties/ancestors/items",
+                },
+                "maxItems": 100,
+                "type": "array",
+              },
+              "reply": {
+                "$ref": "#/properties/ancestors/items",
+              },
+            },
+            "required": [
+              "reply",
+              "descendants",
+            ],
+            "type": "object",
+          },
+          "maxItems": 100,
+          "type": "array",
+        },
+        "completeness": {
+          "enum": [
+            "complete_page",
+            "more_available",
+            "unknown",
+          ],
+          "type": "string",
+        },
+        "more_branches": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "root": {
+          "$ref": "#/properties/ancestors/items",
+        },
+        "truncated": {
+          "type": "boolean",
+        },
+      },
+      "required": [
+        "ancestors",
+        "root",
+        "branches",
+        "more_branches",
+        "next_cursor",
+        "completeness",
+        "truncated",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
         "post_id": {
           "description": "The post ID to retrieve",
           "exclusiveMinimum": 0,
@@ -858,6 +1411,17 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "delivered": {
           "$ref": "#/properties/views",
         },
+        "detail_fallback_reason": {
+          "enum": [
+            "not_found",
+            "malformed",
+            "id_mismatch",
+            "forbidden",
+            "not_published",
+            "upstream_error",
+          ],
+          "type": "string",
+        },
         "estimated_value": {
           "anyOf": [
             {
@@ -915,6 +1479,13 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         },
         "signups": {
           "$ref": "#/properties/views",
+        },
+        "source": {
+          "enum": [
+            "post_detail",
+            "published_feed_scan",
+          ],
+          "type": "string",
         },
         "stats_available": {
           "type": "boolean",
@@ -1183,6 +1754,459 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
+        "cursor": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string",
+        },
+        "handle": {
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "type": "string",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+        "user_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "get_profile_feed",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "has_more": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "date": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/items/items/properties/entity_key",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "entity_key": {
+                "maxLength": 4000,
+                "type": "string",
+              },
+              "kind": {
+                "enum": [
+                  "note",
+                  "post",
+                  "restack",
+                  "other",
+                ],
+                "type": "string",
+              },
+              "note": {
+                "additionalProperties": false,
+                "properties": {
+                  "ancestor_path": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4096,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "author_handle": {
+                    "anyOf": [
+                      {
+                        "pattern": "^[A-Za-z0-9_]{1,64}$",
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "author_user_id": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/user_id",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "body_text": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4000,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "body_truncated": {
+                    "type": "boolean",
+                  },
+                  "children_count": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "$ref": "#/properties/user_id",
+                  },
+                  "is_reply": {
+                    "type": [
+                      "boolean",
+                      "null",
+                    ],
+                  },
+                  "reaction_count": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/note/properties/children_count/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "restacks": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/note/properties/children_count/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "url": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4096,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "body_text",
+                  "body_truncated",
+                  "author_user_id",
+                  "author_handle",
+                  "ancestor_path",
+                  "is_reply",
+                  "children_count",
+                  "reaction_count",
+                  "restacks",
+                  "url",
+                ],
+                "type": "object",
+              },
+              "post": {
+                "additionalProperties": false,
+                "properties": {
+                  "canonical_url": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/note/properties/url/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "$ref": "#/properties/user_id",
+                  },
+                  "publication_name": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/entity_key",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "title": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/entity_key",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "canonical_url",
+                  "publication_name",
+                ],
+                "type": "object",
+              },
+            },
+            "required": [
+              "kind",
+              "entity_key",
+              "date",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "returned": {
+          "maximum": 50,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "user_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "user_id",
+        "items",
+        "returned",
+        "next_cursor",
+        "has_more",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+        "url": {
+          "maxLength": 4096,
+          "type": "string",
+        },
+      },
+      "required": [
+        "url",
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "get_public_post",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "body_html": {
+          "anyOf": [
+            {
+              "maxLength": 500000,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "body_status": {
+          "enum": [
+            "full_public",
+            "paywalled_or_truncated",
+            "absent",
+          ],
+          "type": "string",
+        },
+        "body_truncated": {
+          "type": "boolean",
+        },
+        "canonical_url": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "comment_count": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/wordcount/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "post_date": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "reaction_count": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/wordcount/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "restacks": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/wordcount/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "slug": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "subtitle": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "wordcount": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "id",
+        "body_html",
+        "body_truncated",
+        "body_status",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
         "publication": {
           "description": "Which publication to operate on. One of: first (First), second (Second).",
           "enum": [
@@ -1321,6 +2345,189 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "data",
         "fields_not_returned_by_api",
         "identity_scope",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+        "range_days": {
+          "default": 30,
+          "maximum": 365,
+          "minimum": 1,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "get_publication_stats",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "publication": {
+          "type": "string",
+        },
+        "range": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/summary/anyOf/0",
+            },
+            {
+              "$ref": "#/properties/summary/anyOf/1",
+            },
+          ],
+        },
+        "range_days": {
+          "maximum": 365,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "captured_at": {
+                  "type": "string",
+                },
+                "is_bestseller": {
+                  "type": [
+                    "boolean",
+                    "null",
+                  ],
+                },
+                "metrics": {
+                  "additionalProperties": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "captured_at": {
+                        "format": "date-time",
+                        "type": "string",
+                      },
+                      "currency": {
+                        "maxLength": 32,
+                        "type": "string",
+                      },
+                      "source": {
+                        "maxLength": 80,
+                        "type": "string",
+                      },
+                      "status": {
+                        "enum": [
+                          "reported",
+                          "absent",
+                          "null",
+                        ],
+                        "type": "string",
+                      },
+                      "unit": {
+                        "enum": [
+                          "count",
+                          "percent_0_100",
+                          "currency_amount",
+                          "views",
+                        ],
+                        "type": "string",
+                      },
+                      "value": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                      "window": {
+                        "maxLength": 120,
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "value",
+                      "status",
+                      "unit",
+                      "window",
+                      "source",
+                      "captured_at",
+                    ],
+                    "type": "object",
+                  },
+                  "type": "object",
+                },
+                "source": {
+                  "type": "string",
+                },
+                "status": {
+                  "const": "available",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "source",
+                "captured_at",
+                "metrics",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "http_401",
+                    "http_403",
+                    "http_404",
+                    "http_429",
+                    "http_5xx",
+                    "http_other",
+                    "malformed",
+                    "timeout",
+                    "response_too_large",
+                    "redirect_rejected",
+                    "unexpected_html",
+                  ],
+                  "type": "string",
+                },
+                "status": {
+                  "const": "unavailable",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+      },
+      "required": [
+        "publication",
+        "range_days",
+        "summary",
+        "range",
       ],
       "type": "object",
     },
@@ -1501,6 +2708,143 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
+        "handle": {
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "type": "string",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "handle",
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "get_user_profile",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "bio": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/name/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "handle": {
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "type": "string",
+        },
+        "id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "photo_url": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "primary_publication": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "custom_domain": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/name/anyOf/0",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+                "id": {
+                  "$ref": "#/properties/id",
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/name/anyOf/0",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+                "subdomain": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/name/anyOf/0",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+              },
+              "required": [
+                "id",
+                "name",
+                "subdomain",
+                "custom_domain",
+              ],
+              "type": "object",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "id",
+        "name",
+        "handle",
+        "bio",
+        "photo_url",
+        "primary_publication",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
         "limit": {
           "default": 25,
           "description": "Max drafts to return (1-50; Substack rejects anything higher, so larger values are clamped)",
@@ -1531,6 +2875,245 @@ exports[`stable output contracts > classifies any public schema drift as potenti
     },
     "name": "list_drafts",
     "outputSchema": null,
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 12,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 9007199254740941,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+        "publication_url": {
+          "maxLength": 2048,
+          "type": "string",
+        },
+        "query": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "sort": {
+          "default": "new",
+          "enum": [
+            "new",
+            "top",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "list_public_posts",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "has_more": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "offset": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "posts": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "audience": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "canonical_url": {
+                "anyOf": [
+                  {
+                    "maxLength": 4096,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "comment_count": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "id": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer",
+              },
+              "post_date": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "reaction_count": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "restacks": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "slug": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "subtitle": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "maxLength": 4000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "wordcount": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "id",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "publication_url": {
+          "maxLength": 2048,
+          "type": "string",
+        },
+        "query": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "returned": {
+          "maximum": 50,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "sort": {
+          "enum": [
+            "new",
+            "top",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "publication_url",
+        "sort",
+        "query",
+        "offset",
+        "limit",
+        "returned",
+        "next_offset",
+        "has_more",
+        "posts",
+      ],
+      "type": "object",
+    },
   },
   {
     "annotations": {
@@ -2887,6 +4470,265 @@ exports[`stable output contracts > classifies any public schema drift as potenti
   },
   {
     "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "activity_rating_max": {
+          "maximum": 5,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "activity_rating_min": {
+          "maximum": 5,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "created_before": {
+          "description": "YYYY-MM-DD, exclusive: created before the start of this date; Substack's day boundary timezone is not verified",
+          "type": "string",
+        },
+        "created_on_or_after": {
+          "description": "YYYY-MM-DD, created on or after this date",
+          "type": "string",
+        },
+        "include": {
+          "default": [],
+          "items": {
+            "enum": [
+              "activity_rating",
+              "created_at",
+              "flags",
+              "revenue",
+            ],
+            "type": "string",
+          },
+          "maxItems": 4,
+          "type": "array",
+        },
+        "limit": {
+          "default": 10,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 9007199254740941,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+        "search": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "sort": {
+          "default": "created_desc",
+          "enum": [
+            "created_desc",
+            "created_asc",
+            "activity_desc",
+            "activity_asc",
+          ],
+          "type": "string",
+        },
+        "subscription_types": {
+          "items": {
+            "enum": [
+              "free",
+              "paid",
+              "comp",
+            ],
+            "type": "string",
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "type": "array",
+        },
+      },
+      "required": [
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "search_subscribers",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "applied_filters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "integer",
+              },
+              {
+                "items": {
+                  "$ref": "#/properties/applied_filters/additionalProperties/anyOf/0",
+                },
+                "maxItems": 3,
+                "type": "array",
+              },
+            ],
+          },
+          "type": "object",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/total_matching",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "note": {
+          "$ref": "#/properties/applied_filters/additionalProperties/anyOf/0",
+        },
+        "offset": {
+          "$ref": "#/properties/total_matching",
+        },
+        "returned": {
+          "maximum": 50,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "sort": {
+          "enum": [
+            "created_desc",
+            "created_asc",
+            "activity_desc",
+            "activity_asc",
+          ],
+          "type": "string",
+        },
+        "subscribers": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "activity_rating": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "created_at": {
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+              "is_comp": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "is_founding": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "is_free_trial": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "is_gift": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "revenue": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "subscription_id": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer",
+              },
+              "subscription_interval": {
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+              "user_email_address": {
+                "format": "email",
+                "maxLength": 254,
+                "type": "string",
+              },
+            },
+            "required": [
+              "user_email_address",
+              "subscription_id",
+              "subscription_interval",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "total_matching": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "total_matching",
+        "returned",
+        "offset",
+        "limit",
+        "has_more",
+        "next_offset",
+        "applied_filters",
+        "sort",
+        "note",
+        "subscribers",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
       "destructiveHint": true,
       "idempotentHint": false,
       "openWorldHint": false,
@@ -3129,6 +4971,162 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "unsupported_nodes",
         "message",
         "limitations",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "add": {
+          "default": [],
+          "items": {
+            "format": "uuid",
+            "type": "string",
+          },
+          "maxItems": 20,
+          "type": "array",
+        },
+        "draft_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "dry_run": {
+          "default": true,
+          "type": "boolean",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+        "remove": {
+          "$ref": "#/properties/add",
+          "default": [],
+        },
+      },
+      "required": [
+        "draft_id",
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "update_draft_tags",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "draft_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "draft_state_after": {
+          "enum": [
+            "unpublished",
+            "changed",
+            "unverifiable",
+            "not_checked",
+          ],
+          "type": "string",
+        },
+        "dry_run": {
+          "type": "boolean",
+        },
+        "note": {
+          "maxLength": 1000,
+          "type": "string",
+        },
+        "publication": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "results": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "hidden": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "outcome": {
+                "enum": [
+                  "already_present",
+                  "already_absent",
+                  "planned",
+                  "verified",
+                  "unverified",
+                  "rejected",
+                  "retryable",
+                  "unknown",
+                  "observed_after_unconfirmed_write",
+                  "not_attempted",
+                ],
+                "type": "string",
+              },
+              "requested": {
+                "enum": [
+                  "add",
+                  "remove",
+                ],
+                "type": "string",
+              },
+              "tag_id": {
+                "format": "uuid",
+                "type": "string",
+              },
+              "tag_name": {
+                "anyOf": [
+                  {
+                    "maxLength": 1000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "tag_id",
+              "tag_name",
+              "hidden",
+              "requested",
+              "outcome",
+            ],
+            "type": "object",
+          },
+          "maxItems": 40,
+          "type": "array",
+        },
+        "write_attempts": {
+          "maximum": 40,
+          "minimum": 0,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "publication",
+        "draft_id",
+        "dry_run",
+        "draft_state_after",
+        "write_attempts",
+        "results",
+        "note",
       ],
       "type": "object",
     },
@@ -3879,6 +5877,541 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
+        "from_date": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": "string",
+        },
+        "include_events": {
+          "default": false,
+          "type": "boolean",
+        },
+        "include_timeseries": {
+          "default": false,
+          "type": "boolean",
+        },
+        "limit": {
+          "default": 20,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "to_date": {
+          "$ref": "#/properties/from_date",
+        },
+      },
+      "required": [
+        "from_date",
+        "to_date",
+      ],
+      "type": "object",
+    },
+    "name": "get_growth_sources",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "items": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "date": {
+                        "$ref": "#/properties/sources/items/properties/source",
+                      },
+                      "id": {
+                        "exclusiveMinimum": 0,
+                        "type": "integer",
+                      },
+                      "slug": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                      "title": {
+                        "maxLength": 300,
+                        "type": "string",
+                      },
+                      "title_truncated": {
+                        "type": "boolean",
+                      },
+                      "type": {
+                        "$ref": "#/properties/sources/items/properties/source",
+                      },
+                      "url": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                    },
+                    "required": [
+                      "id",
+                      "date",
+                      "title",
+                      "title_truncated",
+                      "slug",
+                      "type",
+                      "url",
+                    ],
+                    "type": "object",
+                  },
+                  "maxItems": 500,
+                  "type": "array",
+                },
+                "status": {
+                  "const": "available",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "items",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "http_401",
+                    "http_403",
+                    "http_404",
+                    "http_429",
+                    "http_5xx",
+                    "http_other",
+                    "malformed",
+                    "timeout",
+                    "response_too_large",
+                    "redirect_rejected",
+                    "unexpected_html",
+                  ],
+                  "type": "string",
+                },
+                "status": {
+                  "const": "unavailable",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+        "from_date": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": "string",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "publication": {
+          "type": "string",
+        },
+        "returned": {
+          "minimum": 0,
+          "type": "integer",
+        },
+        "sources": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "category": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+              "children": {
+                "items": {
+                  "$ref": "#/properties/sources/items",
+                },
+                "maxItems": 500,
+                "type": "array",
+              },
+              "metrics": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "$ref": "#/properties/sources/items/properties/source",
+                    },
+                    "timeseries": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "date": {
+                            "$ref": "#/properties/sources/items/properties/source",
+                          },
+                          "value": {
+                            "$ref": "#/properties/sources/items/properties/metrics/items/properties/total",
+                          },
+                        },
+                        "required": [
+                          "date",
+                          "value",
+                        ],
+                        "type": "object",
+                      },
+                      "maxItems": 400,
+                      "type": "array",
+                    },
+                    "timeseries_truncated": {
+                      "type": "boolean",
+                    },
+                    "total": {
+                      "type": "number",
+                    },
+                  },
+                  "required": [
+                    "name",
+                    "total",
+                    "timeseries_truncated",
+                  ],
+                  "type": "object",
+                },
+                "maxItems": 100,
+                "type": "array",
+              },
+              "original_source_name": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+              "source": {
+                "maxLength": 500,
+                "type": "string",
+              },
+              "source_name": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+            },
+            "required": [
+              "source",
+              "source_name",
+              "original_source_name",
+              "category",
+              "metrics",
+              "children",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "to_date": {
+          "$ref": "#/properties/from_date",
+        },
+        "total_sources": {
+          "minimum": 0,
+          "type": "integer",
+        },
+        "totals": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "$ref": "#/properties/sources/items/properties/source",
+              },
+              "total": {
+                "$ref": "#/properties/sources/items/properties/metrics/items/properties/total",
+              },
+            },
+            "required": [
+              "name",
+              "total",
+            ],
+            "type": "object",
+          },
+          "maxItems": 500,
+          "type": "array",
+        },
+        "truncated": {
+          "additionalProperties": false,
+          "properties": {
+            "depth": {
+              "type": "boolean",
+            },
+            "nodes": {
+              "type": "boolean",
+            },
+            "timeseries": {
+              "type": "boolean",
+            },
+          },
+          "required": [
+            "nodes",
+            "depth",
+            "timeseries",
+          ],
+          "type": "object",
+        },
+      },
+      "required": [
+        "publication",
+        "from_date",
+        "to_date",
+        "sources",
+        "totals",
+        "returned",
+        "total_sources",
+        "has_more",
+        "truncated",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "comment_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "cursor": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "comment_id",
+      ],
+      "type": "object",
+    },
+    "name": "get_note_thread",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "ancestors": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "ancestor_path": {
+                "anyOf": [
+                  {
+                    "maxLength": 4096,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "body_text": {
+                "anyOf": [
+                  {
+                    "maxLength": 4000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "body_truncated": {
+                "type": "boolean",
+              },
+              "children_count": {
+                "anyOf": [
+                  {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "date": {
+                "anyOf": [
+                  {
+                    "maxLength": 4000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "deleted": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "id": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer",
+              },
+              "parent_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/id",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "parent_status": {
+                "enum": [
+                  "derived",
+                  "not_derived",
+                ],
+                "type": "string",
+              },
+              "reaction_count": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "restacks": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/ancestors/items/properties/date/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "id",
+              "body_text",
+              "body_truncated",
+              "ancestor_path",
+              "parent_id",
+              "parent_status",
+              "date",
+              "deleted",
+              "status",
+              "children_count",
+              "reaction_count",
+              "restacks",
+            ],
+            "type": "object",
+          },
+          "maxItems": 100,
+          "type": "array",
+        },
+        "branches": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "descendants": {
+                "items": {
+                  "$ref": "#/properties/ancestors/items",
+                },
+                "maxItems": 100,
+                "type": "array",
+              },
+              "reply": {
+                "$ref": "#/properties/ancestors/items",
+              },
+            },
+            "required": [
+              "reply",
+              "descendants",
+            ],
+            "type": "object",
+          },
+          "maxItems": 100,
+          "type": "array",
+        },
+        "completeness": {
+          "enum": [
+            "complete_page",
+            "more_available",
+            "unknown",
+          ],
+          "type": "string",
+        },
+        "more_branches": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/ancestors/items/properties/children_count/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "root": {
+          "$ref": "#/properties/ancestors/items",
+        },
+        "truncated": {
+          "type": "boolean",
+        },
+      },
+      "required": [
+        "ancestors",
+        "root",
+        "branches",
+        "more_branches",
+        "next_cursor",
+        "completeness",
+        "truncated",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
         "post_id": {
           "description": "The post ID to retrieve",
           "exclusiveMinimum": 0,
@@ -3975,6 +6508,17 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "delivered": {
           "$ref": "#/properties/views",
         },
+        "detail_fallback_reason": {
+          "enum": [
+            "not_found",
+            "malformed",
+            "id_mismatch",
+            "forbidden",
+            "not_published",
+            "upstream_error",
+          ],
+          "type": "string",
+        },
         "estimated_value": {
           "anyOf": [
             {
@@ -4032,6 +6576,13 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         },
         "signups": {
           "$ref": "#/properties/views",
+        },
+        "source": {
+          "enum": [
+            "post_detail",
+            "published_feed_scan",
+          ],
+          "type": "string",
         },
         "stats_available": {
           "type": "boolean",
@@ -4280,6 +6831,439 @@ exports[`stable output contracts > classifies any public schema drift as potenti
     },
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string",
+        },
+        "handle": {
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "type": "string",
+        },
+        "user_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+      },
+      "type": "object",
+    },
+    "name": "get_profile_feed",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "has_more": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "date": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/items/items/properties/entity_key",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "entity_key": {
+                "maxLength": 4000,
+                "type": "string",
+              },
+              "kind": {
+                "enum": [
+                  "note",
+                  "post",
+                  "restack",
+                  "other",
+                ],
+                "type": "string",
+              },
+              "note": {
+                "additionalProperties": false,
+                "properties": {
+                  "ancestor_path": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4096,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "author_handle": {
+                    "anyOf": [
+                      {
+                        "pattern": "^[A-Za-z0-9_]{1,64}$",
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "author_user_id": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/user_id",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "body_text": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4000,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "body_truncated": {
+                    "type": "boolean",
+                  },
+                  "children_count": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "$ref": "#/properties/user_id",
+                  },
+                  "is_reply": {
+                    "type": [
+                      "boolean",
+                      "null",
+                    ],
+                  },
+                  "reaction_count": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/note/properties/children_count/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "restacks": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/note/properties/children_count/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "url": {
+                    "anyOf": [
+                      {
+                        "maxLength": 4096,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "body_text",
+                  "body_truncated",
+                  "author_user_id",
+                  "author_handle",
+                  "ancestor_path",
+                  "is_reply",
+                  "children_count",
+                  "reaction_count",
+                  "restacks",
+                  "url",
+                ],
+                "type": "object",
+              },
+              "post": {
+                "additionalProperties": false,
+                "properties": {
+                  "canonical_url": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/note/properties/url/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "$ref": "#/properties/user_id",
+                  },
+                  "publication_name": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/entity_key",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "title": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/items/items/properties/entity_key",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "canonical_url",
+                  "publication_name",
+                ],
+                "type": "object",
+              },
+            },
+            "required": [
+              "kind",
+              "entity_key",
+              "date",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "returned": {
+          "maximum": 50,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "user_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "user_id",
+        "items",
+        "returned",
+        "next_cursor",
+        "has_more",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "maxLength": 4096,
+          "type": "string",
+        },
+      },
+      "required": [
+        "url",
+      ],
+      "type": "object",
+    },
+    "name": "get_public_post",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "body_html": {
+          "anyOf": [
+            {
+              "maxLength": 500000,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "body_status": {
+          "enum": [
+            "full_public",
+            "paywalled_or_truncated",
+            "absent",
+          ],
+          "type": "string",
+        },
+        "body_truncated": {
+          "type": "boolean",
+        },
+        "canonical_url": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "comment_count": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/wordcount/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "post_date": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "reaction_count": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/wordcount/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "restacks": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/wordcount/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "slug": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "subtitle": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/title/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "wordcount": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "id",
+        "body_html",
+        "body_truncated",
+        "body_status",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "properties": {},
       "type": "object",
     },
@@ -4407,6 +7391,178 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "data",
         "fields_not_returned_by_api",
         "identity_scope",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "range_days": {
+          "default": 30,
+          "maximum": 365,
+          "minimum": 1,
+          "type": "integer",
+        },
+      },
+      "type": "object",
+    },
+    "name": "get_publication_stats",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "publication": {
+          "type": "string",
+        },
+        "range": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/summary/anyOf/0",
+            },
+            {
+              "$ref": "#/properties/summary/anyOf/1",
+            },
+          ],
+        },
+        "range_days": {
+          "maximum": 365,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "captured_at": {
+                  "type": "string",
+                },
+                "is_bestseller": {
+                  "type": [
+                    "boolean",
+                    "null",
+                  ],
+                },
+                "metrics": {
+                  "additionalProperties": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "captured_at": {
+                        "format": "date-time",
+                        "type": "string",
+                      },
+                      "currency": {
+                        "maxLength": 32,
+                        "type": "string",
+                      },
+                      "source": {
+                        "maxLength": 80,
+                        "type": "string",
+                      },
+                      "status": {
+                        "enum": [
+                          "reported",
+                          "absent",
+                          "null",
+                        ],
+                        "type": "string",
+                      },
+                      "unit": {
+                        "enum": [
+                          "count",
+                          "percent_0_100",
+                          "currency_amount",
+                          "views",
+                        ],
+                        "type": "string",
+                      },
+                      "value": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                          },
+                          {
+                            "type": "null",
+                          },
+                        ],
+                      },
+                      "window": {
+                        "maxLength": 120,
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "value",
+                      "status",
+                      "unit",
+                      "window",
+                      "source",
+                      "captured_at",
+                    ],
+                    "type": "object",
+                  },
+                  "type": "object",
+                },
+                "source": {
+                  "type": "string",
+                },
+                "status": {
+                  "const": "available",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "source",
+                "captured_at",
+                "metrics",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "http_401",
+                    "http_403",
+                    "http_404",
+                    "http_429",
+                    "http_5xx",
+                    "http_other",
+                    "malformed",
+                    "timeout",
+                    "response_too_large",
+                    "redirect_rejected",
+                    "unexpected_html",
+                  ],
+                  "type": "string",
+                },
+                "status": {
+                  "const": "unavailable",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+      },
+      "required": [
+        "publication",
+        "range_days",
+        "summary",
+        "range",
       ],
       "type": "object",
     },
@@ -4552,6 +7708,134 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
+        "handle": {
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "type": "string",
+        },
+      },
+      "required": [
+        "handle",
+      ],
+      "type": "object",
+    },
+    "name": "get_user_profile",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "bio": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/name/anyOf/0",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "handle": {
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "type": "string",
+        },
+        "id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "photo_url": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "primary_publication": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "custom_domain": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/name/anyOf/0",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+                "id": {
+                  "$ref": "#/properties/id",
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/name/anyOf/0",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+                "subdomain": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/name/anyOf/0",
+                    },
+                    {
+                      "type": "null",
+                    },
+                  ],
+                },
+              },
+              "required": [
+                "id",
+                "name",
+                "subdomain",
+                "custom_domain",
+              ],
+              "type": "object",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "id",
+        "name",
+        "handle",
+        "bio",
+        "photo_url",
+        "primary_publication",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
         "limit": {
           "default": 25,
           "description": "Max drafts to return (1-50; Substack rejects anything higher, so larger values are clamped)",
@@ -4571,6 +7855,234 @@ exports[`stable output contracts > classifies any public schema drift as potenti
     },
     "name": "list_drafts",
     "outputSchema": null,
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 12,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 9007199254740941,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication_url": {
+          "maxLength": 2048,
+          "type": "string",
+        },
+        "query": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "sort": {
+          "default": "new",
+          "enum": [
+            "new",
+            "top",
+          ],
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "list_public_posts",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "has_more": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "offset": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "posts": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "audience": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "canonical_url": {
+                "anyOf": [
+                  {
+                    "maxLength": 4096,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "comment_count": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "id": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer",
+              },
+              "post_date": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "reaction_count": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "restacks": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "slug": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "subtitle": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/posts/items/properties/title/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "maxLength": 4000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "wordcount": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "id",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "publication_url": {
+          "maxLength": 2048,
+          "type": "string",
+        },
+        "query": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "returned": {
+          "maximum": 50,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "sort": {
+          "enum": [
+            "new",
+            "top",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "publication_url",
+        "sort",
+        "query",
+        "offset",
+        "limit",
+        "returned",
+        "next_offset",
+        "has_more",
+        "posts",
+      ],
+      "type": "object",
+    },
   },
   {
     "annotations": {
@@ -5845,6 +9357,254 @@ exports[`stable output contracts > classifies any public schema drift as potenti
   },
   {
     "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "activity_rating_max": {
+          "maximum": 5,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "activity_rating_min": {
+          "maximum": 5,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "created_before": {
+          "description": "YYYY-MM-DD, exclusive: created before the start of this date; Substack's day boundary timezone is not verified",
+          "type": "string",
+        },
+        "created_on_or_after": {
+          "description": "YYYY-MM-DD, created on or after this date",
+          "type": "string",
+        },
+        "include": {
+          "default": [],
+          "items": {
+            "enum": [
+              "activity_rating",
+              "created_at",
+              "flags",
+              "revenue",
+            ],
+            "type": "string",
+          },
+          "maxItems": 4,
+          "type": "array",
+        },
+        "limit": {
+          "default": 10,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 9007199254740941,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "search": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "sort": {
+          "default": "created_desc",
+          "enum": [
+            "created_desc",
+            "created_asc",
+            "activity_desc",
+            "activity_asc",
+          ],
+          "type": "string",
+        },
+        "subscription_types": {
+          "items": {
+            "enum": [
+              "free",
+              "paid",
+              "comp",
+            ],
+            "type": "string",
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "type": "array",
+        },
+      },
+      "type": "object",
+    },
+    "name": "search_subscribers",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "applied_filters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "integer",
+              },
+              {
+                "items": {
+                  "$ref": "#/properties/applied_filters/additionalProperties/anyOf/0",
+                },
+                "maxItems": 3,
+                "type": "array",
+              },
+            ],
+          },
+          "type": "object",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/total_matching",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "note": {
+          "$ref": "#/properties/applied_filters/additionalProperties/anyOf/0",
+        },
+        "offset": {
+          "$ref": "#/properties/total_matching",
+        },
+        "returned": {
+          "maximum": 50,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "sort": {
+          "enum": [
+            "created_desc",
+            "created_asc",
+            "activity_desc",
+            "activity_asc",
+          ],
+          "type": "string",
+        },
+        "subscribers": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "activity_rating": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "created_at": {
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+              "is_comp": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "is_founding": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "is_free_trial": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "is_gift": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "revenue": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "subscription_id": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer",
+              },
+              "subscription_interval": {
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+              "user_email_address": {
+                "format": "email",
+                "maxLength": 254,
+                "type": "string",
+              },
+            },
+            "required": [
+              "user_email_address",
+              "subscription_id",
+              "subscription_interval",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "total_matching": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "total_matching",
+        "returned",
+        "offset",
+        "limit",
+        "has_more",
+        "next_offset",
+        "applied_filters",
+        "sort",
+        "note",
+        "subscribers",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
       "destructiveHint": true,
       "idempotentHint": false,
       "openWorldHint": false,
@@ -6078,6 +9838,153 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         "unsupported_nodes",
         "message",
         "limitations",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "add": {
+          "default": [],
+          "items": {
+            "format": "uuid",
+            "type": "string",
+          },
+          "maxItems": 20,
+          "type": "array",
+        },
+        "draft_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "dry_run": {
+          "default": true,
+          "type": "boolean",
+        },
+        "remove": {
+          "$ref": "#/properties/add",
+          "default": [],
+        },
+      },
+      "required": [
+        "draft_id",
+      ],
+      "type": "object",
+    },
+    "name": "update_draft_tags",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "draft_id": {
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer",
+        },
+        "draft_state_after": {
+          "enum": [
+            "unpublished",
+            "changed",
+            "unverifiable",
+            "not_checked",
+          ],
+          "type": "string",
+        },
+        "dry_run": {
+          "type": "boolean",
+        },
+        "note": {
+          "maxLength": 1000,
+          "type": "string",
+        },
+        "publication": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "results": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "hidden": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "outcome": {
+                "enum": [
+                  "already_present",
+                  "already_absent",
+                  "planned",
+                  "verified",
+                  "unverified",
+                  "rejected",
+                  "retryable",
+                  "unknown",
+                  "observed_after_unconfirmed_write",
+                  "not_attempted",
+                ],
+                "type": "string",
+              },
+              "requested": {
+                "enum": [
+                  "add",
+                  "remove",
+                ],
+                "type": "string",
+              },
+              "tag_id": {
+                "format": "uuid",
+                "type": "string",
+              },
+              "tag_name": {
+                "anyOf": [
+                  {
+                    "maxLength": 1000,
+                    "type": "string",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "tag_id",
+              "tag_name",
+              "hidden",
+              "requested",
+              "outcome",
+            ],
+            "type": "object",
+          },
+          "maxItems": 40,
+          "type": "array",
+        },
+        "write_attempts": {
+          "maximum": 40,
+          "minimum": 0,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "publication",
+        "draft_id",
+        "dry_run",
+        "draft_state_after",
+        "write_attempts",
+        "results",
+        "note",
       ],
       "type": "object",
     },

@@ -8,6 +8,35 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-23
+
+### Added
+- `search_subscribers` filters and pages private subscribers with optional activity, creation date, flags and revenue projections (#52).
+  Its exclusive `created_before` bound reflects the observed upstream day-boundary behavior;
+  nullable projected fields remain explicit nulls, and date, interval and null-dependent filter
+  guards reject contradictory rows. Invalid dates and inverted ranges report `invalid_input`.
+- `get_publication_stats` reads dashboard summary and trailing-window analytics with per-metric
+  unit, window, source and missing-state labels. Dashboard open rate is 0–100; per-post rates stay
+  0–1. A failed endpoint group is reported unavailable, never zero-filled (#52).
+- `get_growth_sources` returns bounded subscriber and traffic attribution for up to 366 inclusive
+  days, with explicit truncation and optional growth events (#52).
+- `update_draft_tags` assigns or removes tags on unpublished drafts only: dry-run by default,
+  pre-write and post-write draft-state checks, one attempt per write and per-tag readback
+  outcomes (#50).
+- Five anonymous public reading tools: `get_user_profile`, `get_profile_feed`,
+  `get_note_thread`, `list_public_posts` and `get_public_post`. They never send session
+  credentials and only read allowlisted HTTPS origins; add custom domains with
+  `SUBSTACK_PUBLIC_READ_ORIGINS`. Reader subscriptions and inbox remain unsupported (#51).
+- Opt-in OS keychain credential storage via `SUBSTACK_CREDENTIAL_STORE=keychain`, with login,
+  doctor diagnostics and non-destructive file-to-keychain migration. Verified on Windows;
+  macOS is implemented but not yet verified on real hardware (please report results); Linux is
+  verified with mocks only (#53).
+
+### Changed
+- `get_post_analytics` reads the exact post detail endpoint first (one read instead of scanning
+  up to 500 posts), requires a published row, and reports `source` and
+  `detail_fallback_reason` when it falls back to the bounded feed scan (#52).
+
 ### Fixed
 - Release recovery accepts an npm `dist.integrity` only when it is a canonical base64 sha512
   digest (exactly 64 bytes, 88 characters with `==` padding, re-encoding to the same text).

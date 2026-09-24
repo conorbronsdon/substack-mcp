@@ -7,7 +7,7 @@ import type { SubstackClient } from "../api/client.js";
 // never invoke — a bare object is enough to register everything. A single
 // publication keeps every tool's schema unchanged (see server.ts), which is
 // what this file's name-only completeness check assumes.
-const server = createServer([{ key: "default", label: "Default", client: {} as SubstackClient }]);
+const server = createServer([{ key: "default", label: "Default", client: { origin: "https://example.substack.com" } as SubstackClient }]);
 
 interface RegisteredToolShape {
   description?: string;
@@ -20,16 +20,24 @@ const registered = (
 )._registeredTools;
 
 const READ_TOOLS: ToolName[] = [
+  "get_user_profile",
+  "get_profile_feed",
+  "get_note_thread",
+  "list_public_posts",
+  "get_public_post",
   "export_draft",
   "list_publication_tags",
   "get_post_tags",
   "rank_posts",
+  "get_publication_stats",
+  "get_growth_sources",
   "get_publication",
   "search_posts",
   "preflight_draft",
   "plan_draft_update",
   "get_subscriber_count",
   "list_subscribers",
+  "search_subscribers",
   "get_subscriber",
   "list_published_posts",
   "list_drafts",
@@ -51,6 +59,7 @@ const PUBLISH_TOOLS: ToolName[] = ["create_note", "create_note_with_link"];
 describe("buildAnnotations mapping", () => {
   it("draft replacement is destructive and never hints automatic retries", () => {
     expect(buildAnnotations("update_draft")).toEqual({ readOnlyHint: false, destructiveHint: true, openWorldHint: false, idempotentHint: false });
+    expect(buildAnnotations("update_draft_tags")).toEqual({ readOnlyHint: false, destructiveHint: true, openWorldHint: false, idempotentHint: false });
   });
   it("read -> { readOnlyHint: true } and nothing else", () => {
     const a = buildAnnotations("get_post");
@@ -160,6 +169,7 @@ describe("tool annotation classifications", () => {
   it("the classification groups above cover the whole registry", () => {
     const grouped = [
       "update_draft",
+      "update_draft_tags",
       ...READ_TOOLS,
       ...DRAFT_WRITE_TOOLS,
       ...SUBSCRIBER_WRITE_TOOLS,

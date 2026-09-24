@@ -40,8 +40,12 @@ a desktop bundle needs its own packaging and upgrade verification first.
 ## Analytics decision
 
 1.0 retains per-post analytics and subscriber counts, including their CLI read
-commands. Aggregate dashboards, post ranking, segmentation and bulk subscriber
-export remain in [#52](https://github.com/conorbronsdon/substack-mcp/issues/52).
+commands. Post ranking shipped in 1.2 (`rank_posts`); publication dashboard
+metrics and growth attribution shipped in 1.3 (`get_publication_stats`,
+`get_growth_sources`), and `get_post_analytics` now reads the exact post. Subscriber
+segmentation shipped in 1.3 (`search_subscribers`, live-verified filters only); bulk
+subscriber export remains a separate design decision in
+[#52](https://github.com/conorbronsdon/substack-mcp/issues/52).
 Prioritize additions against concrete creator questions and verifiable endpoint
 behavior as feedback arrives. Newsletter-user feedback is a post-release input,
 not a prerequisite for the stability release.
@@ -54,8 +58,12 @@ Notes publish immediately; image uploads can expose a public URL. Subscriber
 additions require consent and default to dry-run. These are distinct side effects
 and need appropriate authorization in the calling application.
 
-Remote image fetching, community interactions, an OS keychain backend, MCPB and
-hosted multi-tenant operation are outside 1.0. Container support starts with Linux
+Public community reads (profiles, profile feeds, Note threads, archives and public
+posts) arrived in 1.3 as anonymous, allowlisted reads; community writes such as
+comments and restacks, reader subscriptions and inbox remain unsupported. The
+optional OS keychain backend (1.3) is verified on Windows only; macOS and Linux
+paths are covered by mocked tests. MCPB and hosted multi-tenant operation remain
+out of scope. Container support starts with Linux
 amd64; see [containers](containers.md) for public-artifact verification and the
 separate OCI attestation follow-up.
 

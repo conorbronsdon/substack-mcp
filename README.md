@@ -16,7 +16,7 @@ Create and manage your Substack newsletter from your AI assistant or terminal. P
 
 ---
 
-![Create, search, export, plan and review a draft with substack-mcp](https://raw.githubusercontent.com/conorbronsdon/substack-mcp/7d0e8d675915a867901eca438d98ec066ab6c832/docs/workflow-demo.gif)
+![Create, search, export, plan and review a draft with substack-mcp](https://raw.githubusercontent.com/conorbronsdon/substack-mcp/deeacc188a5c893cfa8b627bb9bd8dbbfe519003/docs/workflow-demo.gif)
 
 The demo runs actual MCP handlers against offline sample data. No live API calls or publication occur. Follow the [draft workflow](docs/workflow.md) to create, find, export and review a post.
 
@@ -101,11 +101,25 @@ Without `--profile`, login saves `~/.substack-mcp/session.json` (directory overr
 `SUBSTACK_MCP_HOME`). The server uses this legacy session when publication
 credential environment variables and `SUBSTACK_PROFILES` are unset.
 
-**Storage:** sessions use AES-256-GCM with a key derived from the OS account and
+**Default storage (`SUBSTACK_CREDENTIAL_STORE=file`):** sessions use AES-256-GCM with a key derived from the OS account and
 machine. File permissions request `0600`; Windows access also depends on directory
 ACLs. This is a machine-bound file, not an OS keychain or secret vault. Code
 running as your OS user can derive the key. Use environment credentials if your
 MCP client manages secrets for you.
+
+**Optional OS keychain:** set `SUBSTACK_CREDENTIAL_STORE=keychain` in both the
+login process and the MCP client's environment. macOS uses Keychain via
+`/usr/bin/security` (implemented, not yet verified on real macOS — please report
+results); Linux needs libsecret and `secret-tool` plus an unlocked Secret Service
+(verified with mocks only); Windows uses Credential Manager through PowerShell's
+`PasswordVault`. Login writes the selected account to the keychain, and the
+server reads it there. Explicit keychain selection never reads the encrypted
+file as a fallback. The keychain helps against other OS users, copied disks,
+and some malware limited to file access. Code running as your user can usually
+query the keychain. Keep the OS account and running code trusted.
+On Linux, `secret-tool lookup` can exit 1 without an error message for either
+an absent entry or a locked keyring. Named writes without `--force` search and
+unlock first, and refuse overwrites when an entry is found.
 
 #### Named profiles and migration
 
@@ -114,6 +128,9 @@ npx substack-mcp login https://yourblog.substack.com --user-id 12345 --profile w
 npx substack-mcp profiles list
 # Copy an existing legacy session without changing its file:
 npx substack-mcp profiles migrate --name personal
+# Copy a file session or named file profile into the keychain; source remains:
+npx substack-mcp profiles migrate --to keychain
+npx substack-mcp profiles migrate --to keychain --name work
 ```
 
 Keys start with a lowercase ASCII letter and contain only lowercase letters,
@@ -139,7 +156,8 @@ publication key and CLI reads require `--publication`.
 
 To roll back, unset `SUBSTACK_PROFILES` and restore your previous environment
 configuration. Migration preserves the legacy session byte-for-byte. These files
-use the existing encryption format; an OS keychain is not currently supported.
+use the existing encryption format. `profiles list` lists file profiles; select
+keychain profiles explicitly with `SUBSTACK_PROFILES` after migration or login.
 Run `substack-mcp status --json` for offline configuration diagnostics or
 `substack-mcp doctor --check-auth --json` for a bounded read per selected account.
 
@@ -231,6 +249,7 @@ authoritative wording.
 |------|-------------|
 | `get_subscriber_count` | Get your publication's current subscriber count |
 | `list_subscribers` | Read a bounded page of private subscriber records |
+| `search_subscribers` | Filter and page private subscriber records; optional activity, date, flags and revenue fields |
 | `get_subscriber` | Look up membership by exact email; reconcile pending additions |
 | `list_published_posts` | List published posts with pagination |
 | `get_publication` | Read projected publication identity/settings, verify the configured host, and report missing fields; does not verify account identity or role |
@@ -247,7 +266,39 @@ authoritative wording.
 | `get_sections` | List your publication's sections (categories) with their IDs |
 | `get_post_analytics` | Get a published post's stats (views, opens, signups, subscribes, reactions) by ID |
 | `rank_posts` | [Rank posts](docs/analytics-rankings.md) by views, opens, sends, rates, signups, subscribes, estimated value or date, keeping null and missing values distinct |
+| `get_publication_stats` | [Read dashboard summary and ranged publication metrics](docs/analytics-rankings.md), with missing and unavailable states |
+| `get_growth_sources` | [Read bounded growth source attribution](docs/analytics-rankings.md) and optional events |
 | `list_scheduled_posts` | List posts scheduled for future publication (read-only; scheduling stays in Substack's editor) |
+| `get_user_profile` | Read a minimal public user profile by handle, anonymously |
+| `get_profile_feed` | Read one public profile feed page with cursor continuation, anonymously |
+| `get_note_thread` | Read a public Note, ancestors and one replies page, anonymously |
+| `list_public_posts` | Read a bounded public archive page, anonymously |
+| `get_public_post` | Read an anonymous public post by URL with body status and truncation flags |
+
+### Public reading
+
+These five tools use a separate anonymous reader. It sends only `User-Agent` and
+`Accept`, never the configured publication cookie or other credentials. The
+configured publication selects the default archive origin; callers may supply an
+allowlisted HTTPS publication origin. Allowed hosts are `substack.com`, one-label
+`*.substack.com`, configured publication origins, and exact origins in
+`SUBSTACK_PUBLIC_READ_ORIGINS` (comma-separated HTTPS origins without ports,
+paths or userinfo). Redirects are rejected. A `*.substack.com` publication may
+redirect to its custom domain (for example, `lenny.substack.com`); JSON reads do
+not follow that redirect. Add the custom HTTPS origin to
+`SUBSTACK_PUBLIC_READ_ORIGINS` and read through that origin. With multiple
+publications, the `publication` key remains required for every tool.
+
+Profile feed pages are upstream-sized; `has_more: null` means the upstream omitted
+continuation metadata. Thread pages can omit replies when `more_branches` or
+`next_cursor` is present; `completeness: "unknown"` means continuation metadata
+was omitted.
+Archive full pages have `has_more: null` because no total is returned. Public
+post `body_status` is a heuristic based on audience and body presence; it does
+not establish full access. The anonymous reader does not use subscription
+entitlements. Reader subscriptions and inbox are unsupported: the configured
+publication session received 401 on the `substack.com` reader-account routes,
+which require a separate reader session this server does not manage.
 
 ### Archive search and draft review
 
@@ -280,6 +331,7 @@ Both tools require `publication` when multiple publications are configured.
 |------|-------------|
 | `create_draft` | Create a new draft from markdown (private) |
 | `update_draft` | Apply a reviewed change receipt; recheck unpublished state and report readback outcomes |
+| `update_draft_tags` | [Plan or change draft tags](docs/draft-tags.md); dry-run by default, draft-only, with one readback after writes |
 | `upload_image` | Upload an image to Substack's CDN from a file, data URI or [public HTTPS URL](docs/remote-images.md) — returns a publicly-fetchable (unlisted) URL |
 
 ### Review before changing a draft
@@ -381,6 +433,9 @@ Don't mix the two styles: if any `SUBSTACK_PUB_<KEY>_*` var is set, the plain `S
 Substack session tokens expire periodically (typically ~90 days). If you get authentication errors, grab a fresh `connect.sid` cookie from your browser and update the env var (make sure ad blockers are disabled when copying the cookie) — or, if you used the browser login, just re-run `substack-mcp-login` to refresh the stored session.
 
 ## Custom domains & Cloudflare
+
+This section covers authenticated creator API calls. Anonymous public reading
+uses the [public reading](#public-reading) origin rules above.
 
 Substack publications served on a custom domain (e.g. `blog.example.com`) sit behind Cloudflare, which can reject non-browser requests with `403 error code: 1010`. To avoid this, the server sends a browser `User-Agent` and a `Referer` by default, and addresses the publication by its canonical `*.substack.com` host.
 

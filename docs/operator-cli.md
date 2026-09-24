@@ -65,6 +65,24 @@ substack-mcp doctor --json --check-auth
 ```
 
 `doctor` uses the same environment/stored-session resolution as the server.
+`doctor --json` reports `credential_store` (`file` or `keychain`) and
+`keychain_cli` (`reachable`, `unavailable`, or `not_selected`). Reachable means
+the CLI answered a probe; it does not prove the keyring is unlocked. Set
+`SUBSTACK_CREDENTIAL_STORE=keychain` for login,
+doctor and the server to use the OS keychain; the default remains the
+machine-bound encrypted file, not a vault. macOS uses `/usr/bin/security`
+(implemented, not yet verified on real macOS — please report results). The
+write command sends hexadecimal password data through `security -i` stdin;
+readback normally prints decoded JSON, and the reader also accepts hex output.
+Linux requires libsecret/`secret-tool` and an unlocked Secret Service (verified
+with mocks only). A `secret-tool lookup` exit 1 with empty stderr can mean a
+locked keyring or an absent entry; a named write without `--force` runs
+`secret-tool search --unlock` to check for an existing item. Windows uses
+Windows uses Credential Manager through PowerShell. To copy file credentials
+without deleting them, run `profiles migrate --to keychain` for the legacy
+session or add `--name key` for a named file profile. Keychain storage protects
+against other users and copied disks, but code running as your OS user can
+usually read it. Explicit keychain selection never falls back to file storage.
 Both validate an HTTPS publication origin, a positive safe-integer user ID
 containing only digits, and an unquoted cookie value without whitespace or
 cookie separators. Invalid configuration stops server startup before requests.

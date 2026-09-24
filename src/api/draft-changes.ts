@@ -168,7 +168,7 @@ function parseSnapshot(raw: unknown, draftId: number, publicationId: number): Sn
   if (parsed.data.publication_id !== publicationId) throw new DraftChangeError("publication_mismatch");
   return parsed.data;
 }
-function requireEditable(snapshot: Snapshot) {
+export function requireEditable(snapshot: Pick<Snapshot, "is_published" | "is_scheduled" | "trigger_at" | "scheduled_at" | "email_sent_at" | "published_at">) {
   if (snapshot.is_published !== false) throw new DraftChangeError("published_draft");
   if (snapshot.is_scheduled === true || stateFields.filter(key => key !== "is_scheduled").some(key => snapshot[key] != null)) throw new DraftChangeError("scheduled_draft");
 }

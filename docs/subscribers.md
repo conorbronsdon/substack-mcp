@@ -22,6 +22,12 @@ The response includes `subscribers`, `count`, and a potentially stale
 The field `is_subscribed` represents paid-content access, **not** free newsletter
 membership, and is intentionally omitted from tool output.
 
+### Segmentation
+
+`search_subscribers` performs one authenticated, read-only subscriber-stats request per page. It accepts a 1–50 row `limit` (default 10), `offset`, `subscription_types` (`free`, `paid`, `comp`), activity rating bounds (0–5), inclusive creation-date bounds (`YYYY-MM-DD`), a trimmed name/email `search` term, and `sort` (`created_desc` by default, `created_asc`, `activity_desc`, `activity_asc`). Filters and sorting run on Substack's side. The result echoes `applied_filters`, `total_matching`, `returned`, `has_more` and `next_offset`. `total_matching` is Substack's count at read time; dashboard data can lag writes and pages are not a snapshot.
+
+The default row includes only email, subscription ID and interval. Request `include` groups to add `activity_rating`, `created_at`, `flags` (comp, founding, gift, free trial), or `revenue`. Names, photos, user IDs, chart counts, imports and batch actions are never returned. The tool rejects upstream HTTP 400 as `filter_rejected`, malformed or oversized responses, and checkable rows that contradict requested filters as `filter_not_honored`. Search matching and paid/free classification cannot be independently verified from every returned row; they are Substack's filtering claims. `list_subscribers` and exact-email `get_subscriber` keep their original contracts.
+
 ## Write
 
 `POST /api/v1/subscriber/add` uses:

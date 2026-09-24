@@ -11,6 +11,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [1.3.0] - 2026-09-23
 
 ### Added
+- `search_subscribers` filters and pages private subscribers with optional activity, creation date, flags and revenue projections (#52).
 - `get_publication_stats` reads dashboard summary and trailing-window analytics with per-metric
   unit, window, source and missing-state labels. Dashboard open rate is 0–100; per-post rates stay
   0–1. A failed endpoint group is reported unavailable, never zero-filled (#52).

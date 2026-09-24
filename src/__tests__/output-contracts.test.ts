@@ -21,8 +21,8 @@ describe("stable output contracts", () => {
       const c = await connected(multi);
       try {
         const tools = (await c.client.listTools()).tools;
-        expect(tools).toHaveLength(33);
-        expect(tools.filter(t => t.outputSchema)).toHaveLength(29);
+        expect(tools).toHaveLength(34);
+        expect(tools.filter(t => t.outputSchema)).toHaveLength(30);
         expect(tools.map(t => ({ name: t.name, inputSchema: t.inputSchema, outputSchema: t.outputSchema ?? null, annotations: t.annotations })).sort((a,b) => a.name.localeCompare(b.name))).toMatchSnapshot(multi ? "multiple publications" : "one publication");
       } finally { await c.close(); }
     }

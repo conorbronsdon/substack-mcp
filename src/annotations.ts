@@ -75,6 +75,7 @@ export const TOOL_KINDS = {
   plan_draft_update: "read",
   get_subscriber_count: "read",
   list_subscribers: "read",
+  search_subscribers: "read",
   get_subscriber: "read",
   add_free_subscriber: "subscriber-write",
   list_published_posts: "read",

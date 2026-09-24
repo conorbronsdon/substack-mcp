@@ -1,0 +1,65 @@
+name: Keychain live round trips
+
+on:
+  pull_request:
+    paths:
+      - src/auth/keychain.ts
+      - scripts/keychain-live.mjs
+      - .github/workflows/keychain.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Secret Service tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnome-keyring libsecret-tools dbus-x11
+      - name: Exercise Linux keyring
+        run: dbus-run-session -- bash -c 'set -euo pipefail; echo -n example-ci-password | gnome-keyring-daemon --unlock --components=secrets >/dev/null; npm run build && node scripts/keychain-live.mjs'
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Create temporary keychain
+        run: |
+          security create-keychain -p example-ci-password ci.keychain
+          security default-keychain -s ci.keychain
+          security unlock-keychain -p example-ci-password ci.keychain
+          security set-keychain-settings ci.keychain
+      - name: Exercise macOS Keychain
+        run: npm run build && node scripts/keychain-live.mjs
+      - name: Delete temporary keychain
+        if: always()
+        run: security delete-keychain ci.keychain
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Exercise Windows PasswordVault
+        run: npm run build && node scripts/keychain-live.mjs

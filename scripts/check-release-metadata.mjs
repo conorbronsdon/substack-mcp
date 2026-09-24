@@ -8,6 +8,8 @@ const plugin = readJson('.codex-plugin/plugin.json');
 const mcp = readJson('.mcp.json');
 const claude = readJson('.claude-plugin/plugin.json');
 const marketplace = readJson('.claude-plugin/marketplace.json');
+const containerGuide = readFileSync('docs/containers.md', 'utf8');
+const containerTags = [...containerGuide.matchAll(/ghcr\.io\/conorbronsdon\/substack-mcp:([0-9][^\s]*)/g)];
 
 const errors = [];
 const requireEqual = (source, actual, expected) => {
@@ -44,6 +46,10 @@ requireEqual('.claude-plugin/marketplace.json name', marketplace.plugins?.[0]?.n
 requireEqual('.claude-plugin/marketplace.json source', marketplace.plugins?.[0]?.source, './');
 requireEqual('.mcp.json launcher', JSON.stringify(mcp.mcpServers?.substack?.args),
   JSON.stringify(['-y', `${pkg.name}@${pkg.version}`]));
+requireEqual('docs/containers.md current image example count', containerTags.length, 3);
+containerTags.forEach((match, index) => {
+  requireEqual(`docs/containers.md image example ${index + 1}`, match[1], pkg.version);
+});
 
 if (!Array.isArray(server.packages) || server.packages.length === 0) {
   errors.push('server.json packages must contain at least one package');

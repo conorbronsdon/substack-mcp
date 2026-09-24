@@ -6,9 +6,15 @@ const plugin = JSON.parse(readFileSync('.codex-plugin/plugin.json', 'utf8'));
 const mcp = JSON.parse(readFileSync('.mcp.json', 'utf8'));
 const claude = JSON.parse(readFileSync('.claude-plugin/plugin.json', 'utf8'));
 const marketplace = JSON.parse(readFileSync('.claude-plugin/marketplace.json', 'utf8'));
+const containerGuide = readFileSync('docs/containers.md', 'utf8');
+const imageTagPattern = /ghcr\.io\/conorbronsdon\/substack-mcp:([0-9][^\s]*)/g;
+const containerTags = [...containerGuide.matchAll(imageTagPattern)];
 
 if (!mcp.mcpServers?.substack || typeof mcp.mcpServers.substack !== 'object') {
   throw new Error('.mcp.json must contain the substack server before release synchronization');
+}
+if (containerTags.length !== 3) {
+  throw new Error(`docs/containers.md must contain three current image examples; found ${containerTags.length}`);
 }
 
 server.name = pkg.mcpName;
@@ -27,4 +33,6 @@ writeFileSync('.claude-plugin/marketplace.json', `${JSON.stringify(marketplace, 
 mcp.mcpServers.substack.args = ['-y', `${pkg.name}@${pkg.version}`];
 writeFileSync('.codex-plugin/plugin.json', `${JSON.stringify(plugin, null, 2)}\n`);
 writeFileSync('.mcp.json', `${JSON.stringify(mcp, null, 2)}\n`);
+writeFileSync('docs/containers.md', containerGuide.replace(imageTagPattern,
+  `ghcr.io/conorbronsdon/substack-mcp:${pkg.version}`));
 console.log(`Synchronized server.json for ${pkg.name}@${pkg.version}.`);

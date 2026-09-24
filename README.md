@@ -249,6 +249,7 @@ authoritative wording.
 |------|-------------|
 | `get_subscriber_count` | Get your publication's current subscriber count |
 | `list_subscribers` | Read a bounded page of private subscriber records |
+| `search_subscribers` | Filter and page private subscriber records; optional activity, date, flags and revenue fields |
 | `get_subscriber` | Look up membership by exact email; reconcile pending additions |
 | `list_published_posts` | List published posts with pagination |
 | `get_publication` | Read projected publication identity/settings, verify the configured host, and report missing fields; does not verify account identity or role |

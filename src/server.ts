@@ -1,4 +1,4 @@
-import { contractRegistrar } from "./output-contracts.js";
+import { contractRegistrar, objectOutputSchemas } from "./output-contracts.js";
 import packageMetadata from "../package.json" with { type: "json" };
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -8,7 +8,7 @@ import {
   ANALYTICS_SCAN_DEPTH,
 } from "./api/client.js";
 import { buildAnnotations } from "./annotations.js";
-import { consentEvidenceSchema, type ConsentEvidence } from "./api/subscribers.js";
+import { consentEvidenceSchema, subscriberSearchInput, SubscriberSearchError, type ConsentEvidence } from "./api/subscribers.js";
 import { convertMarkdown, type MarkdownConversion } from "./utils/markdown-to-prosemirror.js";
 import { fileToDataUri } from "./utils/image.js";
 import { RemoteImageError, type RemoteImageFetcher } from "./utils/remote-image-errors.js";
@@ -287,6 +287,28 @@ export function createServer(publications: PublicationConfig[], options: ServerO
   }, async ({ offset, limit, publication }: { offset: number; limit: number; publication?: string }) => ({
     content: [{ type: "text", text: JSON.stringify(await clientFor(publication).subscribers.list(offset, limit)) }],
   }));
+
+  registerTool("search_subscribers", {
+    description: "Read one page of private subscriber data with Substack-side filters and sorting. One authenticated read, no writes; 1–50 rows (default 10). Returns email, subscription ID and interval by default; include selects extra fields. total_matching is Substack's count at read time; dashboard data may lag writes and pagination is not a snapshot. Search matching is controlled by Substack, and a result does not prove all current subscribers were captured.",
+    inputSchema: subscriberSearchInput.innerType().extend({
+      created_before: z.string().optional().describe("YYYY-MM-DD, exclusive: created before the start of this date; Substack's day boundary timezone is not verified"),
+      created_on_or_after: z.string().optional().describe("YYYY-MM-DD, created on or after this date"),
+    }).extend(publicationField()).strict(),
+    outputSchema: objectOutputSchemas.search_subscribers.shape,
+    annotations: buildAnnotations("search_subscribers"),
+  }, async ({ publication, ...input }) => {
+    try {
+      const result = await clientFor(publication).subscribers.search(input);
+      return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fields = [...new Set(error.issues.map(issue => String(issue.path[0] ?? "input")))];
+        return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: "invalid_input", fields, message: `Invalid subscriber search input: ${fields.join(", ")}. No fetches or writes were attempted.` }) }] };
+      }
+      if (!(error instanceof SubscriberSearchError)) throw error;
+      return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: error.code, status: error.statusCode, message: "Subscriber search failed verification. No subscriber data was returned; no writes were attempted." }) }] };
+    }
+  });
 
   registerTool("get_subscriber", {
     description: "Look up a subscriber by exact email address. A listed free subscriber is a member even without paid access. Absence does not prove the address is eligible: Substack may suppress previous unsubscribes, and dashboard data can lag. Read-only; use to reconcile uncertain adds.",

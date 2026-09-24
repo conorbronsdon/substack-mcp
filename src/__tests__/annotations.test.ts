@@ -37,6 +37,7 @@ const READ_TOOLS: ToolName[] = [
   "plan_draft_update",
   "get_subscriber_count",
   "list_subscribers",
+  "search_subscribers",
   "get_subscriber",
   "list_published_posts",
   "list_drafts",

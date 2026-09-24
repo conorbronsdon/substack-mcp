@@ -23,22 +23,29 @@ export const subscriberSearchInput = z.object({
   subscription_types: z.array(z.enum(["free", "paid", "comp"])).min(1).max(3).refine(values => new Set(values).size === values.length).optional(),
   activity_rating_min: z.number().int().min(0).max(5).optional(),
   activity_rating_max: z.number().int().min(0).max(5).optional(),
-  created_on_or_before: date.optional(), created_on_or_after: date.optional(),
+  created_before: date.optional().describe("YYYY-MM-DD, exclusive: created before the start of this date; Substack's day boundary timezone is not verified"),
+  created_on_or_after: date.optional().describe("YYYY-MM-DD, created on or after this date"),
   search: z.string().trim().min(1).max(200).optional(),
   sort: z.enum(["created_desc", "created_asc", "activity_desc", "activity_asc"]).default("created_desc"),
   offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER - 50).default(0),
   limit: z.number().int().min(1).max(50).default(10),
   include: z.array(z.enum(["activity_rating", "created_at", "flags", "revenue"])).max(4).refine(values => new Set(values).size === values.length).default([]),
-}).strict().refine(value => value.activity_rating_min === undefined || value.activity_rating_max === undefined || value.activity_rating_min <= value.activity_rating_max)
-  .refine(value => value.created_on_or_after === undefined || value.created_on_or_before === undefined || value.created_on_or_after <= value.created_on_or_before);
+}).strict().superRefine((value, ctx) => {
+  if (value.activity_rating_min !== undefined && value.activity_rating_max !== undefined && value.activity_rating_min > value.activity_rating_max) {
+    for (const field of ["activity_rating_min", "activity_rating_max"]) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: "Activity rating minimum must not exceed maximum." });
+  }
+  if (value.created_on_or_after !== undefined && value.created_before !== undefined && value.created_on_or_after >= value.created_before) {
+    for (const field of ["created_on_or_after", "created_before"]) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: "created_on_or_after must be earlier than created_before." });
+  }
+});
 export type SubscriberSearchInput = z.input<typeof subscriberSearchInput>;
 
 const searchRow = rowSchema.extend({
   subscription_interval: z.string().max(40).nullable(),
-  activity_rating: z.number().finite(),
-  subscription_created_at: z.string().datetime({ offset: true }).max(40),
-  total_revenue_generated: z.number().finite(),
-  is_comp: z.boolean(), is_founding: z.boolean(), is_gift: z.boolean(), is_free_trial: z.boolean(),
+  activity_rating: z.number().finite().nullable(),
+  subscription_created_at: z.string().datetime({ offset: true }).max(40).nullable(),
+  total_revenue_generated: z.number().finite().nullable(),
+  is_comp: z.boolean().nullable(), is_founding: z.boolean().nullable(), is_gift: z.boolean().nullable(), is_free_trial: z.boolean().nullable(),
 });
 const searchPage = z.object({ count: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER), subscribers: z.array(searchRow).max(50) });
 export class SubscriberSearchError extends SubstackAPIError {
@@ -100,7 +107,7 @@ export class SubscriberService {
     }
     if (args.activity_rating_min !== undefined) filters.activity_rating_gte = args.activity_rating_min;
     if (args.activity_rating_max !== undefined) filters.activity_rating_lte = args.activity_rating_max;
-    if (args.created_on_or_before) filters.subscription_created_at_is_on_or_before = args.created_on_or_before;
+    if (args.created_before) filters.subscription_created_at_is_on_or_before = args.created_before;
     if (args.created_on_or_after) filters.subscription_created_at_gte = args.created_on_or_after;
     if (args.search) filters.search = args.search;
     let raw: unknown;
@@ -115,12 +122,17 @@ export class SubscriberService {
     const end = args.offset + subscribers.length;
     if (subscribers.length > args.limit || (subscribers.length > 0 && end > count) || (end < count && subscribers.length === 0)) throw new SubscriberSearchError("invalid_subscriber_response");
     for (const row of subscribers) {
-      if ((args.activity_rating_min !== undefined && row.activity_rating < args.activity_rating_min)
-        || (args.activity_rating_max !== undefined && row.activity_rating > args.activity_rating_max)
-        || (args.created_on_or_after !== undefined && row.subscription_created_at.slice(0, 10) < args.created_on_or_after)
-        || (args.created_on_or_before !== undefined && row.subscription_created_at.slice(0, 10) > args.created_on_or_before)
-        || (args.subscription_types?.length === 1 && args.subscription_types[0] === "comp" && !row.is_comp)
-        || (args.subscription_types !== undefined && !args.subscription_types.includes("comp") && row.is_comp)) throw new SubscriberSearchError("filter_not_honored");
+      // Substack's date boundary timezone is unknown. Only contradict timestamps
+      // that are at least fourteen hours outside the requested UTC boundary.
+      const createdAt = row.subscription_created_at === null ? null : Date.parse(row.subscription_created_at.replace(/(\.\d{3})\d+/, "$1"));
+      if ((args.activity_rating_min !== undefined && (row.activity_rating === null || row.activity_rating < args.activity_rating_min))
+        || (args.activity_rating_max !== undefined && (row.activity_rating === null || row.activity_rating > args.activity_rating_max))
+        || (args.created_on_or_after !== undefined && (createdAt === null || !Number.isFinite(createdAt) || createdAt < Date.parse(`${args.created_on_or_after}T00:00:00Z`) - 14 * 60 * 60 * 1000))
+        || (args.created_before !== undefined && (createdAt === null || !Number.isFinite(createdAt) || createdAt >= Date.parse(`${args.created_before}T00:00:00Z`) + 14 * 60 * 60 * 1000))
+        || (args.subscription_types?.length === 1 && args.subscription_types[0] === "free" && row.subscription_interval !== "free")
+        || (args.subscription_types !== undefined && !args.subscription_types.includes("free") && (row.subscription_interval === null || row.subscription_interval === "free"))
+        || (args.subscription_types?.length === 1 && args.subscription_types[0] === "comp" && row.is_comp !== true)
+        || (args.subscription_types !== undefined && !args.subscription_types.includes("comp") && row.is_comp !== false)) throw new SubscriberSearchError("filter_not_honored");
     }
     const has_more = end < count;
     return {

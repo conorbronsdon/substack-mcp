@@ -4486,11 +4486,12 @@ exports[`stable output contracts > classifies any public schema drift as potenti
           "minimum": 0,
           "type": "integer",
         },
-        "created_on_or_after": {
-          "$ref": "#/properties/created_on_or_before",
+        "created_before": {
+          "description": "YYYY-MM-DD, exclusive: created before the start of this date; Substack's day boundary timezone is not verified",
+          "type": "string",
         },
-        "created_on_or_before": {
-          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "created_on_or_after": {
+          "description": "YYYY-MM-DD, created on or after this date",
           "type": "string",
         },
         "include": {
@@ -4629,25 +4630,54 @@ exports[`stable output contracts > classifies any public schema drift as potenti
             "additionalProperties": false,
             "properties": {
               "activity_rating": {
-                "type": "number",
+                "anyOf": [
+                  {
+                    "type": "number",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
               },
               "created_at": {
-                "$ref": "#/properties/applied_filters/additionalProperties/anyOf/0",
+                "type": [
+                  "string",
+                  "null",
+                ],
               },
               "is_comp": {
-                "type": "boolean",
+                "type": [
+                  "boolean",
+                  "null",
+                ],
               },
               "is_founding": {
-                "type": "boolean",
+                "type": [
+                  "boolean",
+                  "null",
+                ],
               },
               "is_free_trial": {
-                "type": "boolean",
+                "type": [
+                  "boolean",
+                  "null",
+                ],
               },
               "is_gift": {
-                "type": "boolean",
+                "type": [
+                  "boolean",
+                  "null",
+                ],
               },
               "revenue": {
-                "type": "number",
+                "anyOf": [
+                  {
+                    "type": "number",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
               },
               "subscription_id": {
                 "exclusiveMinimum": 0,
@@ -9343,11 +9373,12 @@ exports[`stable output contracts > classifies any public schema drift as potenti
           "minimum": 0,
           "type": "integer",
         },
-        "created_on_or_after": {
-          "$ref": "#/properties/created_on_or_before",
+        "created_before": {
+          "description": "YYYY-MM-DD, exclusive: created before the start of this date; Substack's day boundary timezone is not verified",
+          "type": "string",
         },
-        "created_on_or_before": {
-          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "created_on_or_after": {
+          "description": "YYYY-MM-DD, created on or after this date",
           "type": "string",
         },
         "include": {
@@ -9475,25 +9506,54 @@ exports[`stable output contracts > classifies any public schema drift as potenti
             "additionalProperties": false,
             "properties": {
               "activity_rating": {
-                "type": "number",
+                "anyOf": [
+                  {
+                    "type": "number",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
               },
               "created_at": {
-                "$ref": "#/properties/applied_filters/additionalProperties/anyOf/0",
+                "type": [
+                  "string",
+                  "null",
+                ],
               },
               "is_comp": {
-                "type": "boolean",
+                "type": [
+                  "boolean",
+                  "null",
+                ],
               },
               "is_founding": {
-                "type": "boolean",
+                "type": [
+                  "boolean",
+                  "null",
+                ],
               },
               "is_free_trial": {
-                "type": "boolean",
+                "type": [
+                  "boolean",
+                  "null",
+                ],
               },
               "is_gift": {
-                "type": "boolean",
+                "type": [
+                  "boolean",
+                  "null",
+                ],
               },
               "revenue": {
-                "type": "number",
+                "anyOf": [
+                  {
+                    "type": "number",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
               },
               "subscription_id": {
                 "exclusiveMinimum": 0,

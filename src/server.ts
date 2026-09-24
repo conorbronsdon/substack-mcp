@@ -290,7 +290,10 @@ export function createServer(publications: PublicationConfig[], options: ServerO
 
   registerTool("search_subscribers", {
     description: "Read one page of private subscriber data with Substack-side filters and sorting. One authenticated read, no writes; 1–50 rows (default 10). Returns email, subscription ID and interval by default; include selects extra fields. total_matching is Substack's count at read time; dashboard data may lag writes and pagination is not a snapshot. Search matching is controlled by Substack, and a result does not prove all current subscribers were captured.",
-    inputSchema: subscriberSearchInput.innerType().innerType().extend(publicationField()).strict(),
+    inputSchema: subscriberSearchInput.innerType().extend({
+      created_before: z.string().optional().describe("YYYY-MM-DD, exclusive: created before the start of this date; Substack's day boundary timezone is not verified"),
+      created_on_or_after: z.string().optional().describe("YYYY-MM-DD, created on or after this date"),
+    }).extend(publicationField()).strict(),
     outputSchema: objectOutputSchemas.search_subscribers.shape,
     annotations: buildAnnotations("search_subscribers"),
   }, async ({ publication, ...input }) => {
@@ -298,6 +301,10 @@ export function createServer(publications: PublicationConfig[], options: ServerO
       const result = await clientFor(publication).subscribers.search(input);
       return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fields = [...new Set(error.issues.map(issue => String(issue.path[0] ?? "input")))];
+        return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: "invalid_input", fields, message: `Invalid subscriber search input: ${fields.join(", ")}. No fetches or writes were attempted.` }) }] };
+      }
       if (!(error instanceof SubscriberSearchError)) throw error;
       return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: error.code, status: error.statusCode, message: "Subscriber search failed verification. No subscriber data was returned; no writes were attempted." }) }] };
     }

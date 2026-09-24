@@ -8,6 +8,8 @@ import { loadSession, saveSession } from "../auth/session-store.js";
 import { resolvePublications } from "../auth/resolve-publications.js";
 import { runProfiles } from "../profiles-cli.js";
 import { createKeychain } from "../auth/keychain.js";
+import { doctor } from "../doctor.js";
+import { runStatus } from "../operator-cli.js";
 
 vi.mock("node:fs", async importOriginal => {
   const actual = await importOriginal<typeof import("node:fs")>();
@@ -72,8 +74,23 @@ describe("named profile storage", () => {
     expect(resolvePublications({ SUBSTACK_PROFILES: "work,other" }).map(p => [p.key, p.publicationUrl])).toEqual([["work", sample.publicationUrl], ["other", "https://other.substack.com"]]);
     expect(resolvePublications({})[0]).toMatchObject({ key: "default", ...sample }); expect(loadSession()).toMatchObject(sample);
   });
+  it.each(["", "  \t  "])('treats blank SUBSTACK_PROFILES %j as unset for server configuration, doctor and CLI', async raw => {
+    saveSession(sample);
+    const legacy = () => ({ ...sample, savedAt: new Date().toISOString() });
+    expect(resolvePublications({ SUBSTACK_PROFILES: raw }, legacy)).toEqual(resolvePublications({}, legacy));
+    vi.stubEnv("SUBSTACK_PROFILES", undefined);
+    const baseline = await doctor();
+    const baselineOutput = { out: vi.fn(), error: vi.fn() };
+    expect(await runStatus(["--json"], undefined, baselineOutput)).toBe(0);
+    vi.stubEnv("SUBSTACK_PROFILES", raw);
+    expect(await doctor()).toEqual(baseline);
+    const output = { out: vi.fn(), error: vi.fn() };
+    expect(await runStatus(["--json"], undefined, output)).toBe(0);
+    expect(JSON.parse(output.out.mock.calls[0][0])).toEqual(JSON.parse(baselineOutput.out.mock.calls[0][0]));
+    expect(output.error).not.toHaveBeenCalled();
+  });
   it.each([
-    { SUBSTACK_PROFILES: "" }, { SUBSTACK_PROFILES: "work,work" }, { SUBSTACK_PROFILES: "work, other" },
+    { SUBSTACK_PROFILES: "work,work" }, { SUBSTACK_PROFILES: "work, other" }, { SUBSTACK_PROFILES: "work,,other" },
     { SUBSTACK_PROFILES: "missing" }, { SUBSTACK_PROFILES: "work", SUBSTACK_PUBLICATION_URL: "" },
     { SUBSTACK_PROFILES: "work", SUBSTACK_PUB_OTHER_USER_ID: "1" },
   ])("never falls back or combines explicit profile mode with credential env vars: %j", env => {

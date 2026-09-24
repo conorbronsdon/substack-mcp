@@ -12,6 +12,9 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 - A synthetic analytics-to-draft example that preserves metric provenance,
   missing-value states and ranking coverage in a private draft for review (#66).
 
+### Fixed
+- Empty or whitespace-only `SUBSTACK_PROFILES` now uses the legacy configuration path, as when the variable is unset; empty entries within a profile list remain invalid.
+
 ## [1.3.0] - 2026-09-23
 
 ### Added

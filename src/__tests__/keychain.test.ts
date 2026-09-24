@@ -95,6 +95,14 @@ describe("opt-in keychain", () => {
     await expect(resolveSelectedPublications({ ...env, SUBSTACK_PROFILES: "first,wrong" }, keychain)).rejects.toThrow(/no fallback/);
     await expect(resolveSelectedPublications({ ...env, SUBSTACK_PROFILES: "first,second", SUBSTACK_PUB_THIRD_USER_ID: "42" }, keychain)).rejects.toThrow(/cannot be combined/);
   });
+  it.each(["", " \t "])('treats blank SUBSTACK_PROFILES %j as unset with keychain storage', async raw => {
+    const { keychain } = fake("linux");
+    await keychain.write("default", sample);
+    const env = { SUBSTACK_CREDENTIAL_STORE: "keychain" };
+    expect(await resolveSelectedPublications({ ...env, SUBSTACK_PROFILES: raw }, keychain))
+      .toEqual(await resolveSelectedPublications(env, keychain));
+    await expect(resolveSelectedPublications({ ...env, SUBSTACK_PROFILES: "a,,b" }, keychain)).rejects.toThrow(/Profile keys/);
+  });
   it("does not query keychain for complete named environment credentials", async () => {
     const keychain = createKeychain("linux", async () => { throw new Error("keychain should not be queried"); });
     const result = await resolveSelectedPublications({

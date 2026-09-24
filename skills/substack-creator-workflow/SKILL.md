@@ -35,3 +35,9 @@ Prefer structured object results when present; matching text JSON remains
 available. Legacy array tools return text JSON arrays. Respect count precision,
 pagination/completeness and response limits. Report what actually succeeded,
 including unresolved conflicts or limitations, without exposing credentials.
+
+## Analytics to draft
+
+For a bounded, provenance-preserving analytics example that ends with a private
+draft for human review, follow [analytics to draft](../../docs/analytics-to-draft.md).
+Keep missing metrics and incomplete ranking coverage explicit.

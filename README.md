@@ -30,7 +30,7 @@ This server imposes no Bestseller-status check. Use an authenticated account wit
 
 For 1.0 setup coverage and account eligibility, see [compatibility](docs/compatibility.md). Maintainers can use the [release checklist](docs/release-checklist.md) and [distribution inventory](docs/distribution.md).
 
-**Contents:** [Quick start](#quick-start) · [Setup](#setup) · [Tools](#tools) · [Operator CLI](docs/operator-cli.md) · [Draft workflow](docs/workflow.md) · [Export](docs/export.md) · [Markdown](docs/authoring.md) · [Multiple publications](#multiple-publications) · [Transports](docs/http-transport.md) · [Compatibility](docs/compatibility.md)
+**Contents:** [Quick start](#quick-start) · [Setup](#setup) · [Tools](#tools) · [Operator CLI](docs/operator-cli.md) · [Draft workflow](docs/workflow.md) · [Analytics to draft](docs/analytics-to-draft.md) · [Export](docs/export.md) · [Markdown](docs/authoring.md) · [Multiple publications](#multiple-publications) · [Transports](docs/http-transport.md) · [Compatibility](docs/compatibility.md)
 
 ## Quick start
 

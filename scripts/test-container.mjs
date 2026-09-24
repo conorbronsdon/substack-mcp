@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import net from 'node:net';
 import { randomUUID } from 'node:crypto';
-import { setTimeout as delay } from 'node:timers/promises';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import pkg from '../package.json' with { type: 'json' };
+import { assertExpectedTools } from './expected-tools.mjs';
+import { waitForHealth } from './container-readiness.mjs';
 
 const [image, revision] = process.argv.slice(2);
 assert.ok(image && !image.startsWith('-'), 'Provide a Docker image reference');
@@ -24,9 +25,7 @@ assert.equal(status.version, pkg.version);
 const catalog = async client => {
   assert.equal(client.getServerVersion().version, pkg.version);
   const { tools } = await client.listTools();
-  assert.equal(tools.length, 34);
-  for (const name of ['get_publication', 'list_drafts', 'plan_draft_update', 'update_draft', 'rank_posts']) assert.ok(tools.some(tool => tool.name === name));
-  for (const name of ['publish_post', 'delete_post', 'schedule_post']) assert.ok(!tools.some(tool => tool.name === name));
+  assertExpectedTools(tools);
 };
 const prefix = `substack-smoke-${randomUUID()}`;
 let stdio, http;
@@ -45,13 +44,7 @@ try {
     '-e', `MCP_HTTP_ALLOWED_HOSTS=127.0.0.1:${port}`, image);
   const url = new URL(`http://127.0.0.1:${port}/mcp`);
   const headers = { Authorization: 'Bearer example-http-token' };
-  let ready = false;
-  for (let i = 0; i < 40; i++) {
-    try { const response = await fetch(new URL('/health', url), { headers, signal: AbortSignal.timeout(1000) }); ready = response.status === 200; await response.arrayBuffer(); if (ready) break; }
-    catch { /* bounded startup polling */ }
-    await delay(250);
-  }
-  assert.ok(ready, 'HTTP container did not become ready');
+  await waitForHealth(url, headers);
   for (const authorization of [undefined, 'Bearer example-wrong-token']) {
     const response = await fetch(url, { method: 'POST', headers: authorization ? { Authorization: authorization } : {}, signal: AbortSignal.timeout(3000) });
     assert.equal(response.status, 401); await response.arrayBuffer();

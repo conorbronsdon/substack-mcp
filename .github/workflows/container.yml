@@ -19,6 +19,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Check container transport controls
+        run: node --test scripts/container-readiness.controls.mjs
       - name: Build versioned image
         run: |
           VERSION=$(node -p "require('./package.json').version")

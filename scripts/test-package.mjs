@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { assertExpectedTools } from './expected-tools.mjs';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const scratch = mkdtempSync(join(tmpdir(), 'substack-package-'));
@@ -17,18 +18,6 @@ const npm = (args, cwd) => execFileSync(process.execPath, [process.env.npm_execp
   // rejects it in a project install. Scripts remain disabled explicitly.
   env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toLowerCase() !== 'npm_config_allow_scripts')),
 });
-const expectedTools = [
-  'export_draft',
-  'add_free_subscriber', 'create_draft', 'create_note', 'create_note_with_link',
-  'get_draft', 'get_post', 'get_post_analytics', 'get_post_comments', 'get_sections',
-  'get_subscriber', 'get_subscriber_count', 'list_drafts', 'list_published_posts',
-  'list_scheduled_posts', 'list_subscribers', 'search_subscribers', 'update_draft', 'update_draft_tags', 'upload_image',
-  'search_posts', 'preflight_draft', 'plan_draft_update',
-  'get_publication',
-  'list_publication_tags', 'get_post_tags', 'rank_posts', 'get_publication_stats', 'get_growth_sources',
-  'get_user_profile', 'get_profile_feed', 'get_note_thread', 'list_public_posts', 'get_public_post',
-].sort();
-
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
   'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/authoring.md', 'docs/export.md', 'docs/analytics-rankings.md', 'docs/remote-images.md', 'docs/draft-changes.md',
   'docs/workflow.md', 'docs/tool-contract.md', 'docs/draft-tags.md', 'docs/plugins.md', 'docs/containers.md',
@@ -37,6 +26,7 @@ let transport;
 try {
   const [packed] = JSON.parse(npm(['pack', '--json', '--ignore-scripts', '--pack-destination', scratch], process.cwd()));
   const paths = new Set(packed.files.map(file => file.path));
+  assert.ok(!paths.has('scripts/expected-tools.mjs'), 'Tool catalog must stay out of the npm package');
   for (const path of requiredFiles) assert.ok(paths.has(path), `Missing package file: ${path}`);
   for (const { path } of packed.files) {
     assert.ok(path.startsWith('dist/') || requiredFiles.includes(path), `Unexpected package file: ${path}`);
@@ -138,7 +128,7 @@ try {
   await client.connect(transport, { timeout: 10_000 });
   assert.equal(client.getServerVersion()?.version, pkg.version, 'MCP handshake version must match npm');
   const { tools } = await client.listTools({}, { timeout: 10_000 });
-  assert.deepEqual(tools.map(tool => tool.name).sort(), expectedTools);
+  assertExpectedTools(tools);
   assert.equal(tools.filter(tool => tool.outputSchema).length, 30, "Object tools must advertise output schemas");
   for (const tool of tools) assert.equal(typeof tool.annotations?.readOnlyHint, 'boolean', `Missing annotation: ${tool.name}`);
   console.log(`Installed ${pkg.name}@${pkg.version}: ${packed.files.length} files, both bins load, handshake version agrees, all ${tools.length} tools present.`);

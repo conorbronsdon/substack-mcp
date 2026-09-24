@@ -106,15 +106,23 @@ function labelFromKey(key: string): string {
     .join(" ");
 }
 
+/** Blank client config fields select the same legacy path as an unset variable. */
+function selectedProfileKeys(env: NodeJS.ProcessEnv): string[] | undefined {
+  const raw = env.SUBSTACK_PROFILES;
+  if (raw === undefined || raw.trim() === "") return undefined;
+  const keys = raw.split(",");
+  if (keys.length > 32 || new Set(keys).size !== keys.length) throw new Error("Select at most 32 distinct profile keys.");
+  keys.forEach(profileKey);
+  return keys;
+}
+
 export function resolvePublications(
   env: NodeJS.ProcessEnv = process.env,
   loader: () => StoredSession | null = loadSession,
   profileLoader: (key: string) => StoredSession = loadProfile,
 ): PublicationCredentials[] {
-  if (env.SUBSTACK_PROFILES !== undefined) {
-    const keys = env.SUBSTACK_PROFILES.split(",");
-    if (keys.length > 32 || new Set(keys).size !== keys.length) throw new Error("Select at most 32 distinct profile keys.");
-    keys.forEach(profileKey);
+  const keys = selectedProfileKeys(env);
+  if (keys !== undefined) {
     if (Object.keys(env).some(key => PUB_PREFIX_RE.test(key) || ["SUBSTACK_PUBLICATION_URL", "SUBSTACK_SESSION_TOKEN", "SUBSTACK_USER_ID"].includes(key))) {
       throw new Error("SUBSTACK_PROFILES cannot be combined with publication credential environment variables. Choose one configuration source.");
     }
@@ -228,10 +236,8 @@ export function resolvePublications(
 /** The synchronous file resolver remains the existing public contract. */
 export async function resolveSelectedPublications(env: NodeJS.ProcessEnv = process.env, keychain = createKeychain()): Promise<PublicationCredentials[]> {
   if (credentialStore(env) === "file") return resolvePublications(env);
-  if (env.SUBSTACK_PROFILES !== undefined) {
-    const keys = env.SUBSTACK_PROFILES.split(",");
-    if (keys.length > 32 || new Set(keys).size !== keys.length) throw new Error("Select at most 32 distinct profile keys.");
-    keys.forEach(profileKey);
+  const keys = selectedProfileKeys(env);
+  if (keys !== undefined) {
     const sessions = new Map(await Promise.all(keys.map(async key => [key, await keychain.read(key)] as const)));
     return resolvePublications(env, () => null, key => {
       const value = sessions.get(key);

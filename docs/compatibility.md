@@ -43,7 +43,8 @@ a desktop bundle needs its own packaging and upgrade verification first.
 commands. Post ranking shipped in 1.2 (`rank_posts`); publication dashboard
 metrics and growth attribution shipped in 1.3 (`get_publication_stats`,
 `get_growth_sources`), and `get_post_analytics` now reads the exact post. Subscriber
-segmentation and bulk subscriber export remain in
+segmentation shipped in 1.3 (`search_subscribers`, live-verified filters only); bulk
+subscriber export remains a separate design decision in
 [#52](https://github.com/conorbronsdon/substack-mcp/issues/52).
 Prioritize additions against concrete creator questions and verifiable endpoint
 behavior as feedback arrives. Newsletter-user feedback is a post-release input,

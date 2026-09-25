@@ -42,7 +42,7 @@ For 1.0 setup coverage and account eligibility, see [compatibility](docs/compati
    npx substack-mcp login https://yourblog.substack.com --user-id 12345
    ```
 
-   Use your own account's user ID. The session is saved only after a bounded
+   Use your own account's user ID ([how to find it](#find-your-account-user-id)). The session is saved only after a bounded
    authenticated read succeeds. To paste credentials instead, see
    [Option B](#option-b--get-your-credentials-manually).
 2. **Verify a read.** `npx substack-mcp doctor --json --check-auth` makes one
@@ -91,7 +91,7 @@ npx substack-mcp login https://yourblog.substack.com --user-id 12345
 ```
 
 `substack-mcp-login` remains a supported alias. Missing publication URL and user
-ID are prompted. Supply your own account's user ID; a post author's byline does
+ID are prompted. Supply your own account's user ID ([steps below](#find-your-account-user-id)); a post author's byline does
 not verify your identity. The browser opens for sign-in, including any CAPTCHA.
 Only a cookie applicable to the publication API is captured, and a bounded
 authenticated read must succeed before saving. This verifies read access, not
@@ -167,8 +167,14 @@ Run `substack-mcp status --json` for offline configuration diagnostics or
 Open your Substack in a browser, then:
 
 1. **Session token:** Navigate to your publication, open DevTools → Application → Cookies → copy the value of `connect.sid` (URL-encoded string starting with `s%3A`)
-2. **User ID:** Use the numeric ID of your signed-in Substack account from your authenticated account data. Do not use a publication post's byline ID: publications can have multiple authors. This server does not independently verify the supplied ID.
+2. **User ID:** Follow [Find your account user ID](#find-your-account-user-id). Do not use a publication post's byline ID: publications can have multiple authors. This server does not independently verify the supplied ID.
 3. **Publication URL:** Your Substack URL, including custom domain if you have one (e.g., `https://newsletter.yourdomain.com` or `https://yourblog.substack.com`)
+
+### Find your account user ID
+
+1. In Substack, open **your own account profile** and copy its handle (the part after `@` in `https://substack.com/@your-handle`). A publication URL or another author's profile is not your account handle.
+2. Open `https://substack.com/api/v1/user/your-handle/public_profile` with that handle substituted. Read the top-level numeric `id` in the JSON response; do not use an ID nested under a publication or post byline. This public profile endpoint is also used by this server's anonymous profile lookup.
+3. Confirm that the response's `handle` and name match the account you will sign in with. Supply the top-level `id` to `login --user-id` or `SUBSTACK_USER_ID`. A public profile lookup identifies the handle you entered; the browser-login read check does **not** prove that the cookie belongs to that ID. Recheck the account before any write operation.
 
 ### 2. Configure your MCP client
 

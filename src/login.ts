@@ -77,7 +77,7 @@ export async function runLogin(args: string[], deps: typeof defaults & { keychai
   let browser: LoginBrowser | undefined;
   try {
     const publicationUrl = options.publicationUrl ?? publicationOrigin(await deps.ask("Publication HTTPS origin: "));
-    const userId = options.userId ?? await deps.ask("Your Substack user ID (not a publication author's byline ID): ");
+    const userId = options.userId ?? await deps.ask("Your account ID (top-level id at substack.com/api/v1/user/<your-handle>/public_profile): ");
     if (!publicationUrl) { deps.error("Use a direct HTTPS publication origin."); return 2; }
     try { validateCredentials(publicationUrl, "validation-only", userId); } catch { deps.error("Use your positive numeric Substack user ID."); return 2; }
     let chromium: Chromium;

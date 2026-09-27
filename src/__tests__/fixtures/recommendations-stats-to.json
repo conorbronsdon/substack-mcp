@@ -1,0 +1,50 @@
+{
+  "_comment": "Synthetic. Key names and nesting mirror a redacted owner-dashboard capture of GET /api/v1/recommendations/stats/to (September 2026); every value is an example. source_pub is a full publication record upstream; only a few of its keys are kept here, including private-looking ones that must never be returned.",
+  "rows": [
+    {
+      "publication_id": 9001,
+      "target_publication_id": 1001,
+      "xp_signups": 42,
+      "xp_paid_subs": 1,
+      "is_mutual": true,
+      "is_active": true,
+      "created_at": "2026-04-01T12:00:00.000Z",
+      "first_activity_at": "2026-04-01T12:00:00.000Z",
+      "data_updated_at": "2026-09-01T00:00:00.000Z",
+      "blurb": "example-blurb",
+      "blurb_active": true,
+      "source_pub": {
+        "id": 9001,
+        "name": "Example Recommender",
+        "subdomain": "example-recommender",
+        "custom_domain": "example-recommender.test",
+        "author_id": 777,
+        "email_from": "example-private-sender@example.test",
+        "google_tag_manager_token": "example-private-gtm",
+        "fb_pixel_id": "example-private-pixel"
+      }
+    },
+    {
+      "publication_id": 9002,
+      "target_publication_id": 1001,
+      "xp_signups": 0,
+      "xp_paid_subs": 0,
+      "is_mutual": false,
+      "is_active": false,
+      "created_at": "2026-05-01T12:00:00.000Z",
+      "first_activity_at": "2026-05-01T12:00:00.000Z",
+      "data_updated_at": "2026-09-01T00:00:00.000Z",
+      "blurb": "example-blurb-2",
+      "blurb_active": false,
+      "source_pub": {
+        "id": 9002,
+        "name": "Example Paused Recommender",
+        "subdomain": "example-paused",
+        "custom_domain": null,
+        "author_id": 778,
+        "email_from": "example-private-sender-2@example.test"
+      }
+    }
+  ],
+  "total": 2
+}

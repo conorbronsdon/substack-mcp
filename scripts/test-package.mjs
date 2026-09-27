@@ -129,7 +129,7 @@ try {
   assert.equal(client.getServerVersion()?.version, pkg.version, 'MCP handshake version must match npm');
   const { tools } = await client.listTools({}, { timeout: 10_000 });
   assertExpectedTools(tools);
-  assert.equal(tools.filter(tool => tool.outputSchema).length, 30, "Object tools must advertise output schemas");
+  assert.equal(tools.filter(tool => tool.outputSchema).length, 33, "Object tools must advertise output schemas");
   for (const tool of tools) assert.equal(typeof tool.annotations?.readOnlyHint, 'boolean', `Missing annotation: ${tool.name}`);
   console.log(`Installed ${pkg.name}@${pkg.version}: ${packed.files.length} files, both bins load, handshake version agrees, all ${tools.length} tools present.`);
 } finally {

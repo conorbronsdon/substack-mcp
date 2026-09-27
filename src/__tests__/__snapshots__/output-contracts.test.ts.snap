@@ -2885,6 +2885,606 @@ exports[`stable output contracts > classifies any public schema drift as potenti
       "additionalProperties": false,
       "properties": {
         "limit": {
+          "default": 20,
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "list_incoming_recommendations",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "const": "incoming",
+          "type": "string",
+        },
+        "ended_before_total": {
+          "type": "boolean",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "limit": {
+          "$ref": "#/properties/offset",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "offset": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication": {
+          "type": "string",
+        },
+        "recommendations": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "active": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "mutual": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "paid_subscribers_attributed": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "recommender": {
+                "additionalProperties": false,
+                "properties": {
+                  "custom_domain": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/recommendations/items/properties/recommender/properties/name/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer",
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "maxLength": 1000,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "subdomain": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/recommendations/items/properties/recommender/properties/name/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "subdomain",
+                  "custom_domain",
+                ],
+                "type": "object",
+              },
+              "started_at": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/recommendations/items/properties/recommender/properties/name/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "subscribers_attributed": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "recommender",
+              "started_at",
+              "active",
+              "mutual",
+              "subscribers_attributed",
+              "paid_subscribers_attributed",
+            ],
+            "type": "object",
+          },
+          "maxItems": 20,
+          "type": "array",
+        },
+        "returned": {
+          "$ref": "#/properties/offset",
+        },
+        "source": {
+          "const": "recommendations/stats/to",
+          "type": "string",
+        },
+        "total": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "publication",
+        "offset",
+        "limit",
+        "returned",
+        "total",
+        "has_more",
+        "next_offset",
+        "ended_before_total",
+        "direction",
+        "source",
+        "recommendations",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 20,
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "list_outgoing_recommendation_stats",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "const": "outgoing",
+          "type": "string",
+        },
+        "ended_before_total": {
+          "type": "boolean",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "limit": {
+          "$ref": "#/properties/offset",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "offset": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication": {
+          "type": "string",
+        },
+        "recommendations": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "active": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "mutual": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "paid_subscribers_sent": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "recommended": {
+                "additionalProperties": false,
+                "properties": {
+                  "custom_domain": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/recommendations/items/properties/recommended/properties/name/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer",
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "maxLength": 1000,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "subdomain": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/recommendations/items/properties/recommended/properties/name/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "subdomain",
+                  "custom_domain",
+                ],
+                "type": "object",
+              },
+              "started_at": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/recommendations/items/properties/recommended/properties/name/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "subscribers_sent": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "recommended",
+              "started_at",
+              "active",
+              "mutual",
+              "subscribers_sent",
+              "paid_subscribers_sent",
+            ],
+            "type": "object",
+          },
+          "maxItems": 20,
+          "type": "array",
+        },
+        "returned": {
+          "$ref": "#/properties/offset",
+        },
+        "source": {
+          "const": "recommendations/stats/from",
+          "type": "string",
+        },
+        "total": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "publication",
+        "offset",
+        "limit",
+        "returned",
+        "total",
+        "has_more",
+        "next_offset",
+        "ended_before_total",
+        "direction",
+        "source",
+        "recommendations",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 50,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication": {
+          "description": "Which publication to operate on. One of: first (First), second (Second).",
+          "enum": [
+            "first",
+            "second",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "publication",
+      ],
+      "type": "object",
+    },
+    "name": "list_outgoing_recommendations",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "const": "outgoing",
+          "type": "string",
+        },
+        "ended_before_total": {
+          "type": "boolean",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "limit": {
+          "$ref": "#/properties/offset",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "offset": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication": {
+          "type": "string",
+        },
+        "recommendations": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "recommended": {
+                "additionalProperties": false,
+                "properties": {
+                  "custom_domain": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/recommendations/items/properties/recommended/properties/name/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer",
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "maxLength": 1000,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "subdomain": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/recommendations/items/properties/recommended/properties/name/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "subdomain",
+                  "custom_domain",
+                ],
+                "type": "object",
+              },
+              "started_at": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/recommendations/items/properties/recommended/properties/name/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "recommended",
+              "started_at",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "returned": {
+          "$ref": "#/properties/offset",
+        },
+        "source": {
+          "const": "recommendations/from",
+          "type": "string",
+        },
+        "total": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "publication",
+        "offset",
+        "limit",
+        "returned",
+        "total",
+        "has_more",
+        "next_offset",
+        "ended_before_total",
+        "direction",
+        "source",
+        "recommendations",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
           "default": 12,
           "maximum": 50,
           "minimum": 1,
@@ -7855,6 +8455,573 @@ exports[`stable output contracts > classifies any public schema drift as potenti
     },
     "name": "list_drafts",
     "outputSchema": null,
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 20,
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer",
+        },
+      },
+      "type": "object",
+    },
+    "name": "list_incoming_recommendations",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "const": "incoming",
+          "type": "string",
+        },
+        "ended_before_total": {
+          "type": "boolean",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "limit": {
+          "$ref": "#/properties/offset",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "offset": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication": {
+          "type": "string",
+        },
+        "recommendations": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "active": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "mutual": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "paid_subscribers_attributed": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "recommender": {
+                "additionalProperties": false,
+                "properties": {
+                  "custom_domain": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/recommendations/items/properties/recommender/properties/name/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer",
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "maxLength": 1000,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "subdomain": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/recommendations/items/properties/recommender/properties/name/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "subdomain",
+                  "custom_domain",
+                ],
+                "type": "object",
+              },
+              "started_at": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/recommendations/items/properties/recommender/properties/name/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "subscribers_attributed": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "recommender",
+              "started_at",
+              "active",
+              "mutual",
+              "subscribers_attributed",
+              "paid_subscribers_attributed",
+            ],
+            "type": "object",
+          },
+          "maxItems": 20,
+          "type": "array",
+        },
+        "returned": {
+          "$ref": "#/properties/offset",
+        },
+        "source": {
+          "const": "recommendations/stats/to",
+          "type": "string",
+        },
+        "total": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "publication",
+        "offset",
+        "limit",
+        "returned",
+        "total",
+        "has_more",
+        "next_offset",
+        "ended_before_total",
+        "direction",
+        "source",
+        "recommendations",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 20,
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer",
+        },
+      },
+      "type": "object",
+    },
+    "name": "list_outgoing_recommendation_stats",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "const": "outgoing",
+          "type": "string",
+        },
+        "ended_before_total": {
+          "type": "boolean",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "limit": {
+          "$ref": "#/properties/offset",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "offset": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication": {
+          "type": "string",
+        },
+        "recommendations": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "active": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "mutual": {
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "paid_subscribers_sent": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "recommended": {
+                "additionalProperties": false,
+                "properties": {
+                  "custom_domain": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/recommendations/items/properties/recommended/properties/name/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer",
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "maxLength": 1000,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "subdomain": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/recommendations/items/properties/recommended/properties/name/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "subdomain",
+                  "custom_domain",
+                ],
+                "type": "object",
+              },
+              "started_at": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/recommendations/items/properties/recommended/properties/name/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+              "subscribers_sent": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/offset",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "recommended",
+              "started_at",
+              "active",
+              "mutual",
+              "subscribers_sent",
+              "paid_subscribers_sent",
+            ],
+            "type": "object",
+          },
+          "maxItems": 20,
+          "type": "array",
+        },
+        "returned": {
+          "$ref": "#/properties/offset",
+        },
+        "source": {
+          "const": "recommendations/stats/from",
+          "type": "string",
+        },
+        "total": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "publication",
+        "offset",
+        "limit",
+        "returned",
+        "total",
+        "has_more",
+        "next_offset",
+        "ended_before_total",
+        "direction",
+        "source",
+        "recommendations",
+      ],
+      "type": "object",
+    },
+  },
+  {
+    "annotations": {
+      "readOnlyHint": true,
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 50,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer",
+        },
+      },
+      "type": "object",
+    },
+    "name": "list_outgoing_recommendations",
+    "outputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "const": "outgoing",
+          "type": "string",
+        },
+        "ended_before_total": {
+          "type": "boolean",
+        },
+        "has_more": {
+          "type": "boolean",
+        },
+        "limit": {
+          "$ref": "#/properties/offset",
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+        "offset": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "publication": {
+          "type": "string",
+        },
+        "recommendations": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "recommended": {
+                "additionalProperties": false,
+                "properties": {
+                  "custom_domain": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/recommendations/items/properties/recommended/properties/name/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "id": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer",
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "maxLength": 1000,
+                        "type": "string",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "subdomain": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/recommendations/items/properties/recommended/properties/name/anyOf/0",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "subdomain",
+                  "custom_domain",
+                ],
+                "type": "object",
+              },
+              "started_at": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/recommendations/items/properties/recommended/properties/name/anyOf/0",
+                  },
+                  {
+                    "type": "null",
+                  },
+                ],
+              },
+            },
+            "required": [
+              "recommended",
+              "started_at",
+            ],
+            "type": "object",
+          },
+          "maxItems": 50,
+          "type": "array",
+        },
+        "returned": {
+          "$ref": "#/properties/offset",
+        },
+        "source": {
+          "const": "recommendations/from",
+          "type": "string",
+        },
+        "total": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/offset",
+            },
+            {
+              "type": "null",
+            },
+          ],
+        },
+      },
+      "required": [
+        "publication",
+        "offset",
+        "limit",
+        "returned",
+        "total",
+        "has_more",
+        "next_offset",
+        "ended_before_total",
+        "direction",
+        "source",
+        "recommendations",
+      ],
+      "type": "object",
+    },
   },
   {
     "annotations": {

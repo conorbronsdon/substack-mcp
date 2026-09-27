@@ -23,7 +23,7 @@ import { rankPostsInput, rankPostsOutput, RANK_MAX_LIMIT } from "./api/rankings.
 import { publicationStatsInput, publicationStatsOutput, growthSourcesInput, growthSourcesOutput, AnalyticsUnavailableError } from "./api/publication-analytics.js";
 import { SubstackAPIError } from "./utils/errors.js";
 import { incomingRecommendationsInput, incomingRecommendationsOutput, outgoingRecommendationsInput, outgoingRecommendationsOutput,
-  outgoingStatsInput, outgoingStatsOutput, RecommendationScopeError, STATS_MAX_LIMIT, OUTGOING_MAX_LIMIT } from "./api/recommendations.js";
+  outgoingStatsInput, outgoingStatsOutput, RecommendationScopeError, PublicationIdentityUnavailableError, STATS_MAX_LIMIT, OUTGOING_MAX_LIMIT } from "./api/recommendations.js";
 import { PublicReader, publicReadOrigin, profileInput, feedInput, threadInput, archiveInput, publicPostInput,
   profileOutput, feedOutput, threadOutput, archiveOutput, publicPostOutput } from "./api/public-reader.js";
 import { DEFAULT_BROWSER_USER_AGENT } from "./api/browser-user-agent.js";
@@ -263,8 +263,10 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     } catch (error) {
       if (error instanceof RecommendationScopeError) return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: "publication_mismatch",
         message: "Substack returned recommendation rows for a different publication than the one selected. Nothing from that page was returned. No writes were attempted." }) }] };
+      if (error instanceof PublicationIdentityUnavailableError) return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: "publication_unavailable", status: error.statusCode,
+        message: "Substack did not provide the publication record needed to scope this read, so no recommendation request was made. Check the configured publication URL and session. This is not an empty list. No writes were attempted." }) }] };
       if (error instanceof SubstackAPIError && (error.statusCode === 403 || error.statusCode === 404)) return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: "recommendations_unavailable", status: error.statusCode,
-        message: "Substack did not provide recommendation data for this publication or account. The account may lack dashboard access. This is not an empty list. No writes were attempted." }) }] };
+        message: "Substack did not provide recommendation data for this publication or account; the account may lack dashboard access. This is not an empty list. No writes were attempted." }) }] };
       throw error;
     }
   }

@@ -21,7 +21,7 @@ import { updateDraftTags, type DraftTagsInput } from "./draft-tags.js";
 import { listPublicationTags, getPostTags } from "./tags.js";
 import { rankPosts } from "./rankings.js";
 import { getPublicationStats, getGrowthSources } from "./publication-analytics.js";
-import { listIncomingRecommendations, listOutgoingRecommendations, listOutgoingRecommendationStats } from "./recommendations.js";
+import { listIncomingRecommendations, listOutgoingRecommendations, listOutgoingRecommendationStats, PublicationIdentityUnavailableError } from "./recommendations.js";
 import { z } from "zod";
 import { ResponseError, SubstackAPIError } from "../utils/errors.js";
 import { validateCredentials } from "../auth/validate-credentials.js";
@@ -207,8 +207,13 @@ export class SubstackClient {
    * publication before anything is returned.
    */
   private async recommendationRead<T>(run: (publicationId: number, read: (path: string) => Promise<unknown>) => Promise<T>): Promise<T> {
-    const { data } = await this.getPublication();
-    return run(data.id, path => this.request(`${this.publicationUrl}${path}`, { headers: { Referer: `${this.publicationUrl}/publish/recommendations` } }));
+    let id: number;
+    try { id = (await this.getPublication()).data.id; }
+    catch (error) {
+      if (error instanceof SubstackAPIError && (error.statusCode === 403 || error.statusCode === 404)) throw new PublicationIdentityUnavailableError(error.statusCode);
+      throw error;
+    }
+    return run(id, path => this.request(`${this.publicationUrl}${path}`, { headers: { Referer: `${this.publicationUrl}/publish/recommendations` } }));
   }
 
   incomingRecommendations(input: Parameters<typeof listIncomingRecommendations>[0]) {

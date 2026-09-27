@@ -171,8 +171,9 @@ settings and tokens, which are never returned.
 Pagination is one bounded page per call. The stats endpoints accept `limit` 1–20
 (Substack returns HTTP 400 above 20), default 20, requested by subscribers
 descending; Substack may still list inactive rows after active ones. The
-outgoing list accepts 1–50, default 50. A short or empty page ends the list; a
-full page continues unless Substack's `total` shows it was the last. `total` is
+outgoing list accepts 1–50, default 50. An empty page, or reaching Substack's
+`total`, ends the list; a short page continues while `total` says more rows
+exist. Without a `total`, a page shorter than `limit` ends the list. `total` is
 Substack's count when reported, and `null` otherwise.
 
 `ended_before_total` is `true` when the list ended with fewer rows than
@@ -184,9 +185,12 @@ pages, while `/recommendations/stats/from` returned all 6. Treat
 
 Each call first reads the publication record for the configured host to learn
 its ID. Any row naming a different publication rejects the whole page with
-`code: "publication_mismatch"`; nothing from it is returned. HTTP 403 or 404
-returns `code: "recommendations_unavailable"`, which means the account lacks
-dashboard access. It is not an empty list. 401 and 429 return the standard read
+`code: "publication_mismatch"`; nothing from it is returned. HTTP 403 or 404 on
+that publication read returns `code: "publication_unavailable"`, and no
+recommendation request is made. HTTP 403 or 404 from a recommendation endpoint
+returns `code: "recommendations_unavailable"`: Substack did not provide the data,
+commonly because the account lacks dashboard access. Neither is an empty list.
+401 and 429 return the standard read
 error with `status` and, when provided, `retry_after`.
 
 ## Errors

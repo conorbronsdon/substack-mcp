@@ -87,6 +87,11 @@ export const outgoingRecommendationsOutput = z.object({
   recommendations: z.array(z.object({ recommended: pubOut, started_at: short.nullable() })).max(OUTGOING_MAX_LIMIT),
 });
 
+/** The publication identity read failed with 403/404, so no recommendation request was made. */
+export class PublicationIdentityUnavailableError extends Error {
+  constructor(public readonly statusCode: number) { super("Publication identity unavailable."); this.name = "PublicationIdentityUnavailableError"; }
+}
+
 /** A row claimed a different publication than the one selected; nothing from the page is returned. */
 export class RecommendationScopeError extends Error {
   constructor() { super("Recommendation response does not belong to the selected publication."); this.name = "RecommendationScopeError"; }
@@ -98,8 +103,9 @@ function project(pub: z.infer<typeof rawPub> | null | undefined, fallbackId: num
 }
 
 function paginate(offsetValue: number, limit: number, returned: number, total: number | null | undefined) {
-  // A short or empty page ends the list. A full page continues unless Substack's total says it was the last.
-  const has_more = returned === limit && (typeof total !== "number" || offsetValue + returned < total);
+  // Only an empty page, or reaching Substack's total, ends the list. Some endpoints return short
+  // pages while more rows exist, so a short nonempty page continues when total says so.
+  const has_more = returned > 0 && (typeof total === "number" ? offsetValue + returned < total : returned === limit);
   // Substack's total can count rows an endpoint never returns (observed on /recommendations/from).
   const ended_before_total = !has_more && typeof total === "number" && offsetValue + returned < total;
   return { offset: offsetValue, limit, returned, total: total ?? null, has_more, next_offset: has_more ? offsetValue + returned : null, ended_before_total };

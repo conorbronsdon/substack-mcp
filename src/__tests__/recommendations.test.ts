@@ -48,7 +48,9 @@ describe("recommendation projections", () => {
     [0, 2, 2, 2, false, null, false],
     [4, 2, 0, 3, false, null, false],
     [0, 2, 0, 5, false, null, true],
-    [0, 50, 2, 6, false, null, true],
+    [0, 2, 1, 5, true, 1, false],
+    [0, 50, 2, 6, true, 2, false],
+    [2, 50, 0, 6, false, null, true],
     [0, 2, 2, undefined, true, 2, false],
     [2, 2, 1, undefined, false, null, false],
     [0, 2, 0, undefined, false, null, false],
@@ -67,6 +69,15 @@ describe("recommendation projections", () => {
     const seen: number[] = []; let offset: number | null = 0, pages = 0;
     while (offset !== null && pages < 10) { const page = await listIncomingRecommendations({ offset }, PUB_ID, read); seen.push(...page.recommendations.map(r => r.recommender.id)); offset = page.next_offset; pages++; }
     expect(pages).toBe(3); expect(new Set(seen).size).toBe(45);
+  });
+
+  it("continues past a short nonempty page when total says more rows exist", async () => {
+    // Upstream returns short pages: two rows per call regardless of limit, total 5.
+    const all = Array.from({ length: 5 }, (_, i) => statsRow(i + 1));
+    const read = async (path: string) => { const o = Number(new URL(path, "https://example.test").searchParams.get("offset")); return { rows: all.slice(o, o + 2), total: all.length }; };
+    const seen: number[] = []; let offset: number | null = 0, last;
+    while (offset !== null) { last = await listIncomingRecommendations({ offset, limit: 20 }, PUB_ID, read); seen.push(...last.recommendations.map(r => r.recommender.id)); offset = last.next_offset; }
+    expect(seen).toHaveLength(5); expect(last!.ended_before_total).toBe(false);
   });
 
   it.each([0, 21])("rejects limit %s before any read (Substack caps stats pages at 20)", async limit => {
@@ -206,6 +217,17 @@ describe("recommendation MCP tools", () => {
         expect(text(result)).toMatchObject(expected);
         expect(JSON.stringify(result)).not.toContain("example-private");
       }
+    } finally { await c.close(); }
+  });
+
+  it.each([403, 404])("reports a %s on the publication identity read as publication_unavailable, with no recommendation request", async status => {
+    const fetchMock = vi.fn(async (_url: string) => new Response("example-private", { status }));
+    vi.stubGlobal("fetch", fetchMock);
+    const c = await connected([pubA]);
+    try {
+      const result = await c.client.callTool({ name: "list_incoming_recommendations", arguments: {} });
+      expect(text(result)).toMatchObject({ code: "publication_unavailable", status });
+      expect(fetchMock).toHaveBeenCalledTimes(1); expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe("/api/v1/publication");
     } finally { await c.close(); }
   });
 

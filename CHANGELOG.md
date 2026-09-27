@@ -11,6 +11,10 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ### Added
 - A synthetic analytics-to-draft example that preserves metric provenance,
   missing-value states and ranking coverage in a private draft for review (#66).
+- `list_incoming_recommendations` reads who recommends a publication, with start date, active
+  state and dashboard-attributed subscribers. `list_outgoing_recommendations` and
+  `list_outgoing_recommendation_stats` read the outgoing list and its subscriber impact. Every
+  result names its direction and source; missing values are `null`, never zero.
 
 ### Fixed
 - Empty or whitespace-only `SUBSTACK_PROFILES` now uses the legacy configuration path, as when the variable is unset; empty entries within a profile list remain invalid.

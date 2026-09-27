@@ -137,6 +137,62 @@ and malformed data. These results do not prove complete upstream
 attribution or a stable snapshot. Referral URLs, logo URLs and upstream
 publication IDs are omitted from the default source projection.
 
+## Recommendations
+
+Substack recommendations have a direction, and the two directions live on
+different surfaces. Pick the tool by the question being asked.
+
+| Question | Tool | Upstream | Access |
+| --- | --- | --- | --- |
+| Who recommends this publication, and how many subscribers did each send? | `list_incoming_recommendations` | `/api/v1/recommendations/stats/to` | Owner dashboard (authenticated) |
+| Whom does this publication recommend? | `list_outgoing_recommendations` | `/api/v1/recommendations/from/{id}` | Authenticated here; public visibility not relied on |
+| How many subscribers has this publication sent to the publications it recommends? | `list_outgoing_recommendation_stats` | `/api/v1/recommendations/stats/from` | Owner dashboard (authenticated) |
+
+> **Warning: an outgoing list cannot answer an incoming question.** The
+> `/recommendations/from/{id}` list, and the recommendations shown on a
+> publication's public pages, name only the publications *it* recommends. A
+> publication absent from that list may still recommend it. A check that read the
+> outgoing list reported a missing incoming recommendation that was in fact
+> active and credited with subscribers on the dashboard. Use
+> `list_incoming_recommendations` for incoming recommendations.
+
+Every result carries `direction` (`incoming` or `outgoing`) and `source` (the
+upstream endpoint). Rows are projected to a small allowlist: the other
+publication's `id`, `name`, `subdomain` and `custom_domain`, plus `started_at`
+(the recommendation's creation time), and for the stats tools `active`,
+`mutual`, and free and paid subscriber counts
+(`subscribers_attributed`/`paid_subscribers_attributed` incoming,
+`subscribers_sent`/`paid_subscribers_sent` outgoing). Counts are all-time as the
+dashboard reports them. `null` means Substack did not report a value; it never
+means zero, inactive or not mutual. Inactive rows are returned with their
+historical counts. The embedded upstream publication records carry private
+settings and tokens, which are never returned.
+
+Pagination is one bounded page per call. The stats endpoints accept `limit` 1–20
+(Substack returns HTTP 400 above 20), default 20, requested by subscribers
+descending; Substack may still list inactive rows after active ones. The
+outgoing list accepts 1–50, default 50. An empty page, or reaching Substack's
+`total`, ends the list; a short page continues while `total` says more rows
+exist. Without a `total`, a page shorter than `limit` ends the list. `total` is
+Substack's count when reported, and `null` otherwise.
+
+`ended_before_total` is `true` when the list ended with fewer rows than
+Substack's `total`. The `/recommendations/from/{id}` endpoint has been observed
+doing exactly this: it reported a total of 6 and returned 2 rows across all
+pages, while `/recommendations/stats/from` returned all 6. Treat
+`list_outgoing_recommendations` as a partial view and use
+`list_outgoing_recommendation_stats` for the fuller outgoing list.
+
+Each call first reads the publication record for the configured host to learn
+its ID. Any row naming a different publication rejects the whole page with
+`code: "publication_mismatch"`; nothing from it is returned. HTTP 403 or 404 on
+that publication read returns `code: "publication_unavailable"`, and no
+recommendation request is made. HTTP 403 or 404 from a recommendation endpoint
+returns `code: "recommendations_unavailable"`: Substack did not provide the data,
+commonly because the account lacks dashboard access. Neither is an empty list.
+401 and 429 return the standard read
+error with `status` and, when provided, `retry_after`.
+
 ## Errors
 
 HTTP 403 or 404 from the statistics endpoint returns `code:

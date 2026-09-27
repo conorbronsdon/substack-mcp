@@ -22,6 +22,8 @@ import { draftTagsShape, draftTagsInput, draftTagsOutput, DraftTagError, type Dr
 import { rankPostsInput, rankPostsOutput, RANK_MAX_LIMIT } from "./api/rankings.js";
 import { publicationStatsInput, publicationStatsOutput, growthSourcesInput, growthSourcesOutput, AnalyticsUnavailableError } from "./api/publication-analytics.js";
 import { SubstackAPIError } from "./utils/errors.js";
+import { incomingRecommendationsInput, incomingRecommendationsOutput, outgoingRecommendationsInput, outgoingRecommendationsOutput,
+  outgoingStatsInput, outgoingStatsOutput, RecommendationScopeError, PublicationIdentityUnavailableError, STATS_MAX_LIMIT, OUTGOING_MAX_LIMIT } from "./api/recommendations.js";
 import { PublicReader, publicReadOrigin, profileInput, feedInput, threadInput, archiveInput, publicPostInput,
   profileOutput, feedOutput, threadOutput, archiveOutput, publicPostOutput } from "./api/public-reader.js";
 import { DEFAULT_BROWSER_USER_AGENT } from "./api/browser-user-agent.js";
@@ -253,6 +255,42 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     const result = growthSourcesOutput.parse({ ...growth, publication: publication ?? pubKeys[0] });
     return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
   });
+
+  async function recommendationResponse(publication: string | undefined, run: () => Promise<Record<string, unknown>>, schema: z.AnyZodObject) {
+    try {
+      const result = schema.parse({ ...await run(), publication: publication ?? pubKeys[0] });
+      return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+    } catch (error) {
+      if (error instanceof RecommendationScopeError) return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: "publication_mismatch",
+        message: "Substack returned recommendation rows for a different publication than the one selected. Nothing from that page was returned. No writes were attempted." }) }] };
+      if (error instanceof PublicationIdentityUnavailableError) return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: "publication_unavailable", status: error.statusCode,
+        message: "Substack did not provide the publication record needed to scope this read, so no recommendation request was made. Check the configured publication URL and session. This is not an empty list. No writes were attempted." }) }] };
+      if (error instanceof SubstackAPIError && (error.statusCode === 403 || error.statusCode === 404)) return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: "recommendations_unavailable", status: error.statusCode,
+        message: "Substack did not provide recommendation data for this publication or account; the account may lack dashboard access. This is not an empty list. No writes were attempted." }) }] };
+      throw error;
+    }
+  }
+
+  registerTool("list_incoming_recommendations", {
+    description: `List publications that recommend THIS publication (incoming), from the owner's Recommendations dashboard. Each row gives the recommender, when the recommendation started, whether it is active, whether it is mutual, and the free and paid subscribers Substack attributes to it (all-time, as the dashboard reports). null means Substack did not report the value; it never means zero or inactive. Authenticated: requires dashboard access for the selected publication. Returns one page in Substack's dashboard order (requested by attributed subscribers, descending; inactive rows may follow active ones); limit defaults to and is capped at ${STATS_MAX_LIMIT} (Substack's page limit). Use next_offset to continue until has_more is false. Two reads (publication identity, then one page); no writes. For whom this publication recommends, use list_outgoing_recommendations; that list cannot show incoming recommendations.`,
+    inputSchema: incomingRecommendationsInput.extend(publicationField()).strict(),
+    outputSchema: incomingRecommendationsOutput.shape,
+    annotations: buildAnnotations("list_incoming_recommendations"),
+  }, async ({ publication, ...input }) => recommendationResponse(publication, () => clientFor(publication).incomingRecommendations(input), incomingRecommendationsOutput));
+
+  registerTool("list_outgoing_recommendations", {
+    description: `List who THIS publication recommends, NOT who recommends it (outgoing). A publication missing from this list may still recommend this one; use list_incoming_recommendations for incoming recommendations and attributed subscribers. Each row gives the recommended publication and when the recommendation was created. This endpoint can return fewer rows than its own total; ended_before_total is then true, and list_outgoing_recommendation_stats is the fuller outgoing list. Returns one page; limit defaults to and is capped at ${OUTGOING_MAX_LIMIT}. Use next_offset to continue until has_more is false. Two reads (publication identity, then one page); no writes.`,
+    inputSchema: outgoingRecommendationsInput.extend(publicationField()).strict(),
+    outputSchema: outgoingRecommendationsOutput.shape,
+    annotations: buildAnnotations("list_outgoing_recommendations"),
+  }, async ({ publication, ...input }) => recommendationResponse(publication, () => clientFor(publication).outgoingRecommendations(input), outgoingRecommendationsOutput));
+
+  registerTool("list_outgoing_recommendation_stats", {
+    description: `List the subscribers THIS publication has sent to publications it recommends (outgoing impact), from the owner's Recommendations dashboard. This is NOT who recommends this publication; use list_incoming_recommendations for that. Each row gives the recommended publication, start date, active and mutual state, and free and paid subscribers sent. null means Substack did not report the value, never zero. Returns one page in Substack's dashboard order (requested by subscribers sent, descending); limit defaults to and is capped at ${STATS_MAX_LIMIT}. Two reads (publication identity, then one page); no writes.`,
+    inputSchema: outgoingStatsInput.extend(publicationField()).strict(),
+    outputSchema: outgoingStatsOutput.shape,
+    annotations: buildAnnotations("list_outgoing_recommendation_stats"),
+  }, async ({ publication, ...input }) => recommendationResponse(publication, () => clientFor(publication).outgoingRecommendationStats(input), outgoingStatsOutput));
 
   registerTool("get_publication", {
     description: "Read projected identity and selected settings for this publication. Verifies the returned publication host; does not verify your account identity or admin role. Missing API fields are named explicitly. No changes are made.",

@@ -21,6 +21,7 @@ import { updateDraftTags, type DraftTagsInput } from "./draft-tags.js";
 import { listPublicationTags, getPostTags } from "./tags.js";
 import { rankPosts } from "./rankings.js";
 import { getPublicationStats, getGrowthSources } from "./publication-analytics.js";
+import { listIncomingRecommendations, listOutgoingRecommendations, listOutgoingRecommendationStats, PublicationIdentityUnavailableError } from "./recommendations.js";
 import { z } from "zod";
 import { ResponseError, SubstackAPIError } from "../utils/errors.js";
 import { validateCredentials } from "../auth/validate-credentials.js";
@@ -198,6 +199,33 @@ export class SubstackClient {
 
   growthSources(input: Parameters<typeof getGrowthSources>[0]) {
     return getGrowthSources(input, path => this.request(`${this.publicationUrl}${path}`));
+  }
+
+  /**
+   * Recommendation reads resolve the publication ID from the host-verified
+   * publication record first, so every row can be checked against the selected
+   * publication before anything is returned.
+   */
+  private async recommendationRead<T>(run: (publicationId: number, read: (path: string) => Promise<unknown>) => Promise<T>): Promise<T> {
+    let id: number;
+    try { id = (await this.getPublication()).data.id; }
+    catch (error) {
+      if (error instanceof SubstackAPIError && (error.statusCode === 403 || error.statusCode === 404)) throw new PublicationIdentityUnavailableError(error.statusCode);
+      throw error;
+    }
+    return run(id, path => this.request(`${this.publicationUrl}${path}`, { headers: { Referer: `${this.publicationUrl}/publish/recommendations` } }));
+  }
+
+  incomingRecommendations(input: Parameters<typeof listIncomingRecommendations>[0]) {
+    return this.recommendationRead((id, read) => listIncomingRecommendations(input, id, read));
+  }
+
+  outgoingRecommendations(input: Parameters<typeof listOutgoingRecommendations>[0]) {
+    return this.recommendationRead((id, read) => listOutgoingRecommendations(input, id, read));
+  }
+
+  outgoingRecommendationStats(input: Parameters<typeof listOutgoingRecommendationStats>[0]) {
+    return this.recommendationRead((id, read) => listOutgoingRecommendationStats(input, id, read));
   }
 
   /**

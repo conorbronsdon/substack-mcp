@@ -275,6 +275,9 @@ authoritative wording.
 | `rank_posts` | [Rank posts](docs/analytics-rankings.md) by views, opens, sends, rates, signups, subscribes, estimated value or date, keeping null and missing values distinct |
 | `get_publication_stats` | [Read dashboard summary and ranged publication metrics](docs/analytics-rankings.md), with missing and unavailable states |
 | `get_growth_sources` | [Read bounded growth source attribution](docs/analytics-rankings.md) and optional events |
+| `list_incoming_recommendations` | [List publications that recommend yours](docs/analytics-rankings.md#recommendations), with start date, active state and dashboard-attributed subscribers |
+| `list_outgoing_recommendations` | List whom your publication recommends (can be partial). This is not who recommends it; use `list_incoming_recommendations` for that |
+| `list_outgoing_recommendation_stats` | List subscribers your publication has sent to the publications it recommends |
 | `list_scheduled_posts` | List posts scheduled for future publication (read-only; scheduling stays in Substack's editor) |
 | `get_user_profile` | Read a minimal public user profile by handle, anonymously |
 | `get_profile_feed` | Read one public profile feed page with cursor continuation, anonymously |

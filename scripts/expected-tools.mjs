@@ -9,6 +9,7 @@ export const expectedTools = [
   'search_posts', 'preflight_draft', 'plan_draft_update',
   'get_publication',
   'list_publication_tags', 'get_post_tags', 'rank_posts', 'get_publication_stats', 'get_growth_sources',
+  'list_incoming_recommendations', 'list_outgoing_recommendations', 'list_outgoing_recommendation_stats',
   'get_user_profile', 'get_profile_feed', 'get_note_thread', 'list_public_posts', 'get_public_post',
 ].sort();
 

@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { link, lstat, open, rename, unlink } from "node:fs/promises";
+import { link, lstat, mkdir, open, rename, unlink } from "node:fs/promises";
 import { dirname, basename, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { resolvePublications, resolveSelectedPublications } from "./auth/resolve-publications.js";
@@ -50,7 +50,17 @@ async function checkTarget(path: string, force: boolean): Promise<void> {
 /** Publish one complete file. Exclusive linking prevents a no-force overwrite race. */
 async function writeAtomic(path: string, text: string, force: boolean): Promise<void> {
   const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
-  const file = await open(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
+  let file;
+  try {
+    file = await open(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
+  } catch (error) {
+    // A user-supplied --output path may name a not-yet-existing parent directory.
+    // Create exactly that directory once and retry; any other failure stays an error.
+    // Mirrors the recursive session/profile directory creation in auth/session-store.ts.
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    await mkdir(dirname(path), { recursive: true });
+    file = await open(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
+  }
   let published = false;
   let writeError: unknown;
   try {

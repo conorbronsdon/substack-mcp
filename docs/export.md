@@ -99,12 +99,14 @@ bundle, including the original body, diagnostics and the generated Markdown.
 If Markdown is unavailable, use JSON export to retain the original source.
 
 Both destination files are checked before writing. Existing files require
-`--force`; directories and symbolic links are refused. Each complete file is
-staged in its destination directory. A no-force write uses an exclusive link so
-a concurrently created file cannot be overwritten. Filesystems must support
-same-directory hard links for that mode; an unsupported operation fails rather
-than falling back to an unsafe overwrite. POSIX temporary files use mode 0600;
-Windows access follows the directory's ACLs.
+`--force`; directories and symbolic links are refused. Missing parent
+directories are created (recursively) at write time, after those checks pass.
+Each complete file is staged in its destination directory. A no-force write
+uses an exclusive link so a concurrently created file cannot be overwritten.
+Filesystems must support same-directory hard links for that mode; an
+unsupported operation fails rather than falling back to an unsafe overwrite.
+POSIX temporary files use mode 0600; Windows access follows the directory's
+ACLs.
 
 The Markdown/source pair is **not atomic as a pair**. The complete source bundle
 is saved first. If the Markdown write then fails, the CLI reports that failure

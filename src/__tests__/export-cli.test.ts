@@ -57,6 +57,18 @@ describe("export files", () => {
     await expect(writeExportFiles(await bundle(), path, "json", true)).rejects.toThrow("regular file");
     expect(await readFile(join(path, "keep.txt"), "utf8")).toBe("Keep");
   });
+  it("creates missing parent directories for JSON output", async () => {
+    const dir = await scratch(), path = join(dir, "nested", "deeper", "draft.json"), result = await bundle();
+    expect(await writeExportFiles(result, path, "json", false)).toEqual([path]);
+    expect(JSON.parse(await readFile(path, "utf8"))).toEqual(result);
+    expect(await readdir(join(dir, "nested", "deeper"))).toEqual(["draft.json"]);
+  });
+  it("creates missing parent directories for Markdown output and its sidecar", async () => {
+    const dir = await scratch(), path = join(dir, "nested", "draft.md"), result = await bundle();
+    expect(await writeExportFiles(result, path, "markdown", false)).toEqual([path, `${path}.source.json`]);
+    expect(await readFile(path, "utf8")).toBe("Hello\n");
+    expect(await readdir(join(dir, "nested"))).toEqual(["draft.md", "draft.md.source.json"]);
+  });
   it("refuses symbolic-link destinations without touching their target", async context => {
     const dir = await scratch(), path = join(dir, "link.json"), target = join(dir, "keep.json");
     await writeFile(target, "Keep", "utf8");

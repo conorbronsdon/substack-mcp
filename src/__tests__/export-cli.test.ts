@@ -72,7 +72,9 @@ describe("export files", () => {
   it("refuses a regular-file parent without modifying it", async () => {
     const dir = await scratch(), parent = join(dir, "parent");
     await writeFile(parent, "Keep me", "utf8");
-    await expect(writeExportFiles(await bundle(), join(parent, "draft.json"), "json", false)).rejects.toMatchObject({ code: "ENOTDIR" });
+    // Windows reaches mkdir and reports EEXIST; POSIX lstat reports ENOTDIR.
+    const code = process.platform === "win32" ? "EEXIST" : "ENOTDIR";
+    await expect(writeExportFiles(await bundle(), join(parent, "draft.json"), "json", false)).rejects.toMatchObject({ code });
     expect(await readFile(parent, "utf8")).toBe("Keep me");
     expect(await readdir(dir)).toEqual(["parent"]);
   });

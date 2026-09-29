@@ -69,6 +69,23 @@ describe("export files", () => {
     expect(await readFile(path, "utf8")).toBe("Hello\n");
     expect(await readdir(join(dir, "nested"))).toEqual(["draft.md", "draft.md.source.json"]);
   });
+  it("refuses a regular-file parent without modifying it", async () => {
+    const dir = await scratch(), parent = join(dir, "parent");
+    await writeFile(parent, "Keep me", "utf8");
+    // Windows reaches mkdir and reports EEXIST; POSIX lstat reports ENOTDIR.
+    const code = process.platform === "win32" ? "EEXIST" : "ENOTDIR";
+    await expect(writeExportFiles(await bundle(), join(parent, "draft.json"), "json", false)).rejects.toMatchObject({ code });
+    expect(await readFile(parent, "utf8")).toBe("Keep me");
+    expect(await readdir(dir)).toEqual(["parent"]);
+  });
+  it.each(["json", "markdown"] as const)("creates missing parent directories with force for %s output", async format => {
+    const dir = await scratch(), parent = join(dir, "nested", "deeper"), path = join(parent, format === "json" ? "draft.json" : "draft.md"), result = await bundle();
+    const files = format === "json" ? [path] : [path, `${path}.source.json`];
+    expect(await writeExportFiles(result, path, format, true)).toEqual(files);
+    expect(JSON.parse(await readFile(format === "json" ? path : `${path}.source.json`, "utf8"))).toEqual(result);
+    if (format === "markdown") expect(await readFile(path, "utf8")).toBe(result.markdown);
+    expect(await readdir(parent)).toEqual(format === "json" ? ["draft.json"] : ["draft.md", "draft.md.source.json"]);
+  });
   it("refuses symbolic-link destinations without touching their target", async context => {
     const dir = await scratch(), path = join(dir, "link.json"), target = join(dir, "keep.json");
     await writeFile(target, "Keep", "utf8");

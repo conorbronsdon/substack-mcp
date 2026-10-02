@@ -10,8 +10,10 @@ import { doctor } from "./doctor.js";
 import { createKeychain, credentialStore } from "./auth/keychain.js";
 
 const usage = "Usage: substack-mcp-login [publication-url] [--user-id id] [--profile key] [--force]\nAlias: substack-mcp login [same options]\nInteractive browser sign-in. Missing URL/user ID are prompted. User ID must be your own configured Substack ID; a post byline is not identity verification. --profile stores a named session; existing profiles require --force. Requires Playwright. --help is offline.";
-const COOKIE_NAMES = ["connect.sid", "substack.sid"];
-interface CookieContext { cookies(url: string): Promise<{ name: string; value: string }[]> }
+interface SessionCookie { name: string; domain: string; value: string }
+interface CookieContext { cookies(url: string): Promise<SessionCookie[]> }
+class LoginDiagnosticError extends Error {}
+const isSubstackHost = (host: string) => host === "substack.com" || host.endsWith(".substack.com");
 interface LoginBrowser { newContext(): Promise<CookieContext & { newPage(): Promise<{ goto(url: string, options?: { waitUntil: "domcontentloaded" }): Promise<unknown> }> }>; close(): Promise<void> }
 interface Chromium { launch(options: { headless: boolean }): Promise<LoginBrowser> }
 
@@ -33,15 +35,19 @@ export function parseLoginArguments(args: string[]) {
   return { publicationUrl, userId, profile, force };
 }
 
-/** Only inspect cookies that apply to the requested URL; never pick another host's session. */
-export async function readSessionCookie(context: CookieContext, url: string): Promise<string> {
-  const cookies = await context.cookies(url);
-  for (const name of COOKIE_NAMES) {
-    const values = [...new Set(cookies.filter(c => c.name === name && c.value).map(c => c.value))];
-    if (values.length > 1) throw new Error("Ambiguous session cookies; sign in with a fresh browser context.");
-    if (values.length === 1) return values[0];
+/** Select only the publication host's session, with Substack-hosted fallback. */
+export function selectSessionCookie(cookies: SessionCookie[], publicationUrl: string): { name: string; host: string; value: string } | null {
+  const host = new URL(publicationUrl).hostname.toLowerCase();
+  const normalized = cookies.filter(c => c.value).map(c => ({ name: c.name, host: c.domain.replace(/^\./, "").toLowerCase(), value: c.value }));
+  for (const name of isSubstackHost(host) ? ["connect.sid", "substack.sid"] : ["connect.sid"]) {
+    const matches = normalized.filter(c => c.name === name && (c.host === host || (name === "substack.sid" && c.host === "substack.com")));
+    if (new Set(matches.map(c => c.value)).size > 1) throw new LoginDiagnosticError(`Ambiguous session cookies: multiple distinct ${name} cookies for ${host}; sign in with a fresh browser context.`);
+    if (matches.length) return matches[0];
   }
-  return "";
+  return null;
+}
+export async function readSessionCookie(context: CookieContext, url: string): Promise<string> {
+  return selectSessionCookie(await context.cookies(url), url)?.value ?? "";
 }
 async function ask(question: string): Promise<string> {
   const rl = createInterface({ input: stdin, output: stdout });
@@ -53,7 +59,7 @@ async function loadChromium(): Promise<Chromium> {
   catch { throw new Error("Install the package and Playwright together in a local tools directory: npm install @conorbronsdon/substack-mcp playwright; then npx playwright install chromium; then npx substack-mcp login."); }
 }
 const defaults = { ask, loadChromium, out: (text: string) => console.log(text), error: (text: string) => console.error(text) };
-export async function runLogin(args: string[], deps: typeof defaults & { keychain?: ReturnType<typeof createKeychain> } = defaults): Promise<number> {
+export async function runLogin(args: string[], deps: typeof defaults & { keychain?: ReturnType<typeof createKeychain>; pollIntervalMs?: number; publicationWaitMs?: number; sleep?: (ms: number) => Promise<void> } = defaults): Promise<number> {
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) { deps.out(usage); return 0; }
   let options: ReturnType<typeof parseLoginArguments>;
   try { options = parseLoginArguments(args); } catch { deps.error(usage); return 2; }
@@ -91,20 +97,39 @@ export async function runLogin(args: string[], deps: typeof defaults & { keychai
       if (Date.now() >= deadline) throw new Error("Login timed out.");
       await new Promise(resolve => setTimeout(resolve, 1500));
     }
-    await page.goto(publicationUrl, { waitUntil: "domcontentloaded" });
-    const sessionToken = await readSessionCookie(context, `${publicationUrl}/api/v1/post_management/drafts`);
-    validateCredentials(publicationUrl, sessionToken, userId);
-    const credentials = { publicationUrl, sessionToken, userId };
-    const check = await doctor(true, () => [{ ...credentials, key: options.profile ?? "default", label: "login", source: "stored", missing: [] }], async () => true);
-    if (!check.ok) throw new Error("Authenticated read did not succeed.");
+    const dashboard = `${publicationUrl}/publish/home`, host = new URL(publicationUrl).hostname;
+    deps.out(`Opening ${dashboard}; waiting up to three minutes for the publication's own session cookie.`);
+    await page.goto(dashboard, { waitUntil: "domcontentloaded" });
+    const publicationDeadline = Date.now() + (deps.publicationWaitMs ?? 180000);
+    const sleep = deps.sleep ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
+    const tried = new Set<string>();
+    let credentials: { publicationUrl: string; sessionToken: string; userId: string } | undefined;
+    let failure: { name: string; host: string; authentication: string } | undefined;
+    while (Date.now() < publicationDeadline) {
+      const cookie = selectSessionCookie(await context.cookies(`${publicationUrl}/api/v1/post_management/drafts`), publicationUrl);
+      if (cookie && !tried.has(cookie.value)) {
+        tried.add(cookie.value);
+        validateCredentials(publicationUrl, cookie.value, userId);
+        const candidate = { publicationUrl, sessionToken: cookie.value, userId };
+        const check = await doctor(true, () => [{ ...candidate, key: options.profile ?? "default", label: "login", source: "stored", missing: [] }], async () => true);
+        if (check.ok) { credentials = candidate; break; }
+        failure = { name: cookie.name, host: cookie.host, authentication: check.publications[0]?.authentication ?? ("code" in check ? check.code : "not_checked") };
+      }
+      const remaining = publicationDeadline - Date.now();
+      if (remaining > 0) await sleep(Math.min(deps.pollIntervalMs ?? 1500, remaining));
+    }
+    if (!credentials) {
+      if (failure) throw new LoginDiagnosticError(`Authenticated read failed with ${failure.name} from ${failure.host} (status: ${failure.authentication}). Open your publication dashboard (${dashboard}) in the login window, confirm you can see it, then retry.`);
+      throw new LoginDiagnosticError(`No session cookie found for ${host} (looked for connect.sid on ${host}${isSubstackHost(host) ? " or substack.sid on .substack.com" : ""}). Open your publication dashboard (${dashboard}) in the login window and wait for it to load, then retry.`);
+    }
     if (store === "keychain") await (deps.keychain ?? createKeychain()).write(options.profile ?? "default", credentials, options.force);
     else if (options.profile) saveProfile(options.profile, credentials, options.force);
     else saveSession(credentials);
     deps.out(JSON.stringify({ format_version: 1, ok: true, command: "login", profile: options.profile ?? null, authentication: "authenticated_read_succeeded", user_identity: "not_verified", storage: store === "keychain" ? "keychain" : "machine_bound_file" }));
     deps.out(options.profile ? `Select this profile with SUBSTACK_PROFILES=${options.profile}. Remove publication credential env vars first.` : "Stored legacy session is used when publication credential env vars are unset.");
     return 0;
-  } catch {
-    deps.error("Login or local saving failed. Check sign-in, publication access, your configured user ID and profile overwrite choice. Inspect local status before retrying; user identity is not independently verified."); return 1;
+  } catch (error) {
+    deps.error(error instanceof LoginDiagnosticError ? error.message : "Login or local saving failed. Check sign-in, publication access, your configured user ID and profile overwrite choice. Inspect local status before retrying; user identity is not independently verified."); return 1;
   } finally {
     try { await browser?.close(); }
     catch { deps.error("Browser cleanup failed. Close the login window manually; inspect local status to confirm whether saving completed."); }

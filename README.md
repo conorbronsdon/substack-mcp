@@ -93,8 +93,9 @@ npx substack-mcp login https://yourblog.substack.com --user-id 12345
 `substack-mcp-login` remains a supported alias. Missing publication URL and user
 ID are prompted. Supply your own account's user ID ([steps below](#find-your-account-user-id)); a post author's byline does
 not verify your identity. The browser opens for sign-in, including any CAPTCHA.
-Only a cookie applicable to the publication API is captured, and a bounded
-authenticated read must succeed before saving. This verifies read access, not
+Login then opens `<publication>/publish/home` and waits for the publication
+session cookie; on custom domains this is `connect.sid` on the custom domain.
+A bounded authenticated read must succeed before saving. This verifies read access, not
 the configured user ID or permission to write.
 
 Without `--profile`, login saves `~/.substack-mcp/session.json` (directory override:
@@ -166,7 +167,7 @@ Run `substack-mcp status --json` for offline configuration diagnostics or
 
 Open your Substack in a browser, then:
 
-1. **Session token:** Navigate to your publication, open DevTools → Application → Cookies → copy the value of `connect.sid` (URL-encoded string starting with `s%3A`)
+1. **Session token:** For custom domains, open DevTools → Application → Cookies → `https://your-custom-domain` and copy `connect.sid` from the publication's own domain (URL-encoded string starting with `s%3A`). Do not copy `substack.sid` from substack.com: it is a different session that the custom domain's admin API rejects with 403. For `*.substack.com` publications, use `connect.sid` on that host or `substack.sid` on `.substack.com`. The token must match the host of `SUBSTACK_PUBLICATION_URL`, with the `.substack.com` fallback only for Substack-hosted publications.
 2. **User ID:** Follow [Find your account user ID](#find-your-account-user-id). Do not use a publication post's byline ID: publications can have multiple authors. This server does not independently verify the supplied ID.
 3. **Publication URL:** Your Substack URL, including custom domain if you have one (e.g., `https://newsletter.yourdomain.com` or `https://yourblog.substack.com`)
 
@@ -440,16 +441,16 @@ Don't mix the two styles: if any `SUBSTACK_PUB_<KEY>_*` var is set, the plain `S
 
 ## Token expiration
 
-Substack session tokens expire periodically (typically ~90 days). If you get authentication errors, grab a fresh `connect.sid` cookie from your browser and update the env var (make sure ad blockers are disabled when copying the cookie) — or, if you used the browser login, just re-run `substack-mcp-login` to refresh the stored session.
+Substack session tokens expire periodically (typically ~90 days). If you get authentication errors, re-run `substack-mcp login` to refresh the stored session, or copy a fresh cookie from DevTools on the matching publication host and update the env var. Custom domains require their own `connect.sid`, not substack.com's different `substack.sid` session (which the custom domain rejects with 403). For `*.substack.com` publications, use `connect.sid` on that host or `substack.sid` on `.substack.com`. Then run `substack-mcp doctor --check-auth` to verify access.
 
 ## Custom domains & Cloudflare
 
 This section covers authenticated creator API calls. Anonymous public reading
 uses the [public reading](#public-reading) origin rules above.
 
-Substack publications served on a custom domain (e.g. `blog.example.com`) sit behind Cloudflare, which can reject non-browser requests with `403 error code: 1010`. To avoid this, the server sends a browser `User-Agent` and a `Referer` by default, and addresses the publication by its canonical `*.substack.com` host.
+Substack publications served on a custom domain (e.g. `blog.example.com`) sit behind Cloudflare, which can reject non-browser requests with `403 error code: 1010`. To avoid this, the server sends a browser `User-Agent` and a `Referer` by default, and uses the configured publication URL.
 
-- **Use the canonical host.** Set `SUBSTACK_PUBLICATION_URL` to the publication's `*.substack.com` address rather than the custom domain. Calls to the canonical host are served directly; custom-domain calls may 301-redirect and then 401.
+- **Match the host and cookie.** If using the canonical `*.substack.com` URL, use its host session or the `.substack.com` fallback. A custom-domain `connect.sid` pairs with the custom-domain `SUBSTACK_PUBLICATION_URL`.
 - **Override the User-Agent** (optional) via `SUBSTACK_USER_AGENT` if you need a different browser signature:
 
 ```json

@@ -29,6 +29,14 @@ authorization needs Gmail read and send access; the profile must match the
 organizer. Refresh tokens renew short-lived Google access tokens; revoked
 authorization still requires operator intervention. Substack sessions can expire.
 
+**Refreshing the Substack session:** `SUBSTACK_SESSION_TOKEN` must be the session
+cookie for `PUBLICATION_URL`'s host (`connect.sid` on a custom domain, not
+`.substack.com`'s `substack.sid`). Obtain a fresh value from DevTools on the
+matching host, verify locally with `substack-mcp doctor --check-auth`, then run
+`wrangler secret put SUBSTACK_SESSION_TOKEN --config <your config>` and POST
+`{"dry_run":true}` to `/run` to confirm subscriber API access. Never paste the
+value into logs or source.
+
 1. Build/test and deploy while the local scheduler still owns the ledger. The
    cloud job refuses live execution before initialization and explicit activation.
 2. Stop the local scheduler, verify no local run is active, and back up its state.

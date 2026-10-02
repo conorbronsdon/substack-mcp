@@ -169,7 +169,8 @@ it("runs the registered MCP add with durable state and never repeats its welcome
 describe('ledger export', () => {
   const populated = () => ({ ...state(), seen_ids: ['m1', 'm2'],
     contacts: { a: { email: 'reader@example.org', answer: 'Yes', decision: 'yes' as const, message_id: 'm1', received_at: 1 }, b: { email: 'other@example.org', answer: 'Maybe', decision: 'review' as const, message_id: 'm2', received_at: 2 } },
-    attempts: { a: { status: 'verified' as const, message_id: 'm1', attempted_at: '2026-09-01T00:00:00.000Z', welcome_email_requested: true }, c: { status: 'blocked' as const, message_id: 'm0', attempted_at: '2026-08-01T00:00:00.000Z' } } });
+    attempts: { a: { status: 'verified' as const, message_id: 'm1', attempted_at: '2026-09-01T00:00:00.000Z', welcome_email_requested: true }, c: { status: 'blocked' as const, message_id: 'm0', attempted_at: '2026-08-01T00:00:00.000Z' },
+      d: { status: 'attempting' as const, message_id: 'm3', attempted_at: '2026-09-02T00:00:00.000Z', welcome_email_requested: false }, e: { status: 'unverified' as const, message_id: 'm4', attempted_at: '2026-09-03T00:00:00.000Z' } } });
   const call = (path: string, init: RequestInit = {}, token = adminToken) => worker.fetch(new Request(`https://test${path}`, { ...init, headers: { authorization: `Bearer ${token}`, ...(init.body ? { 'content-type': 'application/json' } : {}) } }), env);
   it('round-trips the imported ledger through the admin routes and refuses unsafe exports', async () => {
     expect((await call('/export', {}, 'x'.repeat(40))).status).toBe(401);
@@ -193,5 +194,25 @@ describe('ledger export', () => {
     await target.initialize(exported);
     expect(await target.export()).toEqual(exported);
     expect(exported).toEqual(populated());
+  });
+  it('refuses to export while a job holds the ledger', async () => {
+    const stub = env.SYNC.getByName(crypto.randomUUID());
+    await stub.initialize(populated());
+    let release: () => void = () => {};
+    const gate = new Promise<void>(r => { release = r; });
+    let entered: () => void = () => {};
+    const started = new Promise<void>(r => { entered = r; });
+    const mock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => { entered(); await gate; return new Response('{}', { status: 401 }); });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await runInDurableObject(stub, async (instance: CalendarSync) => {
+        const run = instance.run(true);
+        await started;
+        await expect(instance.export()).rejects.toThrow('already running');
+        release();
+        await expect(run).rejects.toThrow('stage google_token');
+        expect(await instance.export()).toEqual(populated());
+      });
+    } finally { mock.mockRestore(); log.mockRestore(); }
   });
 });

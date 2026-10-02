@@ -17,6 +17,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   result names its direction and source; missing values are `null`, never zero.
 
 ### Fixed
+- Browser login waits for the publication dashboard session and checks rotated cookies before saving; custom domains use only their own `connect.sid`, with safe host-specific failure diagnostics.
 - Empty or whitespace-only `SUBSTACK_PROFILES` now uses the legacy configuration path, as when the variable is unset; empty entries within a profile list remain invalid.
 
 ## [1.3.0] - 2026-09-23

@@ -8,7 +8,9 @@ import { SubstackClient } from '../src/api/client.js';
 import { stateSchema, ingest, parseBooking, processContacts, type BookingMessage, type SyncState } from '../src/calendar-consent.js';
 
 type Summary = Awaited<ReturnType<typeof processContacts>>;
-type Run = { id: string; started_at: number; finished_at?: number; status: 'running' | 'ok' | 'failed'; scanned?: number; summary?: Summary; dry_run: boolean };
+type FailureStage = 'google_token' | 'gmail_profile' | 'gmail_scan' | 'state_write' | 'substack_auth' | 'mcp_connect' | 'mcp_call' | 'deadline' | 'unknown';
+type Run = { id: string; started_at: number; finished_at?: number; status: 'running' | 'ok' | 'failed'; failure_stage?: FailureStage; scanned?: number; summary?: Summary; dry_run: boolean };
+class DeadlineError extends Error {}
 const credentialsSchema = z.object({ client_id: z.string().min(1), client_secret: z.string().min(1), refresh_token: z.string().min(1) });
 const DAY = 86400000;
 
@@ -76,11 +78,15 @@ export class CalendarSync extends DurableObject<Env> {
       const runKey = `run:${String(started).padStart(16, '0')}:${run.id}`;
       await this.ctx.storage.put(runKey, run);
       let client: Client | undefined, server: ReturnType<typeof createServer> | undefined;
+      let stage: FailureStage = 'unknown';
       try {
+        stage = 'google_token';
         const token = await this.token();
+        stage = 'gmail_profile';
         const profile = z.object({ emailAddress: z.string() }).parse(await this.gmail(token, 'profile'));
         if (profile.emailAddress.toLowerCase() !== this.env.ORGANIZER_EMAIL.toLowerCase()) throw new Error('Wrong Gmail account.');
-        const checkDeadline = () => { if (Date.now() > deadline) throw new Error('Scan deadline exceeded.'); };
+        const checkDeadline = () => { if (Date.now() > deadline) throw new DeadlineError('Scan deadline exceeded.'); };
+        stage = 'gmail_scan';
         const ids: string[] = [];
         let pageToken: string | undefined;
         do {
@@ -102,14 +108,18 @@ export class CalendarSync extends DurableObject<Env> {
           seen.add(id);
         }
         state.seen_ids = [...seen];
+        stage = 'state_write';
         if (!dryRun) await this.ctx.storage.put('state', state);
+        stage = 'substack_auth';
         const substack = new SubstackClient(this.env.PUBLICATION_URL, this.env.SUBSTACK_SESSION_TOKEN, this.env.SUBSTACK_USER_ID);
         await substack.subscribers.list(0, 1); // Verify subscriber API access even when the ledger is all terminal.
+        stage = 'mcp_connect';
         server = createServer([{ key: 'default', label: 'Newsletter', client: substack }]);
         client = new Client({ name: 'cloud-calendar-sync', version: '1' });
         const [ct, st] = InMemoryTransport.createLinkedPair();
         await Promise.all([client.connect(ct), server.connect(st)]);
         const active = client;
+        stage = 'mcp_call'; // processContacts validates MCP results; its own errors belong to this stage.
         const summary = await processContacts(state, async (name, args) => {
           checkDeadline();
           const result = await active.callTool({ name, arguments: args });
@@ -117,16 +127,19 @@ export class CalendarSync extends DurableObject<Env> {
           const block = (result.content as Array<{ type: string; text?: string }>).find(c => c.type === 'text');
           if (!block?.text) throw new Error('Missing MCP result.');
           return JSON.parse(block.text);
-        }, async () => { await this.ctx.storage.put('state', state); }, !dryRun, 5, this.env.SEND_WELCOME_EMAIL === 'true');
+        }, async () => { stage = 'state_write'; await this.ctx.storage.put('state', state); stage = 'mcp_call'; }, !dryRun, 5, this.env.SEND_WELCOME_EMAIL === 'true');
         Object.assign(run, { status: 'ok', scanned: ids.length, summary, finished_at: Date.now() });
+        stage = 'state_write';
         await this.ctx.storage.put(runKey, run);
+        stage = 'unknown';
         console.log(JSON.stringify({ event: 'calendar_sync', ...run }));
         return run;
-      } catch {
-        Object.assign(run, { status: 'failed', finished_at: Date.now() });
+      } catch (error) {
+        const failure_stage: FailureStage = error instanceof DeadlineError ? 'deadline' : stage;
+        Object.assign(run, { status: 'failed', failure_stage, finished_at: Date.now() });
         await this.ctx.storage.put(runKey, run);
         console.error(JSON.stringify({ event: 'calendar_sync', ...run }));
-        throw new Error('Calendar sync failed; inspect private state and credentials.');
+        throw new Error(`Calendar sync failed at stage ${failure_stage}; inspect private state and credentials.`);
       } finally { await client?.close(); await server?.close(); }
     });
   }

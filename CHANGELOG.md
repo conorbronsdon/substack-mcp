@@ -18,6 +18,10 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ### Fixed
 - Browser login waits for the publication dashboard session and checks rotated cookies before saving; custom domains use only their own `connect.sid`, with safe host-specific failure diagnostics.
+- The cloud calendar sync records a sanitized `failure_stage` (`google_token`, `gmail_profile`,
+  `gmail_scan`, `state_write`, `substack_auth`, `mcp_connect`, `mcp_call`, `deadline` or `unknown`)
+  on failed runs and in its error log, so `/status` shows where a scheduled run stopped. Error
+  messages, tokens and email addresses are still never stored or logged.
 - Empty or whitespace-only `SUBSTACK_PROFILES` now uses the legacy configuration path, as when the variable is unset; empty entries within a profile list remain invalid.
 
 ## [1.3.0] - 2026-09-23

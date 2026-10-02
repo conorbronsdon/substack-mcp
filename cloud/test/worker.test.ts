@@ -5,6 +5,11 @@ import { describe, it, expect, vi } from 'vitest';
 import worker from '../worker';
 
 const state = () => ({ version: 1, publication_url: 'https://example.substack.com', organizer_email: 'host@example.org', contacts: {}, attempts: {}, seen_ids: [] });
+const accessToken = 'example-access-token';
+const expectSanitized = (value: unknown) => {
+  const serialized = JSON.stringify(value);
+  for (const secret of ['host@example.org', accessToken, JSON.parse(env.GOOGLE_CREDENTIALS).refresh_token]) expect(serialized).not.toContain(secret);
+};
 describe('cloud scheduling and durable state', () => {
   it('denies unauthenticated administration', async () => {
     const response = await worker.fetch(new Request('https://test/status'), env);
@@ -32,10 +37,65 @@ describe('cloud scheduling and durable state', () => {
     const stub = env.SYNC.getByName(crypto.randomUUID());
     await stub.initialize(state());
     const mock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 401 }));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      await runInDurableObject(stub, async (instance: CalendarSync) => { await expect(instance.run(true)).rejects.toThrow(); });
-      expect((await stub.status()).runs[0]).toMatchObject({ status: 'failed', dry_run: true });
-    } finally { mock.mockRestore(); }
+      await runInDurableObject(stub, async (instance: CalendarSync, ctx) => {
+        await expect(instance.run(true)).rejects.toThrow('stage google_token');
+        const runs = [...(await ctx.storage.list({ prefix: 'run:' })).values()];
+        expect(runs).toHaveLength(1);
+        expect(runs[0]).toMatchObject({ status: 'failed', dry_run: true, failure_stage: 'google_token' });
+        expectSanitized(runs);
+      });
+      expect((await stub.status()).runs[0]).toMatchObject({ status: 'failed', dry_run: true, failure_stage: 'google_token' });
+      expect(log).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({ event: 'calendar_sync', failure_stage: 'google_token' });
+      expectSanitized(log.mock.calls);
+    } finally { mock.mockRestore(); log.mockRestore(); }
+  });
+  it.each(['gmail_scan', 'gmail_profile', 'substack_auth'] as const)('records sanitized failure at %s', async failureStage => {
+    const stub = env.SYNC.getByName(crypto.randomUUID());
+    await stub.initialize(state());
+    const mock = vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+      const url = String(input);
+      if (url.includes('oauth2.googleapis.com')) return Response.json({ access_token: accessToken });
+      if (url.endsWith('/profile')) return Response.json({ emailAddress: failureStage === 'gmail_profile' ? 'other@example.org' : 'host@example.org' });
+      const privateBody = JSON.stringify({ error: `host@example.org ${accessToken} ${JSON.parse(env.GOOGLE_CREDENTIALS).refresh_token}` });
+      if (url.includes('gmail.googleapis.com') && url.includes('/messages?')) return failureStage === 'gmail_scan' ? new Response(privateBody, { status: 500 }) : Response.json({ resultSizeEstimate: 0 });
+      if (url === 'https://example.substack.com/api/v1/subscriber-stats') return new Response(privateBody, { status: 401 });
+      throw new Error('Unexpected outbound request');
+    });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await runInDurableObject(stub, async (instance: CalendarSync, ctx) => {
+        await expect(instance.run(true)).rejects.toThrow(`stage ${failureStage}`);
+        const runs = [...(await ctx.storage.list({ prefix: 'run:' })).values()];
+        expect(runs).toHaveLength(1);
+        expect(runs[0]).toMatchObject({ status: 'failed', dry_run: true, failure_stage: failureStage });
+        expectSanitized(runs);
+      });
+      expect((await stub.status()).runs[0]).toMatchObject({ failure_stage: failureStage });
+      expect(log).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({ event: 'calendar_sync', status: 'failed', failure_stage: failureStage });
+      expectSanitized(log.mock.calls);
+    } finally { mock.mockRestore(); log.mockRestore(); }
+  });
+  it('gives the deadline precedence over the scan stage', async () => {
+    const stub = env.SYNC.getByName(crypto.randomUUID());
+    await stub.initialize(state());
+    const now = Date.now();
+    const time = vi.spyOn(Date, 'now').mockReturnValue(now);
+    const mock = vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+      if (String(input).includes('oauth2.googleapis.com')) return Response.json({ access_token: accessToken });
+      if (String(input).endsWith('/profile')) { time.mockReturnValue(now + 7 * 60000 + 1); return Response.json({ emailAddress: 'host@example.org' }); }
+      throw new Error('Unexpected outbound request');
+    });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await runInDurableObject(stub, async (instance: CalendarSync) => { await expect(instance.run(true)).rejects.toThrow('stage deadline'); });
+      expect((await stub.status()).runs[0]).toMatchObject({ status: 'failed', failure_stage: 'deadline' });
+      expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({ failure_stage: 'deadline' });
+      expectSanitized(log.mock.calls);
+    } finally { mock.mockRestore(); log.mockRestore(); time.mockRestore(); }
   });
 });
 

@@ -53,6 +53,15 @@ export class CalendarSync extends DurableObject<Env> {
     });
   }
 
+  /** Inverse of initialize: returns the ledger in the local JSON state format. Requires a paused job so the export is not stale on arrival. */
+  async export() {
+    return this.exclusive(async () => {
+      const state = await this.state();
+      if (await this.ctx.storage.get('enabled')) throw new Error('Pause live sync before exporting the ledger.');
+      return state;
+    });
+  }
+
   private async token() {
     const c = credentialsSchema.parse(JSON.parse(this.env.GOOGLE_CREDENTIALS));
     const response = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', body: new URLSearchParams({ ...c, grant_type: 'refresh_token' }), signal: AbortSignal.timeout(30000) });
@@ -210,6 +219,7 @@ export default {
     const path = new URL(request.url).pathname;
     try {
       if (request.method === 'GET' && path === '/status') return Response.json(await instance.status());
+      if (request.method === 'GET' && path === '/export') return Response.json(await instance.export(), { headers: { 'Cache-Control': 'no-store' } });
       if (request.method !== 'POST') return new Response('Not found', { status: 404 });
       if (Number(request.headers.get('content-length') ?? 0) > 1024 * 1024) return new Response('Too large', { status: 413 });
       if (path === '/initialize') return Response.json(await instance.initialize(await request.json()));

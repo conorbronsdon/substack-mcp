@@ -53,6 +53,13 @@ Do not roll back by enabling the old local scheduler with stale state. Pause the
 cloud job and reconcile its newer attempt history first. Never reset cloud state
 to solve a credential or lock problem. `/pause` disables new live runs.
 
+To move the ledger back to a local scheduler, POST `/pause`, confirm `/status`
+shows no running job, then GET `/export` with the admin bearer token. It returns
+the ledger in the same JSON state format `/initialize` accepts and refuses while
+live sync is enabled. Write the response directly to the private `state_path`;
+it contains private contact data. Then disable the Worker's cron triggers so one
+scheduler owns the ledger. Export does not erase the Durable Object state.
+
 ## Weekly email check
 
 A separate cron invocation checks whether it is Monday at 09:20 in the configured

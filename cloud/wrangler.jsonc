@@ -1,3 +1,7 @@
+// WARNING: This template contains placeholder identities and publication settings.
+// Never deploy it as-is. Copy it to a private deployment config and replace every
+// placeholder before any optional cloud deployment. The maintained installation
+// currently runs locally; see ../docs/calendar-sync.md.
 {
   "name": "substack-calendar-sync",
   "main": "worker.ts",

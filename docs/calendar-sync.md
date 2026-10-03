@@ -1,5 +1,18 @@
 # Calendar booking consent sync
 
+## Current local installation (October 2, 2026)
+
+The maintained installation runs locally through the Windows scheduled task
+**Substack calendar sync**, every six hours. Its configuration, runner, state,
+locks and logs live in `~/.substack-calendar-sync/`, outside this repository.
+The computer must be awake and its credentials valid for a run to complete.
+Keep one scheduler for the canonical state; do not activate a cloud scheduler
+alongside this local installation. The optional [cloud migration guide](cloud-calendar-sync.md)
+describes a separate cutover. `cloud/wrangler.jsonc` contains placeholders and
+must never be deployed as-is.
+
+## Run the helper
+
 `node dist/calendar-sync.js CONFIG.json` runs a dry-run. Add `--write` only after
 reviewing the dry-run and explicitly authorizing the recurring newsletter adds.
 The helper uses Gmail's read-only CLI operations and calls the actual registered

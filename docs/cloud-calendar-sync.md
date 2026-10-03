@@ -1,5 +1,12 @@
 # Always-on Calendar newsletter sync
 
+**Current installation:** the maintained sync runs locally every six hours via
+the Windows task **Substack calendar sync**, with private configuration and state
+in `~/.substack-calendar-sync/`. See [the local runbook](calendar-sync.md).
+The Worker below is optional; its checked-in `cloud/wrangler.jsonc` is a template
+with placeholders and must never be deployed as-is. Follow the explicit cutover
+before enabling cloud execution.
+
 The optional Worker runs the registered MCP subscriber tools through an in-memory
 MCP connection. A Cloudflare Cron Trigger starts a scan at minute 5 of every hour;
 the user's computer and coding assistant can be off. This is polling, not a

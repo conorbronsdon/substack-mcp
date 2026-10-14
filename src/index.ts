@@ -194,6 +194,11 @@ async function run() {
     process.exitCode = await runStatus(args.slice(1));
     return;
   }
+  if (args[0] === "subscribers" && args[1] === "export") {
+    const { runSubscriberExport } = await import("./subscriber-export-cli.js");
+    process.exitCode = await runSubscriberExport(args.slice(2));
+    return;
+  }
   if (["analytics", "subscribers", "posts"].includes(args[0]) || (args[0] === "drafts" && ["list", "get", "create", "preflight"].includes(args[1]))) {
     const { runOperator } = await import("./operator-cli.js");
     process.exitCode = await runOperator(args);

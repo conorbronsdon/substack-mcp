@@ -37,7 +37,7 @@ function parse(args: string[]): Options {
   return result;
 }
 
-async function checkTarget(path: string, force: boolean): Promise<void> {
+export async function checkTarget(path: string, force: boolean): Promise<void> {
   let stat;
   try { stat = await lstat(path); } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
@@ -47,8 +47,12 @@ async function checkTarget(path: string, force: boolean): Promise<void> {
   if (!force) throw new Error("Export destination already exists; use --force to replace it.");
 }
 
-/** Publish one complete file. Exclusive linking prevents a no-force overwrite race. */
-async function writeAtomic(path: string, text: string, force: boolean): Promise<void> {
+/**
+ * Publish one complete file. Exclusive linking prevents a no-force overwrite race.
+ * `state.published` turns true only once this call has put the file at `path`.
+ * `beforePublish` runs immediately before the final link/rename and can veto it by throwing.
+ */
+export async function writeAtomic(path: string, text: string, force: boolean, state: { published: boolean } = { published: false }, beforePublish?: () => void): Promise<void> {
   const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
   let file;
   try {
@@ -66,9 +70,9 @@ async function writeAtomic(path: string, text: string, force: boolean): Promise<
   try {
     try { await file.writeFile(text, "utf8"); await file.sync(); }
     finally { await file.close(); }
-    if (force) { await checkTarget(path, true); await rename(temporary, path); }
-    else await link(temporary, path);
-    published = true;
+    if (force) { await checkTarget(path, true); beforePublish?.(); await rename(temporary, path); }
+    else { beforePublish?.(); await link(temporary, path); }
+    published = state.published = true;
   } catch (error) {
     writeError = error;
     throw error;

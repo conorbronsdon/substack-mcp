@@ -93,6 +93,7 @@
     "docs/release-checklist.md",
     "docs/distribution.md",
     "docs/typescript-api.md",
+    "docs/reader-sessions.md",
     "docs/operator-cli.md",
     "docs/http-transport.md",
     "docs/errors.md"

@@ -39,6 +39,10 @@ governed by Substack's terms and privacy policy.
   export bundle including the original draft body. Each file is written through a
   temporary file in the same directory; if cleanup fails, the CLI reports it and
   the temporary copy can remain.
+  The experimental `subscribers export` command (off unless
+  `SUBSTACK_EXPERIMENTAL_SUBSCRIBER_EXPORT=1`) writes subscriber email addresses,
+  and any field groups you request, to the CSV path you name with owner-only
+  permissions. It prints only counts.
 - **Logs and errors.** Session tokens and cookies are not printed. Error output
   can include messages returned by Substack or by the network layer (for example
   when authentication fails at startup or an export fails), so review error output

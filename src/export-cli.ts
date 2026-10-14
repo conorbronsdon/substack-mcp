@@ -37,7 +37,7 @@ function parse(args: string[]): Options {
   return result;
 }
 
-async function checkTarget(path: string, force: boolean): Promise<void> {
+export async function checkTarget(path: string, force: boolean): Promise<void> {
   let stat;
   try { stat = await lstat(path); } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
@@ -48,7 +48,7 @@ async function checkTarget(path: string, force: boolean): Promise<void> {
 }
 
 /** Publish one complete file. Exclusive linking prevents a no-force overwrite race. */
-async function writeAtomic(path: string, text: string, force: boolean): Promise<void> {
+export async function writeAtomic(path: string, text: string, force: boolean): Promise<void> {
   const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
   let file;
   try {

@@ -28,6 +28,9 @@ membership, and is intentionally omitted from tool output.
 
 The default row includes only email, subscription ID and interval. Request `include` groups to add `activity_rating`, `created_at`, `flags` (comp, founding, gift, free trial), or `revenue`. Included fields can be `null`; if a requested filter needs a null field to check a returned row, the tool reports `filter_not_honored`. Names, photos, user IDs, chart counts, imports and batch actions are never returned. The tool rejects upstream HTTP 400 as `filter_rejected`, malformed or oversized responses, and checkable rows that contradict requested filters as `filter_not_honored`. Invalid dates and inverted ranges return `invalid_input` with the affected field names before any request. Search matching is Substack's filtering claim. Free-only and free-excluding results are checked against the returned subscription interval; comp membership is checked where the requested types make it decidable. `list_subscribers` and exact-email `get_subscriber` keep their original contracts.
 
+Bulk export is a separate, experimental CLI command; see the
+[export design](subscriber-export-design.md) (#148).
+
 Live checks on 2026-09-23 verified the `free`, `paid`, `comp`, `free+paid`, and `paid+comp` type selections. `free+paid` returned the sum of the separate free and paid counts; a free-only type array matched the free scalar filter. Free rows had interval `free`, and paid rows did not. Among 500 scanned rows, activity rating, creation time, revenue, and the four flags were never null. Observed timestamps used nine fractional digits and a `+00:00` offset. A subscriber created at or after 08:00 UTC on date D was excluded by the upstream “on or before D” filter; the upstream `gte: D` filter returned rows with UTC dates on or after D. These observations do not establish Substack's day boundary timezone.
 
 ## Write

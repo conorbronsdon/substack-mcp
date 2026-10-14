@@ -1,0 +1,129 @@
+{
+  "_comment": "Synthetic subscriber-stats pages in the live-verified response shape (docs/subscribers.md). Every address is an example-* placeholder on example.org; no real subscriber data. Pages are keyed by request offset with page size 3.",
+  "page_size": 3,
+  "pages": {
+    "0": {
+      "count": 7,
+      "subscribers": [
+        {
+          "user_email_address": "example-ada@example.org",
+          "subscription_id": 1001,
+          "subscription_interval": "free",
+          "activity_rating": 0,
+          "subscription_created_at": "2026-01-15T12:00:00.123456789+00:00",
+          "total_revenue_generated": 0,
+          "is_comp": false,
+          "is_founding": false,
+          "is_gift": false,
+          "is_free_trial": false,
+          "user_name": "Private Name 0",
+          "user_photo_url": "https://example.org/private.jpg",
+          "user_id": 9000
+        },
+        {
+          "user_email_address": "example-ben@example.org",
+          "subscription_id": 1002,
+          "subscription_interval": "free",
+          "activity_rating": 1,
+          "subscription_created_at": "2026-02-15T12:00:00.123456789+00:00",
+          "total_revenue_generated": 0,
+          "is_comp": false,
+          "is_founding": false,
+          "is_gift": false,
+          "is_free_trial": false,
+          "user_name": "Private Name 1",
+          "user_photo_url": "https://example.org/private.jpg",
+          "user_id": 9001
+        },
+        {
+          "user_email_address": "+example-formula@example.org",
+          "subscription_id": 1003,
+          "subscription_interval": "free",
+          "activity_rating": 2,
+          "subscription_created_at": "2026-03-15T12:00:00.123456789+00:00",
+          "total_revenue_generated": 0,
+          "is_comp": false,
+          "is_founding": false,
+          "is_gift": false,
+          "is_free_trial": false,
+          "user_name": "Private Name 2",
+          "user_photo_url": "https://example.org/private.jpg",
+          "user_id": 9002
+        }
+      ],
+      "lastSync": "2026-10-01T00:00:00.000Z"
+    },
+    "3": {
+      "count": 7,
+      "subscribers": [
+        {
+          "user_email_address": "example-cy@example.org",
+          "subscription_id": 1004,
+          "subscription_interval": "month",
+          "activity_rating": 3,
+          "subscription_created_at": "2026-04-15T12:00:00.123456789+00:00",
+          "total_revenue_generated": 800.0,
+          "is_comp": false,
+          "is_founding": false,
+          "is_gift": false,
+          "is_free_trial": false,
+          "user_name": "Private Name 3",
+          "user_photo_url": "https://example.org/private.jpg",
+          "user_id": 9003
+        },
+        {
+          "user_email_address": "example-dee@example.org",
+          "subscription_id": 1005,
+          "subscription_interval": "free",
+          "activity_rating": 4,
+          "subscription_created_at": "2026-05-15T12:00:00.123456789+00:00",
+          "total_revenue_generated": 0,
+          "is_comp": false,
+          "is_founding": false,
+          "is_gift": false,
+          "is_free_trial": false,
+          "user_name": "Private Name 4",
+          "user_photo_url": "https://example.org/private.jpg",
+          "user_id": 9004
+        },
+        {
+          "user_email_address": "example-eve@example.org",
+          "subscription_id": 1006,
+          "subscription_interval": "month",
+          "activity_rating": 5,
+          "subscription_created_at": "2026-06-15T12:00:00.123456789+00:00",
+          "total_revenue_generated": 800.0,
+          "is_comp": false,
+          "is_founding": false,
+          "is_gift": true,
+          "is_free_trial": false,
+          "user_name": "Private Name 5",
+          "user_photo_url": "https://example.org/private.jpg",
+          "user_id": 9005
+        }
+      ],
+      "lastSync": "2026-10-01T00:00:00.000Z"
+    },
+    "6": {
+      "count": 7,
+      "subscribers": [
+        {
+          "user_email_address": "example-fay@example.org",
+          "subscription_id": 1007,
+          "subscription_interval": "free",
+          "activity_rating": 0,
+          "subscription_created_at": "2026-07-15T12:00:00.123456789+00:00",
+          "total_revenue_generated": 0,
+          "is_comp": false,
+          "is_founding": false,
+          "is_gift": false,
+          "is_free_trial": false,
+          "user_name": "Private Name 6",
+          "user_photo_url": "https://example.org/private.jpg",
+          "user_id": 9006
+        }
+      ],
+      "lastSync": "2026-10-01T00:00:00.000Z"
+    }
+  }
+}

@@ -78,6 +78,7 @@
     "docs/calendar-sync.md",
     "docs/cloud-calendar-sync.md",
     "docs/subscribers.md",
+    "docs/subscriber-export-design.md",
     "docs/authoring.md",
     "docs/export.md",
     "docs/analytics-rankings.md",

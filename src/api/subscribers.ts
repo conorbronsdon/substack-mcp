@@ -95,7 +95,7 @@ export class SubscriberService {
     return result;
   }
 
-  async search(input: SubscriberSearchInput = {}) {
+  async search(input: SubscriberSearchInput = {}, request: { signal?: AbortSignal } = {}) {
     const args = subscriberSearchInput.parse(input);
     const column = args.sort.startsWith("created") ? "subscription_created_at" : "activity_rating";
     const filters: Record<string, string | number | string[]> = {
@@ -111,7 +111,7 @@ export class SubscriberService {
     if (args.created_on_or_after) filters.subscription_created_at_gte = args.created_on_or_after;
     if (args.search) filters.search = args.search;
     let raw: unknown;
-    try { raw = await this.request("/api/v1/subscriber-stats", { method: "POST", body: JSON.stringify({ filters, limit: args.limit, offset: args.offset }) }); }
+    try { raw = await this.request("/api/v1/subscriber-stats", { method: "POST", body: JSON.stringify({ filters, limit: args.limit, offset: args.offset }), ...(request.signal ? { signal: request.signal } : {}) }); }
     catch (error) {
       if (error instanceof SubstackAPIError && error.statusCode === 400) throw new SubscriberSearchError("filter_rejected");
       throw error;

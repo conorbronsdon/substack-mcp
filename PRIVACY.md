@@ -41,8 +41,10 @@ governed by Substack's terms and privacy policy.
   the temporary copy can remain.
   The experimental `subscribers export` command (off unless
   `SUBSTACK_EXPERIMENTAL_SUBSCRIBER_EXPORT=1`) writes subscriber email addresses,
-  and any field groups you request, to the CSV path you name with owner-only
-  permissions. It prints only counts.
+  and any field groups you request, to the CSV path you name. On POSIX systems the
+  file is owner-only (mode 0600); on Windows it inherits the folder's access rules,
+  so choose a private folder. It prints counts and the run's settings, never
+  subscriber values.
 - **Logs and errors.** Session tokens and cookies are not printed. Error output
   can include messages returned by Substack or by the network layer (for example
   when authentication fails at startup or an export fails), so review error output

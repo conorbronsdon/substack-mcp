@@ -1,3 +1,4 @@
+import { lstat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { resolvePublications, resolveSelectedPublications } from "./auth/resolve-publications.js";
@@ -11,7 +12,7 @@ import {
 const command = "subscribers export";
 export const usage = `Usage: ${SUBSCRIBER_EXPORT_FLAG}=1 substack-mcp subscribers export --output <file.csv> --purpose <text> --confirm-subscriber-pii
          [--types free,paid,comp] [--include activity_rating,created_at,flags,revenue] [--max-rows 1-${EXPORT_MAX_ROWS}] [--max-minutes 1-120] [--force] [--publication key]
-Experimental. Writes subscriber email addresses (personal data) to one local CSV file with owner-only permissions; nothing is printed or sent anywhere else.
+Experimental. Writes subscriber email addresses (personal data) to one local CSV file (owner-only on POSIX; on Windows it inherits the folder's access rules); nothing is printed or sent anywhere else.
 Reads every matching row oldest-first through the subscriber-stats search, one page of 50 per second by default, and writes nothing if any page fails,
 the list changes during the read, or more rows match than --max-rows (default ${DEFAULT_EXPORT_BUDGET.maxRows}). stdout gets a summary with counts only.
 See docs/subscriber-export-design.md.`;
@@ -67,7 +68,7 @@ export async function runSubscriberExport(
   env: NodeJS.ProcessEnv = process.env, deps: ExportDeps = defaultDeps,
 ): Promise<number> {
   const reject = (code: string, message: string, exit: number, extra: Record<string, unknown> = {}) => {
-    io.error(JSON.stringify({ format_version: 1, ok: false, command, code, ...extra, file_written: false, message })); return exit;
+    io.error(JSON.stringify({ format_version: 1, ok: false, command, code, file_written: false, ...extra, message })); return exit;
   };
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) { io.out(usage); return 0; }
   if (env[SUBSCRIBER_EXPORT_FLAG] !== "1") return reject("export_disabled", `Subscriber export is experimental. Set ${SUBSCRIBER_EXPORT_FLAG}=1 to enable it. No request was made.`, 2);
@@ -86,7 +87,13 @@ export async function runSubscriberExport(
     const result = await collectSubscriberExport(input => client.subscribers.search(input),
       { subscription_types: options.subscription_types, include: options.include },
       { ...DEFAULT_EXPORT_BUDGET, maxRows: options.maxRows, maxDurationMs: options.maxMinutes * 60_000 }, deps);
-    await writeAtomic(output, toCsv(result.rows, options.include), options.force);
+    try { await writeAtomic(output, toCsv(result.rows, options.include), options.force); }
+    catch {
+      // writeAtomic publishes, then removes its temporary copy, so a failure can come after the file exists.
+      const present = await lstat(output).then(stat => stat.isFile(), () => false);
+      return reject("write_failed", "Writing the CSV failed. Check the output path and the output directory for a leftover temporary file, and delete any copy you should not keep. No subscriber data was printed.", 1,
+        { file_written: !present ? false : options.force ? "unknown" : true });
+    }
     io.out(JSON.stringify({ format_version: 1, ok: true, command, publication: selected.key, purpose: options.purpose, file: output,
       columns: exportColumns(options.include), subscription_types: options.subscription_types ?? "all", rows: result.rows.length,
       total_matching: result.total_matching, pages: result.pages, retries: result.retries, started_at: startedAt, finished_at: new Date(deps.now()).toISOString(),
@@ -96,6 +103,6 @@ export async function runSubscriberExport(
     if (error instanceof SubscriberExportError) {
       return reject(error.code, `${error.message} No file was written.`, 1, { pages_read: error.pagesRead, ...(error.status ? { status: error.status } : {}) });
     }
-    return reject("unknown", "The export failed; no subscriber data was printed. Check the output directory for a leftover temporary file, then check configuration with doctor --json --check-auth.", 1);
+    return reject("unknown", "The export failed; no subscriber data was printed. Check configuration with doctor --json --check-auth.", 1);
   }
 }

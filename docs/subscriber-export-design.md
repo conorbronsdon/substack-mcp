@@ -22,7 +22,7 @@ go. The design decisions that #52 deferred are settled below.
 | Explicit consent | Three independent gates: the environment flag, `--confirm-subscriber-pii` on every run, and a required `--purpose`. Missing any one stops before a request. |
 | Stated purpose | `--purpose` (1–200 printable characters) is echoed in the stdout summary so the operator's own audit log records why the file exists. It is not written into the CSV. |
 | Projected fields | Default: `user_email_address`, `subscription_id`, `subscription_interval`, the same as `list_subscribers`. Optional `--include` groups reuse the `search_subscribers` groups: `activity_rating`, `created_at`, `flags`, `revenue`. Names, photos and user IDs are never projected, even though the upstream rows contain them. |
-| Output handling | Local file only, never stdout. The CSV is written with mode `0600` through a same-directory temporary file and published atomically, reusing the draft-export writer. An existing file is never replaced without `--force`; the target is checked before any request. |
+| Output handling | Local file only, never stdout. The CSV is written with mode `0600` on POSIX (on Windows the file inherits the directory's ACLs, as with draft export) through a same-directory temporary file and published atomically, reusing the draft-export writer. An existing file is never replaced without `--force`; the target is checked before any request. |
 | PII exposure | stdout and stderr carry counts, codes and static messages only. Upstream error text is discarded because it can echo request data. Tests assert that no fixture address appears in any output on success or failure. |
 | Bounds | 50 rows per page (the verified maximum). `--max-rows` defaults to 10,000 with a hard cap of 100,000. If more rows match, the run fails as `row_limit_exceeded`; it never truncates silently. |
 | Polling budget | See *Upstream surface* below: the prototype does not poll an async job. Its time budget is `--max-minutes` (default 30, maximum 120), checked before every request and every wait. |
@@ -84,9 +84,12 @@ Every request is a read. Retrying cannot cause a side effect.
 
 ## Failure modes
 
-Every failure writes no file and prints one JSON envelope on stderr
-(`ok: false`, `code`, `pages_read`, optional HTTP `status`,
-`file_written: false`). Rows already read are discarded with the process memory.
+Every failure prints one JSON envelope on stderr (`ok: false`, `code`,
+`pages_read`, optional HTTP `status`, `file_written`). Only `write_failed` can
+leave a file: `file_written` is `true` when the CSV was published before the
+temporary copy's cleanup failed, `"unknown"` when `--force` was replacing a
+file, and `false` otherwise. Rows already read are discarded with the process
+memory.
 
 | Code | Cause | Exit |
 | --- | --- | --- |
@@ -101,10 +104,11 @@ Every failure writes no file and prints one JSON envelope on stderr
 | `deadline_exceeded` | Time budget reached | 1 |
 | `inconsistent_snapshot` | List changed during the read | 1 |
 | `filter_rejected` / `filter_not_honored` / `invalid_subscriber_response` | Upstream contract violation | 1 |
-| `unknown` | Anything else, including a failed file write | 1 |
+| `write_failed` | Writing or cleaning up the CSV failed; see `file_written` | 1 |
+| `unknown` | Anything else | 1 |
 
 A temporary file can remain only if the final cleanup itself fails, as with
-draft export; the generic failure message tells the operator to check the output
+draft export; the `write_failed` message tells the operator to check the output
 directory.
 
 ## Privacy
@@ -113,7 +117,8 @@ The file contains personal data the publisher is responsible for under
 Substack's terms and applicable law. The prototype:
 
 - never sends subscriber data anywhere except the local file;
-- writes owner-only permissions and no world-readable temporary files;
+- on POSIX, writes the file and its temporary copy owner-only (`0600`); on Windows
+  both inherit the folder's ACLs, so the operator should choose a private folder;
 - keeps the purpose in the operator's stdout, not in the data file;
 - has no telemetry, as with the rest of the package ([PRIVACY.md](../PRIVACY.md)).
 

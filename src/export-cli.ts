@@ -50,8 +50,9 @@ export async function checkTarget(path: string, force: boolean): Promise<void> {
 /**
  * Publish one complete file. Exclusive linking prevents a no-force overwrite race.
  * `state.published` turns true only once this call has put the file at `path`.
+ * `beforePublish` runs immediately before the final link/rename and can veto it by throwing.
  */
-export async function writeAtomic(path: string, text: string, force: boolean, state: { published: boolean } = { published: false }): Promise<void> {
+export async function writeAtomic(path: string, text: string, force: boolean, state: { published: boolean } = { published: false }, beforePublish?: () => void): Promise<void> {
   const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
   let file;
   try {
@@ -69,8 +70,8 @@ export async function writeAtomic(path: string, text: string, force: boolean, st
   try {
     try { await file.writeFile(text, "utf8"); await file.sync(); }
     finally { await file.close(); }
-    if (force) { await checkTarget(path, true); await rename(temporary, path); }
-    else await link(temporary, path);
+    if (force) { await checkTarget(path, true); beforePublish?.(); await rename(temporary, path); }
+    else { beforePublish?.(); await link(temporary, path); }
     published = state.published = true;
   } catch (error) {
     writeError = error;

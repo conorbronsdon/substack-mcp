@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
@@ -8,11 +8,19 @@ import type { PublicationCredentials } from "../auth/resolve-publications.js";
 import recorded from "./fixtures/subscriber-export-pages.json" with { type: "json" };
 
 // Make the export writer's temporary-file cleanup fail, as an antivirus lock can on Windows.
-const cleanup = vi.hoisted(() => ({ fail: false, raceTo: "" }));
+const cleanup = vi.hoisted(() => ({ fail: false, raceTo: "", slowSync: false, late: false }));
 vi.mock("node:fs/promises", async importOriginal => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
   // `raceTo`: another process creates the destination after preflight, just before the exclusive link.
-  return { ...actual, link: async (from: string, to: string) => {
+  // `slowSync`: the temporary file's fsync takes long enough to pass the time budget.
+  return { ...actual, open: async (...args: Parameters<typeof actual.open>) => {
+    const handle = await actual.open(...args);
+    if (cleanup.slowSync && String(args[0]).endsWith(".tmp")) {
+      const sync = handle.sync.bind(handle);
+      handle.sync = async () => { await sync(); cleanup.late = true; };
+    }
+    return handle;
+  }, link: async (from: string, to: string) => {
     if (cleanup.raceTo && to === cleanup.raceTo) await actual.writeFile(to, "another process", "utf8");
     return actual.link(from, to);
   }, unlink: async (path: Parameters<typeof actual.unlink>[0]) => {
@@ -29,7 +37,7 @@ const credentials: PublicationCredentials = { key: "example", label: "Example", 
 let dir: string | undefined;
 
 afterEach(async () => {
-  cleanup.fail = false; cleanup.raceTo = "";
+  cleanup.fail = false; cleanup.raceTo = ""; cleanup.slowSync = false; cleanup.late = false;
   vi.unstubAllGlobals();
   if (dir) await rm(dir, { recursive: true, force: true });
 });
@@ -66,4 +74,20 @@ it("reports file_written: false when another process takes the destination after
   expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ ok: false, code: "write_failed", file_written: false });
   expect(await readFile(path, "utf8")).toBe("another process");
   expect(await readdir(dir)).toEqual(["out.csv"]);
+});
+
+it.each([["a new file", false], ["a --force replacement", true]])("does not publish %s when the write runs past the time budget", async (_name, force) => {
+  replay();
+  dir = await mkdtemp(join(tmpdir(), "substack-subscriber-export-write-"));
+  const output = { out: vi.fn(), error: vi.fn() }, path = join(dir, "out.csv");
+  if (force) await writeFile(path, "keep", "utf8");
+  cleanup.slowSync = true;
+  const code = await runSubscriberExport(
+    ["--output", path, "--purpose", "Backup", "--confirm-subscriber-pii", "--max-minutes", "1", ...(force ? ["--force"] : [])], () => [credentials], output,
+    { [SUBSCRIBER_EXPORT_FLAG]: "1" }, { sleep: async () => {}, now: () => (cleanup.late ? 61_000 : 0), pageSize: recorded.page_size });
+  expect(code).toBe(1);
+  expect(output.out).not.toHaveBeenCalled();
+  expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ ok: false, code: "deadline_exceeded", file_written: false });
+  expect(await readdir(dir)).toEqual(force ? ["out.csv"] : []);
+  if (force) expect(await readFile(path, "utf8")).toBe("keep");
 });

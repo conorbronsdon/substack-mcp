@@ -163,7 +163,7 @@ describe("subscriber export", () => {
     expect(await readdir(dir)).toEqual([]);
   });
   it("aborts a request that outlives the remaining time budget", async () => {
-    replay(call => call === 1 ? new Promise<Response>(() => {}) as never : undefined);
+    const fetch = replay(call => call === 1 ? new Promise<Response>(() => {}) as never : undefined);
     const output = io(), dir = await scratch(), t = Date.parse("2026-10-14T00:00:00Z");
     let paused = false;
     // After the pause between pages only 50 ms of the one-minute budget is left, and the second request never answers.
@@ -171,6 +171,7 @@ describe("subscriber export", () => {
     const sleep = vi.fn(async () => { paused = true; });
     expect(await run([...base(join(dir, "out.csv")), "--max-minutes", "1"], output, enabled, deps({ now, sleep }))).toBe(1);
     expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ code: "deadline_exceeded", pages_read: 1, file_written: false });
+    expect((fetch.mock.calls[1][1]!.signal as AbortSignal).aborted).toBe(true);
     expect(await readdir(dir)).toEqual([]);
   });
   it("does not publish when the final page lands after the time budget", async () => {
@@ -190,6 +191,18 @@ describe("subscriber export", () => {
     expect(await run([...base(join(dir, "out.csv")), "--max-minutes", "1"], output, enabled, deps({ now: clock(40_000) }))).toBe(1);
     expect(JSON.parse(output.error.mock.calls[0][0]).code).toBe("deadline_exceeded");
     expect(await readdir(dir)).toEqual([]);
+  });
+});
+
+describe("permission wording", () => {
+  it("qualifies owner-only as POSIX-only wherever the export is described", async () => {
+    const changelog = await readFile(new URL("../../CHANGELOG.md", import.meta.url), "utf8");
+    const entry = changelog.slice(changelog.indexOf("`subscribers export`"), changelog.indexOf("docs/subscriber-export-design.md"));
+    expect(entry).toMatch(/owner-only \(`0600`\) on POSIX; on Windows it inherits/);
+    for (const doc of ["../../PRIVACY.md", "../../docs/subscriber-export-design.md"]) {
+      const text = await readFile(new URL(doc, import.meta.url), "utf8");
+      for (const match of text.matchAll(/owner-only/g)) expect(text.slice(match.index - 80, match.index + 80)).toMatch(/POSIX/);
+    }
   });
 });
 

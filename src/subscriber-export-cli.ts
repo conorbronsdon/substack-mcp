@@ -93,15 +93,17 @@ export async function runSubscriberExport(
   const startedAt = new Date(deps.now()).toISOString();
   try {
     const client = new SubstackClient(selected.publicationUrl, selected.sessionToken, selected.userId, env.SUBSTACK_USER_AGENT, Number(env.SUBSTACK_REQUEST_TIMEOUT_MS) || undefined);
-    const result = await collectSubscriberExport(input => client.subscribers.search(input),
+    const result = await collectSubscriberExport((input, request) => client.subscribers.search(input, request),
       { subscription_types: options.subscription_types, include: options.include },
       { ...DEFAULT_EXPORT_BUDGET, maxRows: options.maxRows, maxDurationMs: options.maxMinutes * 60_000 }, deps);
     const csv = toCsv(result.rows, options.include);
-    if (deps.now() > result.deadline_at) throw new SubscriberExportError("deadline_exceeded", result.pages, result.rows.length);
+    const withinBudget = () => { if (deps.now() > result.deadline_at) throw new SubscriberExportError("deadline_exceeded", result.pages, result.rows.length); };
+    withinBudget();
     // writeAtomic can publish and then fail removing its temporary copy, so report what it says it published.
     const written = { published: false };
-    try { await writeAtomic(output, csv, options.force, written); }
-    catch {
+    try { await writeAtomic(output, csv, options.force, written, withinBudget); }
+    catch (error) {
+      if (error instanceof SubscriberExportError) throw error;
       return reject("write_failed", "Writing the CSV failed. Check the output path and the output directory for a leftover temporary file, and delete any copy you should not keep. No subscriber data was printed.", 1,
         { file_written: written.published });
     }

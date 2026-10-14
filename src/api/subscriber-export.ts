@@ -48,10 +48,14 @@ function retryAfterMs(value: string | undefined, now: number): number | undefine
   return Number.isFinite(at) ? Math.max(0, at - now) : undefined;
 }
 
-async function withinDeadline<T>(operation: Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
+/** Runs `operation` with a signal that aborts, and a result that rejects, once `ms` elapse. */
+async function withinDeadline<T>(operation: (signal: AbortSignal) => Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
+  const controller = new AbortController();
   let timer: NodeJS.Timeout | undefined;
   try {
-    return await Promise.race([operation, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(onTimeout()), ms); })]);
+    return await Promise.race([operation(controller.signal), new Promise<never>((_, reject) => {
+      timer = setTimeout(() => { const error = onTimeout(); controller.abort(error); reject(error); }, ms);
+    })]);
   } finally { clearTimeout(timer); }
 }
 
@@ -64,7 +68,7 @@ async function withinDeadline<T>(operation: Promise<T>, ms: number, onTimeout: (
  * closed: no partial result is returned on any error, detected drift or limit.
  */
 export async function collectSubscriberExport(
-  search: (input: SubscriberSearchInput) => Promise<SearchResult>, options: ExportOptions, budget: ExportBudget, deps: ExportDeps,
+  search: (input: SubscriberSearchInput, request: { signal: AbortSignal }) => Promise<SearchResult>, options: ExportOptions, budget: ExportBudget, deps: ExportDeps,
 ): Promise<ExportResult> {
   const pageSize = Math.max(2, deps.pageSize ?? EXPORT_PAGE_SIZE);
   const started = deps.now();
@@ -81,7 +85,7 @@ export async function collectSubscriberExport(
     if (remaining <= 0) throw fail("deadline_exceeded");
     let page: SearchResult;
     try {
-      page = await withinDeadline(search({ ...(options.subscription_types ? { subscription_types: options.subscription_types } : {}), include: options.include, sort: "created_asc", limit: pageSize, offset }),
+      page = await withinDeadline(signal => search({ ...(options.subscription_types ? { subscription_types: options.subscription_types } : {}), include: options.include, sort: "created_asc", limit: pageSize, offset }, { signal }),
         remaining, () => fail("deadline_exceeded"));
     } catch (error) {
       if (error instanceof SubscriberExportError) throw error;

@@ -44,7 +44,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # Node 24 bundles npm >= 11.5.1 (required for trusted publishing) with
           # sigstore intact. Self-upgrading npm on the Node 22 runner
@@ -164,7 +164,7 @@ jobs:
           persist-credentials: false
       - name: Isolate registry authentication in the runner temporary directory
         run: printf 'DOCKER_CONFIG=%s/release-docker-config\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: Verify original source and build
@@ -209,7 +209,7 @@ jobs:
         with:
           ref: ${{ needs.publish.outputs.target }}
           persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: Bind attestation subject to the verified release source

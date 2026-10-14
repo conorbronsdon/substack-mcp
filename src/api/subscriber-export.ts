@@ -19,7 +19,7 @@ const failureMessages: Record<ExportFailureCode, string> = {
   rate_limited: "Substack rate limited the export beyond its retry budget, or asked for a longer wait than allowed. Try again later.",
   authentication: "Substack rejected the session. Refresh it with substack-mcp login and check with doctor --json --check-auth.",
   deadline_exceeded: "The export exceeded its time budget before every page was read.",
-  inconsistent_snapshot: "The subscriber list changed while it was being read (count drift or rows shifting between pages). Re-run the export.",
+  inconsistent_snapshot: "The subscriber list changed while it was being read (count drift, or rows shifting between pages). Re-run the export.",
   filter_rejected: "Substack rejected the export filters.",
   filter_not_honored: "Returned rows contradicted the requested filters.",
   invalid_subscriber_response: "A subscriber page was malformed or outside the response contract.",
@@ -39,7 +39,7 @@ type SearchResult = Awaited<ReturnType<SubscriberService["search"]>>;
 export type ExportRow = SearchResult["subscribers"][number];
 export interface ExportDeps { sleep: (ms: number) => Promise<void>; now: () => number; pageSize?: number }
 export interface ExportOptions { subscription_types?: ("free" | "paid" | "comp")[]; include: ExportInclude[] }
-export interface ExportResult { rows: ExportRow[]; total_matching: number; pages: number; retries: number; duration_ms: number }
+export interface ExportResult { rows: ExportRow[]; total_matching: number; pages: number; retries: number; duration_ms: number; deadline_at: number }
 
 function retryAfterMs(value: string | undefined, now: number): number | undefined {
   if (value === undefined) return undefined;
@@ -48,30 +48,43 @@ function retryAfterMs(value: string | undefined, now: number): number | undefine
   return Number.isFinite(at) ? Math.max(0, at - now) : undefined;
 }
 
+async function withinDeadline<T>(operation: Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([operation, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(onTimeout()), ms); })]);
+  } finally { clearTimeout(timer); }
+}
+
 /**
  * Read every matching subscriber through the verified subscriber-stats search,
- * oldest first so new signups land after the cursor. Fails closed: no partial
- * result is returned on any error, drift or limit.
+ * oldest first so new signups land after the cursor. Each page after the first
+ * re-reads the previous page's last row; if that anchor moved, rows shifted and
+ * the read fails. Best effort: offsetting changes before the cursor (one removal
+ * plus one older insertion between two page reads) are not detectable. Fails
+ * closed: no partial result is returned on any error, detected drift or limit.
  */
 export async function collectSubscriberExport(
   search: (input: SubscriberSearchInput) => Promise<SearchResult>, options: ExportOptions, budget: ExportBudget, deps: ExportDeps,
 ): Promise<ExportResult> {
-  const pageSize = deps.pageSize ?? EXPORT_PAGE_SIZE;
+  const pageSize = Math.max(2, deps.pageSize ?? EXPORT_PAGE_SIZE);
   const started = deps.now();
   const rows = new Map<number, ExportRow>();
   let offset = 0, pages = 0, retries = 0, duplicates = 0;
-  let firstTotal: number | undefined, lastTotal = 0, drifted = false;
+  let firstTotal: number | undefined, lastTotal = 0, drifted = false, anchor: number | undefined;
   const fail = (code: ExportFailureCode, status?: number) => new SubscriberExportError(code, pages, rows.size, status);
   const wait = async (ms: number) => {
     if (deps.now() - started + ms > budget.maxDurationMs) throw fail("deadline_exceeded");
     await deps.sleep(ms);
   };
   while (true) {
-    if (deps.now() - started > budget.maxDurationMs) throw fail("deadline_exceeded");
+    const remaining = budget.maxDurationMs - (deps.now() - started);
+    if (remaining <= 0) throw fail("deadline_exceeded");
     let page: SearchResult;
     try {
-      page = await search({ ...(options.subscription_types ? { subscription_types: options.subscription_types } : {}), include: options.include, sort: "created_asc", limit: pageSize, offset });
+      page = await withinDeadline(search({ ...(options.subscription_types ? { subscription_types: options.subscription_types } : {}), include: options.include, sort: "created_asc", limit: pageSize, offset }),
+        remaining, () => fail("deadline_exceeded"));
     } catch (error) {
+      if (error instanceof SubscriberExportError) throw error;
       if (error instanceof SubscriberSearchError) throw fail(error.code);
       if (error instanceof ResponseError) throw fail("invalid_subscriber_response");
       if (!(error instanceof SubstackAPIError)) throw fail("unknown");
@@ -93,17 +106,20 @@ export async function collectSubscriberExport(
     lastTotal = page.total_matching;
     if (lastTotal !== firstTotal) drifted = true;
     if (lastTotal > budget.maxRows) throw fail("row_limit_exceeded");
-    for (const row of page.subscribers) {
+    if (anchor !== undefined && page.subscribers[0]?.subscription_id !== anchor) throw fail("inconsistent_snapshot");
+    const fresh = anchor === undefined ? page.subscribers : page.subscribers.slice(1);
+    for (const row of fresh) {
       if (rows.has(row.subscription_id)) duplicates++;
       else rows.set(row.subscription_id, row);
     }
     if (!page.has_more) break;
-    offset = page.next_offset!;
+    if (fresh.length === 0) throw fail("invalid_subscriber_response");
+    anchor = page.subscribers.at(-1)!.subscription_id;
+    offset = page.next_offset! - 1;
     await wait(budget.pageDelayMs);
   }
-  // Offset pages are not a snapshot: a removal shifts later rows back a page.
   if (drifted || duplicates > 0 || rows.size !== lastTotal) throw fail("inconsistent_snapshot");
-  return { rows: [...rows.values()], total_matching: lastTotal, pages, retries, duration_ms: deps.now() - started };
+  return { rows: [...rows.values()], total_matching: lastTotal, pages, retries, duration_ms: deps.now() - started, deadline_at: started + budget.maxDurationMs };
 }
 
 export function exportColumns(include: readonly ExportInclude[]): string[] {

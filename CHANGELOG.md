@@ -9,10 +9,12 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
-- Experimental, CLI-only `subscribers export` writes all matching subscribers to a local
-  owner-only CSV. It needs `SUBSTACK_EXPERIMENTAL_SUBSCRIBER_EXPORT=1`,
-  `--confirm-subscriber-pii` and a stated `--purpose`, prints counts only and fails closed
-  on rate-limit, drift and row-limit budgets. Design: `docs/subscriber-export-design.md` (#148).
+- Experimental, CLI-only `subscribers export` writes matching subscribers (best-effort
+  completeness) to a local CSV, owner-only (`0600`) on POSIX; on Windows it inherits the
+  folder's access rules. Network paths are refused. It needs
+  `SUBSTACK_EXPERIMENTAL_SUBSCRIBER_EXPORT=1`, `--confirm-subscriber-pii` and a stated
+  `--purpose`, prints counts only and fails closed on rate-limit, time, detected-drift and
+  row-limit budgets. Design: `docs/subscriber-export-design.md` (#148).
 - A synthetic analytics-to-draft example that preserves metric provenance,
   missing-value states and ranking coverage in a private draft for review (#66).
 - `list_incoming_recommendations` reads who recommends a publication, with start date, active

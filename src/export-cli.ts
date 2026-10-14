@@ -47,8 +47,11 @@ export async function checkTarget(path: string, force: boolean): Promise<void> {
   if (!force) throw new Error("Export destination already exists; use --force to replace it.");
 }
 
-/** Publish one complete file. Exclusive linking prevents a no-force overwrite race. */
-export async function writeAtomic(path: string, text: string, force: boolean): Promise<void> {
+/**
+ * Publish one complete file. Exclusive linking prevents a no-force overwrite race.
+ * `state.published` turns true only once this call has put the file at `path`.
+ */
+export async function writeAtomic(path: string, text: string, force: boolean, state: { published: boolean } = { published: false }): Promise<void> {
   const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
   let file;
   try {
@@ -68,7 +71,7 @@ export async function writeAtomic(path: string, text: string, force: boolean): P
     finally { await file.close(); }
     if (force) { await checkTarget(path, true); await rename(temporary, path); }
     else await link(temporary, path);
-    published = true;
+    published = state.published = true;
   } catch (error) {
     writeError = error;
     throw error;

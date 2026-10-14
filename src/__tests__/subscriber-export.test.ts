@@ -9,6 +9,7 @@ import recorded from "./fixtures/subscriber-export-pages.json" with { type: "jso
 
 type Page = { count: number; subscribers: Record<string, unknown>[] };
 const pages = recorded.pages as Record<string, Page>;
+const all = Object.values(pages).flatMap(page => page.subscribers);
 const emails = Object.values(pages).flatMap(page => page.subscribers.map(row => String(row.user_email_address)));
 const credentials: PublicationCredentials = { key: "example", label: "Example", publicationUrl: "https://example.substack.com", userId: "1", sessionToken: "example-session-token", source: "env", missing: [] };
 const enabled = { [SUBSCRIBER_EXPORT_FLAG]: "1" };
@@ -20,12 +21,12 @@ const clock = (step = 0) => { let t = Date.parse("2026-10-14T00:00:00Z"); return
 const deps = (overrides: Partial<ExportDeps> = {}): ExportDeps & { sleep: ReturnType<typeof vi.fn> } =>
   ({ sleep: vi.fn(async () => {}), now: clock(), pageSize: recorded.page_size, ...overrides }) as never;
 
-/** Replays recorded pages by request offset; `override` can replace any call by index. */
-function replay(override: (call: number, offset: number) => Response | undefined = () => undefined) {
+/** Replays the recorded rows as one ordered list sliced by request offset and limit; `override` can replace any call by index or change `list`. */
+function replay(override: (call: number, offset: number, list: Record<string, unknown>[]) => Response | undefined = () => undefined, list = [...all]) {
   let call = 0;
   const fetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
-    const offset = JSON.parse(String(init!.body)).offset as number;
-    return override(call++, offset) ?? Response.json(pages[String(offset)] ?? { count: 7, subscribers: [] });
+    const { offset, limit } = JSON.parse(String(init!.body)) as { offset: number; limit: number };
+    return override(call++, offset, list) ?? Response.json({ count: list.length, subscribers: list.slice(offset, offset + limit) });
   });
   vi.stubGlobal("fetch", fetch);
   return fetch;
@@ -63,6 +64,18 @@ describe("subscriber export gate", () => {
     expect(JSON.parse(output.error.mock.calls[0][0]).code).toBe("invalid_arguments");
     expect(fetch).not.toHaveBeenCalled();
   });
+  it.each([
+    ["a UNC share", "\\\\host\\share\\out.csv"],
+    ["an extended UNC path", "\\\\?\\UNC\\host\\share\\out.csv"],
+    ["a device path", "\\\\.\\pipe\\out"],
+    ["a slash-form share", "//host/share/out.csv"],
+    ["a mixed-separator share", "\\/host/share/out.csv"],
+  ])("refuses %s as the output before any request", async (_name, path) => {
+    const fetch = replay(), output = io();
+    expect(await run(base(path), output)).toBe(2);
+    expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ ok: false, code: "network_output", file_written: false });
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it("refuses an existing output file without --force before reading subscribers", async () => {
     const fetch = replay(), output = io(), dir = await scratch(), path = join(dir, "out.csv");
     await writeFile(path, "keep", "utf8");
@@ -73,11 +86,11 @@ describe("subscriber export gate", () => {
 });
 
 describe("subscriber export", () => {
-  it("pages oldest-first through every recorded page and writes only the default projection", async () => {
+  it("pages oldest-first with a one-row overlap and writes only the default projection", async () => {
     const fetch = replay(), output = io(), dir = await scratch(), path = join(dir, "out.csv"), d = deps();
     expect(await run(base(path), output, enabled, d)).toBe(0);
     const bodies = fetch.mock.calls.map(call => JSON.parse(String(call[1]!.body)));
-    expect(bodies.map(body => body.offset)).toEqual([0, 3, 6]);
+    expect(bodies.map(body => body.offset)).toEqual([0, 2, 4]);
     for (const body of bodies) expect(body).toMatchObject({ limit: 3, filters: { order_by: "subscription_created_at" } });
     expect(fetch.mock.calls.every(call => new URL(String(call[0])).pathname === "/api/v1/subscriber-stats" && call[1]!.method === "POST")).toBe(true);
     expect(d.sleep.mock.calls).toEqual([[1000], [1000]]);
@@ -90,7 +103,7 @@ describe("subscriber export", () => {
     if (process.platform !== "win32") expect((await stat(path)).mode & 0o777).toBe(0o600);
     expect(await readdir(dir)).toEqual(["out.csv"]);
     const summary = JSON.parse(output.out.mock.calls[0][0]);
-    expect(summary).toMatchObject({ ok: true, publication: "example", rows: 7, total_matching: 7, pages: 3, retries: 0, file: path, purpose: "Migrate the free list to a self-hosted list" });
+    expect(summary).toMatchObject({ ok: true, publication: "example", rows: 7, total_matching: 7, completeness: "best_effort", pages: 3, retries: 0, file: path, purpose: "Migrate the free list to a self-hosted list" });
     for (const email of emails) expect(printed(output)).not.toContain(email);
   });
   it("adds requested field groups and forwards the type filter", async () => {
@@ -135,14 +148,40 @@ describe("subscriber export", () => {
     expect(fetch).toHaveBeenCalledTimes(1); expect(await readdir(dir)).toEqual([]);
   });
   it.each([
-    ["count drift on a middle page", (call: number, offset: number) => call === 1 ? Response.json({ ...pages[String(offset)], count: 8 }) : undefined],
-    ["a row shifted into the next page", (call: number) => call === 1 ? Response.json({ count: 7, subscribers: [pages["0"].subscribers[2], ...pages["3"].subscribers.slice(0, 2)] }) : undefined],
+    ["count drift on a middle page", (call: number, offset: number) => call === 1 ? Response.json({ count: 8, subscribers: all.slice(offset, offset + 3) }) : undefined],
+    ["rows shifting back past the overlap anchor", (call: number) => call === 1 ? Response.json({ count: 7, subscribers: all.slice(3, 6) }) : undefined],
+    ["a removal before the cursor offset by an append", (call: number, _offset: number, list: Record<string, unknown>[]) => {
+      // Read 1001-1003, then 1001 unsubscribes and 1008 signs up: the count stays 7 and plain offsets would skip 1004.
+      if (call === 1) list.shift(), list.push({ ...all[6], subscription_id: 1008, user_email_address: "example-late@example.org" });
+      return undefined;
+    }],
   ])("treats %s as an inconsistent snapshot and writes nothing", async (_name, override) => {
     replay(override);
     const output = io(), dir = await scratch();
     expect(await run(base(join(dir, "out.csv")), output)).toBe(1);
     expect(JSON.parse(output.error.mock.calls[0][0]).code).toBe("inconsistent_snapshot");
     expect(await readdir(dir)).toEqual([]);
+  });
+  it("aborts a request that outlives the remaining time budget", async () => {
+    replay(call => call === 1 ? new Promise<Response>(() => {}) as never : undefined);
+    const output = io(), dir = await scratch(), t = Date.parse("2026-10-14T00:00:00Z");
+    let calls = 0;
+    // Only ~50 ms of the one-minute budget is left when the second request starts, and it never answers.
+    const now = () => (calls++ < 3 ? t : t + 60_000 - 50);
+    expect(await run([...base(join(dir, "out.csv")), "--max-minutes", "1"], output, enabled, deps({ now }))).toBe(1);
+    expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ code: "deadline_exceeded", pages_read: 1, file_written: false });
+    expect(await readdir(dir)).toEqual([]);
+  });
+  it("does not publish when the final page lands after the time budget", async () => {
+    const t = Date.parse("2026-10-14T00:00:00Z");
+    let late = false;
+    replay(call => { if (call === 2) late = true; return undefined; });
+    const output = io(), dir = await scratch();
+    const now = () => (late ? t + 61_000 : t);
+    expect(await run([...base(join(dir, "out.csv")), "--max-minutes", "1"], output, enabled, deps({ now }))).toBe(1);
+    expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ code: "deadline_exceeded", file_written: false });
+    expect(await readdir(dir)).toEqual([]);
+    for (const email of emails) expect(printed(output)).not.toContain(email);
   });
   it("stops at the time budget", async () => {
     replay();

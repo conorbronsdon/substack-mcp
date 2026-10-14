@@ -1,5 +1,5 @@
 {
-  "_comment": "Synthetic subscriber-stats pages in the live-verified response shape (docs/subscribers.md). Every address is an example-* placeholder on example.org; no real subscriber data. Pages are keyed by request offset with page size 3.",
+  "_comment": "Synthetic subscriber-stats pages in the live-verified response shape (docs/subscribers.md). Every address is an example-* placeholder on example.org; no real subscriber data. Pages of 3 rows keyed by offset; tests replay them as one ordered list sliced by each request's offset and limit, so overlapping requests see the same rows.",
   "page_size": 3,
   "pages": {
     "0": {

@@ -1,4 +1,3 @@
-import { lstat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { resolvePublications, resolveSelectedPublications } from "./auth/resolve-publications.js";
@@ -13,8 +12,10 @@ const command = "subscribers export";
 export const usage = `Usage: ${SUBSCRIBER_EXPORT_FLAG}=1 substack-mcp subscribers export --output <file.csv> --purpose <text> --confirm-subscriber-pii
          [--types free,paid,comp] [--include activity_rating,created_at,flags,revenue] [--max-rows 1-${EXPORT_MAX_ROWS}] [--max-minutes 1-120] [--force] [--publication key]
 Experimental. Writes subscriber email addresses (personal data) to one local CSV file (owner-only on POSIX; on Windows it inherits the folder's access rules); nothing is printed or sent anywhere else.
-Reads every matching row oldest-first through the subscriber-stats search, one page of 50 per second by default, and writes nothing if any page fails,
-the list changes during the read, or more rows match than --max-rows (default ${DEFAULT_EXPORT_BUDGET.maxRows}). stdout gets a summary with counts only.
+Network destinations (\\\\host\\share, \\\\?\\UNC\\..., //host/share) are refused; mapped drives and network mounts cannot be detected, so pick a local disk.
+Reads matching rows oldest-first through the subscriber-stats search, one overlapping page of 50 per second by default. Completeness is best effort:
+it writes nothing if any page fails, it detects the list changing during the read, the time budget runs out, or more rows match than --max-rows
+(default ${DEFAULT_EXPORT_BUDGET.maxRows}). stdout gets a summary with counts only.
 See docs/subscriber-export-design.md.`;
 
 interface Options extends ExportOptions { output: string; purpose: string; force: boolean; publication?: string; maxRows: number; maxMinutes: number }
@@ -56,6 +57,11 @@ function parse(args: string[]): Options {
   return { ...options, purpose } as Options;
 }
 
+/** UNC (\\host\share), extended (\\?\UNC\...), device (\\.\...) and //host/share paths; checked on input and after resolution. */
+export function isNetworkDestination(path: string): boolean {
+  return /^[\\/]{2}/.test(path);
+}
+
 const defaultDeps: ExportDeps = { sleep: ms => delay(ms), now: () => Date.now() };
 
 /**
@@ -75,6 +81,9 @@ export async function runSubscriberExport(
   let options: Options;
   try { options = parse(args); } catch { return reject("invalid_arguments", usage, 2); }
   const output = resolve(options.output);
+  if (isNetworkDestination(options.output) || isNetworkDestination(output)) {
+    return reject("network_output", "The output must be a file on a local disk; network and device paths are refused. No request was made.", 2);
+  }
   try { await checkTarget(output, options.force); }
   catch { return reject("output_unavailable", "The output path exists or is not a regular file; use --force to replace a file. No request was made.", 2); }
   let publications;
@@ -87,17 +96,19 @@ export async function runSubscriberExport(
     const result = await collectSubscriberExport(input => client.subscribers.search(input),
       { subscription_types: options.subscription_types, include: options.include },
       { ...DEFAULT_EXPORT_BUDGET, maxRows: options.maxRows, maxDurationMs: options.maxMinutes * 60_000 }, deps);
-    try { await writeAtomic(output, toCsv(result.rows, options.include), options.force); }
+    const csv = toCsv(result.rows, options.include);
+    if (deps.now() > result.deadline_at) throw new SubscriberExportError("deadline_exceeded", result.pages, result.rows.length);
+    // writeAtomic can publish and then fail removing its temporary copy, so report what it says it published.
+    const written = { published: false };
+    try { await writeAtomic(output, csv, options.force, written); }
     catch {
-      // writeAtomic publishes, then removes its temporary copy, so a failure can come after the file exists.
-      const present = await lstat(output).then(stat => stat.isFile(), () => false);
       return reject("write_failed", "Writing the CSV failed. Check the output path and the output directory for a leftover temporary file, and delete any copy you should not keep. No subscriber data was printed.", 1,
-        { file_written: !present ? false : options.force ? "unknown" : true });
+        { file_written: written.published });
     }
     io.out(JSON.stringify({ format_version: 1, ok: true, command, publication: selected.key, purpose: options.purpose, file: output,
       columns: exportColumns(options.include), subscription_types: options.subscription_types ?? "all", rows: result.rows.length,
-      total_matching: result.total_matching, pages: result.pages, retries: result.retries, started_at: startedAt, finished_at: new Date(deps.now()).toISOString(),
-      note: "The file contains subscriber personal data. Keep it private and delete it when the stated purpose is complete." }));
+      total_matching: result.total_matching, completeness: "best_effort", pages: result.pages, retries: result.retries, started_at: startedAt, finished_at: new Date(deps.now()).toISOString(),
+      note: "The file contains subscriber personal data. Keep it private and delete it when the stated purpose is complete. Rows come from paged reads; a list change the overlap check cannot see can still omit a row." }));
     return 0;
   } catch (error) {
     if (error instanceof SubscriberExportError) {

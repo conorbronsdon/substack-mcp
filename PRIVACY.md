@@ -43,7 +43,9 @@ governed by Substack's terms and privacy policy.
   `SUBSTACK_EXPERIMENTAL_SUBSCRIBER_EXPORT=1`) writes subscriber email addresses,
   and any field groups you request, to the CSV path you name. On POSIX systems the
   file is owner-only (mode 0600); on Windows it inherits the folder's access rules,
-  so choose a private folder. It prints counts and the run's settings, never
+  so choose a private folder. UNC and `//host/share` paths are refused, but mapped
+  drives and network mounts cannot be detected, so name a file on a local disk. It
+  prints counts and the run's settings, never
   subscriber values.
 - **Logs and errors.** Session tokens and cookies are not printed. Error output
   can include messages returned by Substack or by the network layer (for example

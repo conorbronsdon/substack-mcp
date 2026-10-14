@@ -60,7 +60,8 @@ and need appropriate authorization in the calling application.
 
 Public community reads (profiles, profile feeds, Note threads, archives and public
 posts) arrived in 1.3 as anonymous, allowlisted reads; community writes such as
-comments and restacks, reader subscriptions and inbox remain unsupported. The
+comments and restacks, reader subscriptions and inbox remain unsupported (see the
+[reader-session evaluation](reader-sessions.md)). The
 optional OS keychain backend (1.3) is verified by a live CI round trip on
 Windows, macOS (temporary keychain) and Linux (gnome-keyring). MCPB and hosted multi-tenant operation remain
 out of scope. Container support starts with Linux

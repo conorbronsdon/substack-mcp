@@ -9,6 +9,8 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
+- `docs/reader-sessions.md` evaluates reader-account sessions (subscriptions list, inbox):
+  auth model, risks and a recommendation to keep them unsupported for now (#147). No code.
 - A synthetic analytics-to-draft example that preserves metric provenance,
   missing-value states and ranking coverage in a private draft for review (#66).
 - `list_incoming_recommendations` reads who recommends a publication, with start date, active

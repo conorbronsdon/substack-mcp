@@ -165,10 +165,11 @@ describe("subscriber export", () => {
   it("aborts a request that outlives the remaining time budget", async () => {
     replay(call => call === 1 ? new Promise<Response>(() => {}) as never : undefined);
     const output = io(), dir = await scratch(), t = Date.parse("2026-10-14T00:00:00Z");
-    let calls = 0;
-    // Only ~50 ms of the one-minute budget is left when the second request starts, and it never answers.
-    const now = () => (calls++ < 3 ? t : t + 60_000 - 50);
-    expect(await run([...base(join(dir, "out.csv")), "--max-minutes", "1"], output, enabled, deps({ now }))).toBe(1);
+    let paused = false;
+    // After the pause between pages only 50 ms of the one-minute budget is left, and the second request never answers.
+    const now = () => (paused ? t + 60_000 - 50 : t);
+    const sleep = vi.fn(async () => { paused = true; });
+    expect(await run([...base(join(dir, "out.csv")), "--max-minutes", "1"], output, enabled, deps({ now, sleep }))).toBe(1);
     expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ code: "deadline_exceeded", pages_read: 1, file_written: false });
     expect(await readdir(dir)).toEqual([]);
   });

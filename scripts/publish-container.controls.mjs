@@ -129,7 +129,7 @@ test('signature tamper control changes signed DSSE payload but preserves its sig
 test('publish workflow pins generation and verification to digest, source and signer', () => {
   const workflow = readFileSync('.github/workflows/publish.yml', 'utf8').replaceAll('\r\n', '\n');
   for (const required of [
-    'anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26',
+    'anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c',
     'actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6',
     "needs.container.outputs.provenance_eligible == 'true'",
     '--bundle-from-oci', '--source-digest "$SOURCE_DIGEST"', '--signer-workflow "$SIGNER_WORKFLOW"',

@@ -87,7 +87,7 @@ describe("subscriber export", () => {
     expect(lines[1]).toBe("example-ada@example.org,1001,free");
     expect(lines[3]).toBe("'+example-formula@example.org,1003,free");
     expect(csv).not.toMatch(/Private Name|private\.jpg|900\d|activity|revenue/);
-    expect((await stat(path)).mode & 0o777).toBe(0o600);
+    if (process.platform !== "win32") expect((await stat(path)).mode & 0o777).toBe(0o600);
     expect(await readdir(dir)).toEqual(["out.csv"]);
     const summary = JSON.parse(output.out.mock.calls[0][0]);
     expect(summary).toMatchObject({ ok: true, publication: "example", rows: 7, total_matching: 7, pages: 3, retries: 0, file: path, purpose: "Migrate the free list to a self-hosted list" });

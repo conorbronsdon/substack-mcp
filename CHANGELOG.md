@@ -25,6 +25,8 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   auth model, risks and a recommendation to keep them unsupported for now (#147). No code.
 
 ### Fixed
+- Updated the MCP SDK and Cloudflare development tools, plus compatible transitive
+  dependencies, to resolve the October 15 dependency audit findings (#180).
 - Browser login waits for the publication dashboard session and checks rotated cookies before saving; custom domains use only their own `connect.sid`, with safe host-specific failure diagnostics.
 - The cloud calendar sync records a sanitized `failure_stage` (`google_token`, `gmail_profile`,
   `gmail_scan`, `state_write`, `substack_auth`, `mcp_connect`, `mcp_call`, `deadline` or `unknown`)

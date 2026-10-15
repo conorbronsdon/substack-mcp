@@ -27,8 +27,10 @@ Discovery scans prose and emits advisory warnings for possible unregistered
 copies. It does not detect every value: the Node floor needs its explicit
 locator. Review each warning before adding a copy or an exclusion. Changelog
 history and synthetic tests are excluded; explicit locators remain checked.
-The initial discovery baseline contains loopback addresses in README/container
-examples, which are intentional and are not release-version drift.
+The pinned checker omits conventional loopback examples from version discovery.
+Explicitly labelled versions and registered address copies remain checked. Other
+candidate warnings still need review; historical releases are not automatically
+excluded just because their values differ from the current release.
 
 To reproduce CI, check out the checker revision pinned in
 `.github/workflows/ssot.yml` into a sibling `ssot-check` directory, then run:

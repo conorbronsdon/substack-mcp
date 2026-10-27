@@ -4,6 +4,12 @@ substack-mcp is software you run yourself. The maintainer operates no hosted
 service and receives none of your data. The package contains no telemetry,
 analytics or crash reporting.
 
+`compatibility report` prints package/runtime versions, aggregate catalog counts
+and static configuration/authentication outcomes. It omits origins, profile keys,
+account IDs, credentials, local paths and raw upstream output. It is offline by
+default; `--check-auth` sends one bounded authenticated GET to the explicitly
+selected publication. Reports are never submitted automatically.
+
 ## What the server and CLI send, and where
 
 | Destination | When | What is sent |
@@ -23,12 +29,6 @@ handled under that client's privacy terms. The CLI prints results to your termin
 or to files you redirect it to. This server only sends your content to Substack
 when a tool you invoke requires it. Substack's handling of your data is
 governed by Substack's terms and privacy policy.
-
-`compatibility report` prints package/runtime versions, aggregate catalog counts
-and static configuration/authentication outcomes. It omits origins, profile keys,
-account IDs, credentials, local paths and raw upstream output. It is offline by
-default; `--check-auth` sends one bounded authenticated GET to the explicitly
-selected publication. Reports are never submitted automatically.
 
 ## What is stored on your machine
 

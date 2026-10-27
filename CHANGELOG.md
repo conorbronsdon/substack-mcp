@@ -9,13 +9,13 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
-- `compatibility report` prints allowlisted, shareable local diagnostics (#151), with an offline SDK initialization/catalog probe and an explicitly opted-in read for one selected publication. It excludes account identifiers, credentials, paths and raw upstream data; it does not submit reports or infer client/tier compatibility.
 - Experimental, CLI-only `subscribers export` writes matching subscribers (best-effort
   completeness) to a local CSV, owner-only (`0600`) on POSIX; on Windows it inherits the
   folder's access rules. Network paths are refused. It needs
   `SUBSTACK_EXPERIMENTAL_SUBSCRIBER_EXPORT=1`, `--confirm-subscriber-pii` and a stated
   `--purpose`, prints counts only and fails closed on rate-limit, time, detected-drift and
   row-limit budgets. Design: `docs/subscriber-export-design.md` (#148).
+- `compatibility report` prints allowlisted, shareable local diagnostics (#151), with an offline SDK initialization/catalog probe and an explicitly opted-in read for one selected publication. It excludes account identifiers, credentials, paths and raw upstream data; it does not submit reports or infer client/tier compatibility.
 - A synthetic analytics-to-draft example that preserves metric provenance,
   missing-value states and ranking coverage in a private draft for review (#66).
 - `list_incoming_recommendations` reads who recommends a publication, with start date, active

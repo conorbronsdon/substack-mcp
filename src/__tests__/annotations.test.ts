@@ -57,7 +57,7 @@ const DRAFT_WRITE_TOOLS: ToolName[] = ["create_draft"];
 const PUBLIC_UPLOAD_TOOLS: ToolName[] = ["upload_image"];
 const SUBSCRIBER_WRITE_TOOLS: ToolName[] = ["add_free_subscriber"];
 
-const PUBLISH_TOOLS: ToolName[] = ["create_note", "create_note_with_link"];
+const PUBLISH_TOOLS: ToolName[] = ["create_note", "create_note_with_link", "create_post_comment", "restack"];
 
 describe("buildAnnotations mapping", () => {
   it("draft replacement is destructive and never hints automatic retries", () => {

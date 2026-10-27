@@ -21,7 +21,7 @@ const npm = (args, cwd) => execFileSync(process.execPath, [process.env.npm_execp
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
   'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/subscriber-export-design.md', 'docs/authoring.md', 'docs/export.md', 'docs/analytics-rankings.md', 'docs/analytics-to-draft.md', 'docs/remote-images.md', 'docs/draft-changes.md',
   'docs/workflow.md', 'docs/tool-contract.md', 'docs/draft-tags.md', 'docs/plugins.md', 'docs/containers.md',
-  'docs/compatibility.md', 'docs/compatibility-report.md', 'docs/release-checklist.md', 'docs/distribution.md', 'docs/typescript-api.md', 'docs/reader-sessions.md', 'docs/operator-cli.md', 'docs/http-transport.md', 'docs/errors.md', 'dist/index.js', 'dist/login.js'];
+  'docs/compatibility.md', 'docs/compatibility-report.md', 'docs/release-checklist.md', 'docs/distribution.md', 'docs/typescript-api.md', 'docs/reader-sessions.md', 'docs/community-writes.md', 'docs/operator-cli.md', 'docs/http-transport.md', 'docs/errors.md', 'dist/index.js', 'dist/login.js'];
 let transport;
 try {
   const [packed] = JSON.parse(npm(['pack', '--json', '--ignore-scripts', '--pack-destination', scratch], process.cwd()));
@@ -47,6 +47,7 @@ try {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key, value]) =>
     /^(PATH|SYSTEMROOT|WINDIR|TEMP|TMP)$/i.test(key) && value !== undefined));
   const testSessionToken = randomUUID();
+  const readerSessionToken = `example-${randomUUID()}`;
   Object.assign(env, {
     SUBSTACK_MCP_HOME: join(scratch, 'empty-session'),
     SUBSTACK_PUBLICATION_URL: 'http://127.0.0.1:1',
@@ -121,6 +122,23 @@ try {
       return true;
     });
   }
+  for (const mode of ["stdio", "http"]) for (const overrides of [
+    { SUBSTACK_READER_SESSION_TOKEN: readerSessionToken },
+    { SUBSTACK_READER_USER_ID: '7' },
+    { SUBSTACK_READER_SESSION_TOKEN: '', SUBSTACK_READER_USER_ID: '7' },
+    { SUBSTACK_READER_SESSION_TOKEN: `${readerSessionToken}; other=bad`, SUBSTACK_READER_USER_ID: '7' },
+    { SUBSTACK_READER_SESSION_TOKEN: readerSessionToken, SUBSTACK_READER_USER_ID: 'not-an-id' },
+  ]) {
+    assert.throws(() => execFileSync(process.execPath, [cli, 'serve'], {
+      env: { ...doctorEnv, ...overrides, MCP_TRANSPORT: mode }, encoding: 'utf8', timeout: 10_000, stdio: 'pipe',
+    }), error => {
+      assert.equal(error.status, 1);
+      assert.match(error.stderr, /Both SUBSTACK_READER|Invalid session token|Invalid SUBSTACK_USER_ID/);
+      assert.ok(!error.stderr.includes(readerSessionToken), 'Reader startup errors must not print credentials');
+      assert.ok(!error.stderr.includes('server running'), 'Invalid reader config must fail before connection');
+      return true;
+    });
+  }
   // Startup validates the same config as doctor. Its background auth read may
   // attempt the reserved .invalid host, bounded by the synthetic 100ms deadline.
   transport = new StdioClientTransport({ command: process.execPath, args: [resolve(installed, installedPkg.bin['substack-mcp'])], env: doctorEnv, stderr: 'pipe' });
@@ -129,8 +147,20 @@ try {
   assert.equal(client.getServerVersion()?.version, pkg.version, 'MCP handshake version must match npm');
   const { tools } = await client.listTools({}, { timeout: 10_000 });
   assertExpectedTools(tools);
-  assert.equal(tools.filter(tool => tool.outputSchema).length, 33, "Object tools must advertise output schemas");
+  assert.equal(tools.filter(tool => tool.outputSchema).length, 35, "Object tools must advertise output schemas");
   for (const tool of tools) assert.equal(typeof tool.annotations?.readOnlyHint, 'boolean', `Missing annotation: ${tool.name}`);
+  for (const [name, arguments_] of [
+    ['create_post_comment', { account_user_id: 1, post_id: 42, body: 'Example comment' }],
+    ['restack', { account_user_id: 1, target_type: 'note', target_id: 84 }],
+  ]) {
+    const preview = await client.callTool({ name, arguments: arguments_ });
+    assert.notEqual(preview.isError, true);
+    assert.equal(preview.structuredContent.status, 'dry_run');
+    assert.equal(preview.structuredContent.write_attempts, 0);
+    const blocked = await client.callTool({ name, arguments: { ...arguments_, dry_run: false, confirm_publish: true } });
+    assert.equal(blocked.structuredContent.code, 'community_writes_disabled');
+    assert.equal(blocked.structuredContent.write_attempts, 0);
+  }
   console.log(`Installed ${pkg.name}@${pkg.version}: ${packed.files.length} files, both bins load, handshake version agrees, all ${tools.length} tools present.`);
 } finally {
   await transport?.close();

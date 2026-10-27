@@ -4,7 +4,7 @@ The 1.x public interface consists of tool names, input/output fields, side-effec
 annotations, documented CLI JSON/exit codes, and configuration selection rules.
 Substack's upstream endpoints are undocumented and may change independently.
 
-All 30 object-returning tools declare `outputSchema`, return `structuredContent`,
+All object-returning tools declare `outputSchema`, return `structuredContent`,
 and retain the same object as serialized text JSON. Existing object field names
 are preserved. Four legacy array tools (`list_drafts`, `list_scheduled_posts`,
 `get_post_comments`, `get_sections`) retain text JSON arrays without an object
@@ -36,7 +36,9 @@ cross-session cache is introduced. Large responses fail with bounded text instea
 Publication selection is routing context, not proof of account identity or admin
 role. Existing results with a `publication` field retain it; legacy results are
 not renamed or wrapped to add it. With multiple publications the caller must
-supply a configured key. CLI envelopes also record the selected key. Capture
+supply a configured key for publication tools. The account-wide `restack` tool
+instead requires an explicit reader `account_user_id` and never accepts publication
+credentials. See [community writes](community-writes.md) for consent and outcomes. CLI envelopes also record the selected key. Capture
 and source times are reported only when the tool actually has them. Missing
 optional fields remain absent; explicit null and unavailable precision values
 retain their existing meanings. An approximate count is not exact; unavailable

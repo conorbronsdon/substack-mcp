@@ -20,7 +20,8 @@ MCP server for Substack — read posts, manage drafts, create notes. Cannot publ
 - Notes publish immediately via `create_note` / `create_note_with_link` — Substack has no note-draft state, so there is no preview step
 - Auth sends both `connect.sid` and `substack.sid` cookies set to the same session token (custom domains use their own `connect.sid`; substack.com's `substack.sid` is a different session rejected by a custom domain)
 - Markdown must be converted to ProseMirror format for Substack's editor
-- With 2+ publications configured (`SUBSTACK_PUB_<KEY>_*`), every tool gains a *required* `publication` enum parameter — no default, no guessing. With exactly one publication configured, no `publication` parameter is added at all (schema-identical to single-publication mode)
+- Community writes: see `docs/community-writes.md`. Comments use the selected publication; restacks use a separately configured reader session and explicit account ID. Both preview by default, require exact per-call consent, and are disabled for live writes unless explicitly enabled.
+- With 2+ publications configured (`SUBSTACK_PUB_<KEY>_*`), every publication tool gains a *required* `publication` enum parameter — no default, no guessing. With exactly one publication configured, no `publication` parameter is added at all (schema-identical to single-publication mode)
 
 ## Development
 ```bash

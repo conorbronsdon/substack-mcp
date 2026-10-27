@@ -4,6 +4,12 @@ substack-mcp is software you run yourself. The maintainer operates no hosted
 service and receives none of your data. The package contains no telemetry,
 analytics or crash reporting.
 
+`compatibility report` prints package/runtime versions, aggregate catalog counts
+and static configuration/authentication outcomes. It omits origins, profile keys,
+account IDs, credentials, local paths and raw upstream output. It is offline by
+default; `--check-auth` sends one bounded authenticated GET to the explicitly
+selected publication. Reports are never submitted automatically.
+
 ## What the server and CLI send, and where
 
 | Destination | When | What is sent |

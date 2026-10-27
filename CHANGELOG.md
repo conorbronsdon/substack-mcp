@@ -16,6 +16,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   `SUBSTACK_EXPERIMENTAL_SUBSCRIBER_EXPORT=1`, `--confirm-subscriber-pii` and a stated
   `--purpose`, prints counts only and fails closed on rate-limit, time, detected-drift and
   row-limit budgets. Design: `docs/subscriber-export-design.md` (#148).
+- `compatibility report` prints allowlisted, shareable local diagnostics (#151), with an offline SDK initialization/catalog probe and an explicitly opted-in read for one selected publication. It excludes account identifiers, credentials, paths and raw upstream data; it does not submit reports or infer client/tier compatibility.
 - A synthetic analytics-to-draft example that preserves metric provenance,
   missing-value states and ranking coverage in a private draft for review (#66).
 - Opt-in `login --verify-identity` derives the account ID from the selected publication session or checks an explicitly supplied ID (#150). Mismatched/unavailable identity saves nothing; the original manual-ID login remains explicitly unverified. Live browser/publication-host coverage still needs observation.

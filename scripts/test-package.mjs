@@ -66,6 +66,16 @@ try {
   assert.deepEqual(JSON.parse(execFileSync(process.execPath, [cli, 'profiles', 'list'], { env, encoding: 'utf8', timeout: 10_000 })).profiles, []);
   assert.throws(() => execFileSync(process.execPath, [cli, 'status', '--json'], { env: { ...env, SUBSTACK_PROFILES: 'missing' }, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 1);
   const doctorEnv = { ...env, SUBSTACK_PUBLICATION_URL: 'https://example.invalid', SUBSTACK_USER_ID: '1' };
+  assert.match(execFileSync(process.execPath, [cli, 'compatibility', '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /Offline by default/);
+  const report = JSON.parse(execFileSync(process.execPath, [cli, 'compatibility', 'report'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
+  assert.equal(report.ok, true);
+  assert.equal(report.code, 'offline_report');
+  assert.equal(report.protocol.initialize, 'pass');
+  assert.equal(report.protocol.tools_list, 'pass');
+  assert.equal(report.authentication.status, 'not_checked');
+  assert.ok(!JSON.stringify(report).includes(testSessionToken));
+  assert.ok(!JSON.stringify(report).includes('example.invalid'));
+  assert.throws(() => execFileSync(process.execPath, [cli, 'compatibility', 'report', '--unknown'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
   const diagnosis = JSON.parse(execFileSync(process.execPath, [cli, 'doctor', '--json'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
   const status = JSON.parse(execFileSync(process.execPath, [cli, 'status', '--json'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
   assert.equal(status.version, pkg.version);

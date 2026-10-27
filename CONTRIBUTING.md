@@ -64,6 +64,10 @@ caption, and non-CDN image URLs where dimensions are unknown).
 
 ## Local setup
 
+For account-tier or MCP-client reports, use the
+[compatibility report kit](docs/compatibility-report.md). It separates synthetic
+controls from observed client behavior and lists the fields safe to share.
+
 See [Development](README.md#development) in the README for clone/build/run steps
 and the `SUBSTACK_*` environment variables.
 

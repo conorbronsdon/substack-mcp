@@ -1,5 +1,8 @@
 # 1.0 compatibility and validation
 
+For reproducible offline controls, a coverage ledger and a sanitized report
+template, use the [contributor compatibility kit](compatibility-report.md).
+
 The 1.x commitment covers this project's documented tool and CLI interfaces.
 Substack's underlying endpoints remain undocumented and can change independently.
 See the [output contract](tool-contract.md) and [draft update migration](draft-changes.md).

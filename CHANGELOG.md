@@ -9,6 +9,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
+- `compatibility report` prints allowlisted, shareable local diagnostics (#151), with an offline SDK initialization/catalog probe and an explicitly opted-in read for one selected publication. It excludes account identifiers, credentials, paths and raw upstream data; it does not submit reports or infer client/tier compatibility.
 - Experimental, CLI-only `subscribers export` writes matching subscribers (best-effort
   completeness) to a local CSV, owner-only (`0600`) on POSIX; on Windows it inherits the
   folder's access rules. Network paths are refused. It needs

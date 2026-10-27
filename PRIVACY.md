@@ -24,6 +24,12 @@ or to files you redirect it to. This server only sends your content to Substack
 when a tool you invoke requires it. Substack's handling of your data is
 governed by Substack's terms and privacy policy.
 
+`compatibility report` prints package/runtime versions, aggregate catalog counts
+and static configuration/authentication outcomes. It omits origins, profile keys,
+account IDs, credentials, local paths and raw upstream output. It is offline by
+default; `--check-auth` sends one bounded authenticated GET to the explicitly
+selected publication. Reports are never submitted automatically.
+
 ## What is stored on your machine
 
 - **Sessions and profiles.** `substack-mcp login` saves your publication URL,

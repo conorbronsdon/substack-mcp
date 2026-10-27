@@ -21,7 +21,7 @@ const npm = (args, cwd) => execFileSync(process.execPath, [process.env.npm_execp
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
   'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/subscriber-export-design.md', 'docs/authoring.md', 'docs/export.md', 'docs/analytics-rankings.md', 'docs/analytics-to-draft.md', 'docs/remote-images.md', 'docs/draft-changes.md',
   'docs/workflow.md', 'docs/tool-contract.md', 'docs/draft-tags.md', 'docs/plugins.md', 'docs/containers.md',
-  'docs/compatibility.md', 'docs/compatibility-report.md', 'docs/release-checklist.md', 'docs/distribution.md', 'docs/typescript-api.md', 'docs/reader-sessions.md', 'docs/operator-cli.md', 'docs/http-transport.md', 'docs/errors.md', 'dist/index.js', 'dist/login.js'];
+  'docs/compatibility.md', 'docs/compatibility-report.md', 'docs/release-checklist.md', 'docs/distribution.md', 'docs/typescript-api.md', 'docs/reader-sessions.md', 'docs/operator-cli.md', 'docs/http-transport.md', 'docs/errors.md', 'dist/index.js', 'dist/login.js', 'dist/compatibility-cli.js'];
 let transport;
 try {
   const [packed] = JSON.parse(npm(['pack', '--json', '--ignore-scripts', '--pack-destination', scratch], process.cwd()));
@@ -64,6 +64,16 @@ try {
   assert.deepEqual(JSON.parse(execFileSync(process.execPath, [cli, 'profiles', 'list'], { env, encoding: 'utf8', timeout: 10_000 })).profiles, []);
   assert.throws(() => execFileSync(process.execPath, [cli, 'status', '--json'], { env: { ...env, SUBSTACK_PROFILES: 'missing' }, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 1);
   const doctorEnv = { ...env, SUBSTACK_PUBLICATION_URL: 'https://example.invalid', SUBSTACK_USER_ID: '1' };
+  assert.match(execFileSync(process.execPath, [cli, 'compatibility', '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /Offline by default/);
+  const report = JSON.parse(execFileSync(process.execPath, [cli, 'compatibility', 'report'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
+  assert.equal(report.ok, true);
+  assert.equal(report.code, 'offline_report');
+  assert.equal(report.protocol.initialize, 'pass');
+  assert.equal(report.protocol.tools_list, 'pass');
+  assert.equal(report.authentication.status, 'not_checked');
+  assert.ok(!JSON.stringify(report).includes(testSessionToken));
+  assert.ok(!JSON.stringify(report).includes('example.invalid'));
+  assert.throws(() => execFileSync(process.execPath, [cli, 'compatibility', 'report', '--unknown'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
   const diagnosis = JSON.parse(execFileSync(process.execPath, [cli, 'doctor', '--json'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
   const status = JSON.parse(execFileSync(process.execPath, [cli, 'status', '--json'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000 }));
   assert.equal(status.version, pkg.version);

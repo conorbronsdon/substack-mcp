@@ -4,6 +4,40 @@ Use this kit for [#151](https://github.com/conorbronsdon/substack-mcp/issues/151
 Report only workflows you tried. A fixture pass proves the synthetic path, not
 an account tier, a client UI, or browser login. Missing reports mean unknown.
 
+## Generate a report from the installed package
+
+```sh
+substack-mcp compatibility report > compatibility-report.json
+```
+
+This command prints an allowlisted JSON report with package/runtime versions,
+configuration status, and an actual SDK initialization/catalog check over an
+in-memory transport. It makes no network request by default and does not launch
+a browser. Origins, publication/profile keys, labels, account IDs, tokens, local
+paths, private content and upstream error text are omitted. It does not read
+Git history, dump environment variables, infer an account tier, or submit data.
+The probe covers the selected publication configuration only; it does not test
+your GUI client or stdio/HTTP transport. Fill the `manual_observations` fields
+from workflows you actually tried, and review before sharing.
+
+For one authorized authenticated read (one bounded draft-list GET, not a tool
+write), opt in explicitly:
+
+```sh
+substack-mcp compatibility report --check-auth --publication your-local-key
+```
+
+With multiple configured publications, `--publication` is required in both
+modes. It is optional with one publication. The selected key is not printed.
+Authentication failures retain only static categories (401/403 remain
+ambiguous); a successful read still does not prove identity or write permission.
+Exit codes: `0` for the requested checks passing, `1` for a report recording a
+configuration, selection, local-protocol or authenticated-read failure, `2` for
+invalid arguments. A failure report is still JSON; inspect `ok` and `code`.
+Do not post the complete output of ordinary `doctor`, which includes local
+publication keys and origins. Keep actual client observations separate from
+this command's SDK/in-memory observation.
+
 ## Clean setup and version capture
 
 Start from a fresh source checkout with Node satisfying `package.json`'s

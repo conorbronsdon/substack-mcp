@@ -88,7 +88,9 @@ export async function runCompatibility(args: string[], deps: Dependencies = {}):
   }
   if (checkAuth) {
     try {
-      const result = await doctor(true, () => [selected]);
+      // Selection already resolved and validated these credentials. An unrelated
+      // vault availability probe must not turn a successful auth read into failure.
+      const result = await doctor(true, () => [selected], async () => true);
       const auth = result.publications[0]?.authentication;
       report.authentication.status = auth && authCodes.has(auth) ? auth : "not_verified";
       if (!result.ok) { report.code = "authenticated_read_failed"; return finish(); }

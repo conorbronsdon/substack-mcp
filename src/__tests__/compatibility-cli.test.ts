@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { TOOL_KINDS } from "../annotations.js";
 import { runCompatibility } from "../compatibility-cli.js";
 import type { PublicationCredentials } from "../auth/resolve-publications.js";
+import * as keychain from "../auth/keychain.js";
 const first: PublicationCredentials = { key: "example-private-profile", label: "Example private label", publicationUrl: "https://example-private.substack.com",
   sessionToken: "example-private-token", userId: "987654321", source: "env", missing: [] };
 const second: PublicationCredentials = { ...first, key: "example-second-profile", publicationUrl: "https://example-second.org", sessionToken: "example-second-token" };
@@ -37,6 +38,21 @@ describe("shareable compatibility reports", () => {
     const f = fixture([first, second]); expect(await runCompatibility(["report", ...(live ? ["--check-auth"] : [])], f)).toBe(1);
     expect(f.result()).toMatchObject({ code: "publication_selection_required", selection: { configured_publications: 2 }, protocol: { initialize: "not_run" } });
     expect(f.fetch).not.toHaveBeenCalled();
+  });
+  it("checks resolved environment credentials without requiring an unrelated keychain probe", async () => {
+    vi.stubEnv("SUBSTACK_CREDENTIAL_STORE", "keychain");
+    vi.stubEnv("SUBSTACK_PUBLICATION_URL", first.publicationUrl);
+    vi.stubEnv("SUBSTACK_SESSION_TOKEN", first.sessionToken);
+    vi.stubEnv("SUBSTACK_USER_ID", first.userId);
+    const store = keychain.createKeychain();
+    const available = vi.fn().mockResolvedValue(false);
+    const read = vi.fn().mockRejectedValue(new Error("example-unavailable-keychain"));
+    vi.spyOn(keychain, "createKeychain").mockReturnValue({ ...store, available, read });
+    const f = fixture();
+    expect(await runCompatibility(["report", "--check-auth"], { io: f.io, now })).toBe(0);
+    expect(f.result()).toMatchObject({ ok: true, code: "authenticated_read_observed", authentication: { status: "authenticated_read_succeeded" } });
+    expect(f.fetch).toHaveBeenCalledOnce();
+    expect(available).not.toHaveBeenCalled(); expect(read).not.toHaveBeenCalled();
   });
   it("does not guess on an unknown publication key", async () => {
     const f = fixture(); expect(await runCompatibility(["report", "--publication", "example-unknown-key", "--check-auth"], f)).toBe(1);

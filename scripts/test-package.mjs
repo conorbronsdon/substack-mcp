@@ -21,7 +21,7 @@ const npm = (args, cwd) => execFileSync(process.execPath, [process.env.npm_execp
 const requiredFiles = ['package.json', 'server.json', 'README.md', 'LICENSE', 'CHANGELOG.md',
   'docs/calendar-sync.md', 'docs/cloud-calendar-sync.md', 'docs/subscribers.md', 'docs/subscriber-export-design.md', 'docs/authoring.md', 'docs/export.md', 'docs/analytics-rankings.md', 'docs/analytics-to-draft.md', 'docs/remote-images.md', 'docs/draft-changes.md',
   'docs/workflow.md', 'docs/tool-contract.md', 'docs/draft-tags.md', 'docs/plugins.md', 'docs/containers.md',
-  'docs/compatibility.md', 'docs/compatibility-report.md', 'docs/release-checklist.md', 'docs/distribution.md', 'docs/typescript-api.md', 'docs/reader-sessions.md', 'docs/operator-cli.md', 'docs/http-transport.md', 'docs/errors.md', 'dist/index.js', 'dist/login.js'];
+  'docs/compatibility.md', 'docs/compatibility-report.md', 'docs/release-checklist.md', 'docs/distribution.md', 'docs/typescript-api.md', 'docs/reader-sessions.md', 'docs/operator-cli.md', 'docs/http-transport.md', 'docs/errors.md', 'dist/index.js', 'dist/login.js', 'dist/auth/authenticated-identity.js'];
 let transport;
 try {
   const [packed] = JSON.parse(npm(['pack', '--json', '--ignore-scripts', '--pack-destination', scratch], process.cwd()));
@@ -39,6 +39,7 @@ try {
   for (const bin of Object.values(installedPkg.bin)) assert.ok(existsSync(resolve(installed, bin)), `Missing bin: ${bin}`);
   const help = execFileSync(process.execPath, [resolve(installed, installedPkg.bin['substack-mcp-login']), '--help'], { encoding: 'utf8', timeout: 10_000 });
   assert.match(help, /Usage: substack-mcp-login/);
+  assert.match(help, /--verify-identity/);
 
   const requireInstalled = createRequire(join(installed, 'package.json'));
   const { Client } = await import(pathToFileURL(requireInstalled.resolve('@modelcontextprotocol/sdk/client/index.js')).href);

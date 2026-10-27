@@ -163,5 +163,7 @@ commands do not submit a report.
   authorized account; report only that configuration. A 403 remains ambiguous.
 - Browser-login evidence for #150: separately authorized manual UI run with
   date, OS, browser, named-profile use, file/keychain method and authenticated
-  doctor outcome. Keep identity verification unresolved unless its authenticated
+  doctor outcome. For an opt-in authenticated ID check, use `login --verify-identity`; a supplied
+  `--user-id` must match, and an unavailable publication self-profile endpoint
+  fails closed. Keep identity verification unresolved unless its authenticated
   source was actually checked; submit no account screenshots.

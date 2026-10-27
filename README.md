@@ -95,8 +95,34 @@ ID are prompted. Supply your own account's user ID ([steps below](#find-your-acc
 not verify your identity. The browser opens for sign-in, including any CAPTCHA.
 Login then opens `<publication>/publish/home` and waits for the publication
 session cookie; on custom domains this is `connect.sid` on the custom domain.
-A bounded authenticated read must succeed before saving. This verifies read access, not
-the configured user ID or permission to write.
+A bounded authenticated read must succeed before saving. The default flow verifies
+read access, not the configured user ID or permission to write.
+
+To derive your ID from the selected publication's authenticated session instead
+of entering it manually, use:
+
+```bash
+npx substack-mcp login https://yourblog.substack.com --verify-identity --profile work
+```
+
+`--verify-identity` reads the publication-host `/api/v1/user/profile/self` with
+that host's cookie, requires a positive safe integer top-level ID, and then
+performs the existing authenticated draft-list check before saving. Supplying
+`--user-id` as well turns it into an assertion: a mismatch stops without saving
+or replacing a profile, even with `--force`. No public profile, post byline,
+other-host cookie or other-host endpoint is used as a fallback. The verified
+mode's JSON result reports `user_identity: "verified"` and
+`identity_source: "authenticated_publication_self_profile"`; it prints no ID.
+This is an observation at login time, not a persisted identity attestation or
+proof of write permission. Ordinary `doctor` continues to report identity as
+unverified.
+
+Self-profile support on publication hosts has not been live-verified for every
+Substack/custom-domain configuration. If the endpoint is unavailable, expired,
+redirected or malformed, verified mode fails closed and saves nothing. The
+existing manually configured-ID flow remains available and explicitly
+unverified. A real browser run is still needed for [#150](https://github.com/conorbronsdon/substack-mcp/issues/150);
+fixture tests are not evidence about the current sign-in UI.
 
 Without `--profile`, login saves `~/.substack-mcp/session.json` (directory override:
 `SUBSTACK_MCP_HOME`). The server uses this legacy session when publication

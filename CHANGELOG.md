@@ -9,6 +9,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
+- Opt-in `login --verify-identity` derives the account ID from the selected publication session or checks an explicitly supplied ID (#150). Mismatched/unavailable identity saves nothing; the original manual-ID login remains explicitly unverified. Live browser/publication-host coverage still needs observation.
 - Experimental, CLI-only `subscribers export` writes matching subscribers (best-effort
   completeness) to a local CSV, owner-only (`0600`) on POSIX; on Windows it inherits the
   folder's access rules. Network paths are refused. It needs

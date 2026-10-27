@@ -193,6 +193,16 @@ describe("publication and readback", () => {
       expect(writeCount(fetcher)).toBe(1);
     } finally { await c.close(); }
   });
+  it.each(["restack", "post_restack"])("does not verify a post from a mixed post/Note feed item (%s)", async type => {
+    const fetcher = http(url => url.pathname.endsWith("/self") ? { id: 7 } : url.pathname.includes("/reader/feed/")
+      ? { items: [{ context: { type, users: [{ id: 7 }] }, post: { id: 84 }, comment: { id: 5 } }] } : {});
+    const c = await connected({ enabled: true, reader });
+    try {
+      expect(data(await c.client.callTool({ name: "restack", arguments: { ...restack, ...live, target_type: "post" } })))
+        .toMatchObject({ status: "unverified", readback: "unverified", write_attempts: 1 });
+      expect(writeCount(fetcher)).toBe(1);
+    } finally { await c.close(); }
+  });
   it.each(["post_restack", "comment_restack"])("recognizes observed feed context %s with exact actor attribution", async type => {
     const target_type = type === "post_restack" ? "post" : "note";
     const fetcher = http(url => url.pathname.endsWith("/self") ? { id: 7 } : url.pathname.includes("/reader/feed/")

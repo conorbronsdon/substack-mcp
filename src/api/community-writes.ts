@@ -118,7 +118,7 @@ export class CommunityWrites {
         const parsed = row.safeParse(value);
         if (!parsed.success || !parsed.data.context.users.some(user => user.id === input.account_user_id)) return false;
         if (parsed.data.context.type === (input.target_type === "post" ? "comment_restack" : "post_restack")) return false;
-        return input.target_type === "post" ? parsed.data.post?.id === input.target_id
+        return input.target_type === "post" ? !parsed.data.comment && parsed.data.post?.id === input.target_id
           : !parsed.data.post && parsed.data.comment?.id === input.target_id;
       });
       if (matched) return { ...result, status: "verified", readback: "matched", message: "The exact target appears as a restack in this account's profile feed. This confirms presence, not whether it was newly created. Publishes immediately; this server has no undo." };

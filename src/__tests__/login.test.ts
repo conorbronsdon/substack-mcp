@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { parseLoginArguments, readSessionCookie, selectSessionCookie, runLogin } from "../login.js";
 import { loadProfile } from "../auth/profiles.js";
 import { loadSession } from "../auth/session-store.js";
+import { readAuthenticatedUserId } from "../auth/authenticated-identity.js";
+import { saveProfile } from "../auth/profiles.js";
 import { createKeychain } from "../auth/keychain.js";
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "substack-login-test-")); vi.stubEnv("SUBSTACK_MCP_HOME", dir); });
@@ -21,7 +23,7 @@ describe("browser login contract", () => {
   it.each([
     ["https://example.com/path"], ["http://example.com"], ["https://u:p@example.com"],
     ["--user-id", "0"], ["--user-id", "1abc"], ["--profile", "../x"], ["--force"],
-    ["--user-id", "1", "--user-id", "2"], ["--unknown"],
+    ["--user-id", "1", "--user-id", "2"], ["--unknown"], ["--verify-identity", "--verify-identity"],
   ])("rejects invalid input before browser loading: %j", async (...args) => {
     expect(() => parseLoginArguments(args)).toThrow(); const f = fixture();
     expect(await runLogin(args, f.deps)).toBe(2); expect(f.deps.loadChromium).not.toHaveBeenCalled(); expect(f.fetch).not.toHaveBeenCalled();
@@ -130,6 +132,96 @@ describe("browser login contract", () => {
     expect(f.deps.ask).not.toHaveBeenCalled();
     expect(f.fetch).not.toHaveBeenCalled();
     expect(f.deps.error.mock.calls.flat().join(" ")).toContain("--force");
+  });
+});
+
+describe("opt-in authenticated browser identity", () => {
+  function verifiedFixture(identity: unknown = { id: 42 }) {
+    const f = fixture();
+    f.fetch.mockImplementation(async (...args: unknown[]) => String(args[0]).endsWith("/user/profile/self") ? Response.json(identity) : Response.json({ posts: [] }));
+    return f;
+  }
+  it("derives the stored ID without prompting or consulting a public profile/byline", async () => {
+    const f = verifiedFixture({ id: 42, bylines: [{ id: 999 }], name: "example-private-name" });
+    expect(await runLogin(["https://example.com", "--verify-identity", "--profile", "work"], f.deps)).toBe(0);
+    expect(f.deps.ask).not.toHaveBeenCalled();
+    expect(loadProfile("work").userId).toBe("42");
+    expect(f.fetch).toHaveBeenCalledTimes(2);
+    expect(f.fetch).toHaveBeenNthCalledWith(1, "https://example.com/api/v1/user/profile/self", expect.objectContaining({ method: "GET", redirect: "manual", headers: expect.objectContaining({ Cookie: expect.stringContaining("example-publication-token") }) }));
+    const output = f.deps.out.mock.calls.flat().join(" ");
+    expect(output).toContain('"user_identity":"verified"');
+    expect(output).toContain('"identity_source":"authenticated_publication_self_profile"');
+    expect(output).not.toContain("example-private-name"); expect(output).not.toContain("example-publication-token");
+    expect(f.close).toHaveBeenCalledOnce();
+  });
+  it("treats a supplied ID as an assertion against authenticated identity", async () => {
+    const f = verifiedFixture();
+    expect(await runLogin(["https://example.com", "--verify-identity", "--user-id", "00042"], f.deps)).toBe(0);
+    expect(loadSession()?.userId).toBe("42");
+  });
+  it("rejects a mismatched assertion without saving, echoing IDs, or reading drafts", async () => {
+    const f = verifiedFixture();
+    expect(await runLogin(["https://example.com", "--verify-identity", "--user-id", "777"], f.deps)).toBe(1);
+    expect(loadSession()).toBeNull(); expect(f.fetch).toHaveBeenCalledOnce();
+    const error = f.deps.error.mock.calls.flat().join(" ");
+    expect(error).toContain("different account"); expect(error).not.toMatch(/777|42|example-publication-token/);
+  });
+  it("does not replace an existing profile even with --force when identity mismatches", async () => {
+    saveProfile("work", { publicationUrl: "https://example.com", sessionToken: "example-old-token", userId: "777" });
+    const before = loadProfile("work"); const f = verifiedFixture();
+    expect(await runLogin(["https://example.com", "--verify-identity", "--user-id", "777", "--profile", "work", "--force"], f.deps)).toBe(1);
+    expect(loadProfile("work")).toEqual(before);
+  });
+  it.each([{ bylines: [{ id: 42 }] }, { user: { id: 42 } }, { id: "42" }, { id: 0 }, { id: -1 }, { id: 1.5 }, { id: Number.MAX_SAFE_INTEGER + 1 }])("does not save an unverified or unsafe self-profile: %j", async identity => {
+    const f = verifiedFixture(identity);
+    expect(await runLogin(["https://example.com", "--verify-identity"], f.deps)).toBe(1);
+    expect(loadSession()).toBeNull(); expect(f.fetch).toHaveBeenCalledOnce();
+    expect(f.deps.error.mock.calls.flat().join(" ")).toContain("authenticated identity could not be verified");
+    expect(f.deps.ask).not.toHaveBeenCalled();
+  });
+  it.each([401, 403, 404, 429, 500, 302])("fails closed for self-profile HTTP %s without other-host fallback", async status => {
+    const f = fixture(); f.fetch.mockImplementation(async () => new Response("example-private-upstream-token", { status, headers: { Location: "https://substack.com/api/v1/user/profile/self" } }));
+    expect(await runLogin(["https://example.com", "--verify-identity"], f.deps)).toBe(1);
+    expect(loadSession()).toBeNull(); expect(f.fetch).toHaveBeenCalledOnce();
+    expect(f.deps.error.mock.calls.flat().join(" ")).not.toContain("example-private-upstream-token");
+  });
+  it("waits for a rotated publication cookie after identity auth fails", async () => {
+    const f = verifiedFixture(); const originalCookies = f.cookies.getMockImplementation()!; let polls = 0;
+    f.cookies.mockImplementation(async url => url === "https://substack.com" ? originalCookies(url) : [{ name: "connect.sid", domain: "example.com", value: ++polls <= 2 ? "example-stale-token" : "example-rotated-token" }]);
+    f.fetch.mockImplementationOnce(async () => new Response("", { status: 401 }));
+    expect(await runLogin(["https://example.com", "--verify-identity"], f.deps)).toBe(0);
+    expect(f.fetch).toHaveBeenCalledTimes(3);
+    expect(loadSession()).toMatchObject({ sessionToken: "example-rotated-token", userId: "42" });
+  });
+  it("still requires the publication's authenticated draft read after identity verification", async () => {
+    const f = verifiedFixture(); f.fetch.mockImplementation(async (...args: unknown[]) => String(args[0]).endsWith("/user/profile/self") ? Response.json({ id: 42 }) : new Response("", { status: 403 }));
+    expect(await runLogin(["https://example.com", "--verify-identity"], f.deps)).toBe(1);
+    expect(loadSession()).toBeNull(); expect(f.fetch).toHaveBeenCalledTimes(2);
+  });
+  it("does not read or save a general Substack cookie on a custom domain", async () => {
+    const f = fixture(false);
+    expect(await runLogin(["https://example.com", "--verify-identity"], f.deps)).toBe(1);
+    expect(loadSession()).toBeNull(); expect(f.fetch).not.toHaveBeenCalled();
+  });
+  it("does not write the keychain on mismatch", async () => {
+    vi.stubEnv("SUBSTACK_CREDENTIAL_STORE", "keychain"); const f = verifiedFixture();
+    const keychain = createKeychain("linux", async () => ({ code: 1, stdout: "", stderr: "" }));
+    const write = vi.spyOn(keychain, "write");
+    expect(await runLogin(["https://example.com", "--verify-identity", "--user-id", "777"], { ...f.deps, keychain })).toBe(1);
+    expect(write).not.toHaveBeenCalled();
+  });
+  it("writes the keychain using the derived authenticated ID", async () => {
+    vi.stubEnv("SUBSTACK_CREDENTIAL_STORE", "keychain"); const f = verifiedFixture();
+    const keychain = createKeychain("linux", async () => ({ code: 1, stdout: "", stderr: "" }));
+    const write = vi.spyOn(keychain, "write").mockResolvedValue(undefined);
+    expect(await runLogin(["https://example.com", "--verify-identity"], { ...f.deps, keychain })).toBe(0);
+    expect(write).toHaveBeenCalledWith("default", expect.objectContaining({ userId: "42", sessionToken: "example-publication-token" }), false);
+  });
+  it("validates cookie and origin before the self-profile request", async () => {
+    const f = fixture();
+    await expect(readAuthenticatedUserId("https://user:password@example.com", "example-token")).rejects.toThrow();
+    await expect(readAuthenticatedUserId("https://example.com", "example-token; extra=bad")).rejects.toThrow();
+    expect(f.fetch).not.toHaveBeenCalled();
   });
 });
 

@@ -136,3 +136,12 @@ failed; 2 = invalid command arguments. Without `--check-auth`, a 0 exit code
 does not mean the session is unexpired. Bare `substack-mcp` still starts the
 MCP server; `substack-mcp serve` is an explicit alias. `--help` does not connect
 to Substack. Browser login is `substack-mcp login`; `substack-mcp-login` remains an alias.
+
+## Browser-login identity check
+
+`substack-mcp login <publication-origin> --verify-identity [--user-id id]`
+derives the ID from the selected publication session's authenticated self-profile.
+An optional supplied ID is an assertion, not a fallback. The existing bounded
+draft-list read must still pass before file/keychain storage. A mismatch or
+unavailable identity response saves nothing. The default manual-ID login path
+remains unverified; see [setup and limits](../README.md#option-a-browser-login).

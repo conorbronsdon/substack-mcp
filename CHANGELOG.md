@@ -19,6 +19,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 - `compatibility report` prints allowlisted, shareable local diagnostics (#151), with an offline SDK initialization/catalog probe and an explicitly opted-in read for one selected publication. It excludes account identifiers, credentials, paths and raw upstream data; it does not submit reports or infer client/tier compatibility.
 - A synthetic analytics-to-draft example that preserves metric provenance,
   missing-value states and ranking coverage in a private draft for review (#66).
+- Opt-in `login --verify-identity` derives the account ID from the selected publication session or checks an explicitly supplied ID (#150). Mismatched/unavailable identity saves nothing; the original manual-ID login remains explicitly unverified. Live browser/publication-host coverage still needs observation.
 - `list_incoming_recommendations` reads who recommends a publication, with start date, active
   state and dashboard-attributed subscribers. `list_outgoing_recommendations` and
   `list_outgoing_recommendation_stats` read the outgoing list and its subscriber impact. Every

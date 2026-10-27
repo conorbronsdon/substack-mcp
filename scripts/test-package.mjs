@@ -39,6 +39,7 @@ try {
   for (const bin of Object.values(installedPkg.bin)) assert.ok(existsSync(resolve(installed, bin)), `Missing bin: ${bin}`);
   const help = execFileSync(process.execPath, [resolve(installed, installedPkg.bin['substack-mcp-login']), '--help'], { encoding: 'utf8', timeout: 10_000 });
   assert.match(help, /Usage: substack-mcp-login/);
+  assert.match(help, /--verify-identity/);
 
   const requireInstalled = createRequire(join(installed, 'package.json'));
   const { Client } = await import(pathToFileURL(requireInstalled.resolve('@modelcontextprotocol/sdk/client/index.js')).href);

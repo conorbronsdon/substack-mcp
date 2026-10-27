@@ -6,10 +6,11 @@ import { pathToFileURL } from "node:url";
 import { saveSession } from "./auth/session-store.js";
 import { profileKey, saveProfile, assertProfileAvailable } from "./auth/profiles.js";
 import { publicationOrigin, validateCredentials } from "./auth/validate-credentials.js";
+import { readAuthenticatedUserId } from "./auth/authenticated-identity.js";
 import { doctor } from "./doctor.js";
 import { createKeychain, credentialStore } from "./auth/keychain.js";
 
-const usage = "Usage: substack-mcp-login [publication-url] [--user-id id] [--profile key] [--force]\nAlias: substack-mcp login [same options]\nInteractive browser sign-in. Missing URL/user ID are prompted. User ID must be your own configured Substack ID; a post byline is not identity verification. --profile stores a named session; existing profiles require --force. Requires Playwright. --help is offline.";
+const usage = "Usage: substack-mcp-login [publication-url] [--user-id id] [--profile key] [--force] [--verify-identity]\nAlias: substack-mcp login [same options]\nInteractive browser sign-in. Missing URL/user ID are prompted. Without --verify-identity, user ID must be your own configured Substack ID and remains unverified. --verify-identity derives the ID from the selected publication session; a supplied --user-id must match. Unavailable identity endpoints fail closed; no public-profile/byline fallback. --profile stores a named session; existing profiles require --force. Requires Playwright. --help is offline.";
 interface SessionCookie { name: string; domain: string; value: string }
 interface CookieContext { cookies(url: string): Promise<SessionCookie[]> }
 class LoginDiagnosticError extends Error {}
@@ -19,12 +20,13 @@ interface Chromium { launch(options: { headless: boolean }): Promise<LoginBrowse
 
 export function parseLoginArguments(args: string[]) {
   let publicationUrl: string | undefined, userId: string | undefined, profile: string | undefined;
-  let force = false;
+  let force = false, verifyIdentity = false;
   const seen = new Set<string>();
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (!arg.startsWith("--") && i === 0) { publicationUrl = publicationOrigin(arg) ?? undefined; if (!publicationUrl) throw new Error("Invalid publication URL."); continue; }
     if (seen.has(arg)) throw new Error("Duplicate login option."); seen.add(arg);
+    if (arg === "--verify-identity") { verifyIdentity = true; continue; }
     if (arg === "--force") { force = true; continue; }
     if (!["--user-id", "--profile"].includes(arg) || !args[i + 1]) throw new Error("Unknown or incomplete login option.");
     const value = args[++i];
@@ -32,7 +34,7 @@ export function parseLoginArguments(args: string[]) {
     else { validateCredentials("https://example.invalid", "validation-only", value); userId = value; }
   }
   if (force && !profile) throw new Error("--force requires --profile.");
-  return { publicationUrl, userId, profile, force };
+  return { publicationUrl, userId, profile, force, verifyIdentity };
 }
 
 /** Select only the publication host's session, with Substack-hosted fallback. */
@@ -83,9 +85,9 @@ export async function runLogin(args: string[], deps: typeof defaults & { keychai
   let browser: LoginBrowser | undefined;
   try {
     const publicationUrl = options.publicationUrl ?? publicationOrigin(await deps.ask("Publication HTTPS origin: "));
-    const userId = options.userId ?? await deps.ask("Your account ID (top-level id at substack.com/api/v1/user/<your-handle>/public_profile): ");
+    const userId = options.userId ?? (options.verifyIdentity ? undefined : await deps.ask("Your account ID (top-level id at substack.com/api/v1/user/<your-handle>/public_profile): "));
     if (!publicationUrl) { deps.error("Use a direct HTTPS publication origin."); return 2; }
-    try { validateCredentials(publicationUrl, "validation-only", userId); } catch { deps.error("Use your positive numeric Substack user ID."); return 2; }
+    try { if (userId !== undefined) validateCredentials(publicationUrl, "validation-only", userId); } catch { deps.error("Use your positive numeric Substack user ID."); return 2; }
     let chromium: Chromium;
     try { chromium = await deps.loadChromium(); } catch { deps.error("Browser login needs Playwright. In a local tools directory run npm install @conorbronsdon/substack-mcp playwright, then npx playwright install chromium, then npx substack-mcp login."); return 1; }
     browser = await chromium.launch({ headless: false });
@@ -109,23 +111,37 @@ export async function runLogin(args: string[], deps: typeof defaults & { keychai
       const cookie = selectSessionCookie(await context.cookies(`${publicationUrl}/api/v1/post_management/drafts`), publicationUrl);
       if (cookie && !tried.has(cookie.value)) {
         tried.add(cookie.value);
-        validateCredentials(publicationUrl, cookie.value, userId);
-        const candidate = { publicationUrl, sessionToken: cookie.value, userId };
-        const check = await doctor(true, () => [{ ...candidate, key: options.profile ?? "default", label: "login", source: "stored", missing: [] }], async () => true);
-        if (check.ok) { credentials = candidate; break; }
-        failure = { name: cookie.name, host: cookie.host, authentication: check.publications[0]?.authentication ?? ("code" in check ? check.code : "not_checked") };
+        let authenticatedId: string | undefined;
+        if (options.verifyIdentity) {
+          try { authenticatedId = String(await readAuthenticatedUserId(publicationUrl, cookie.value)); }
+          catch {
+            failure = { name: cookie.name, host: cookie.host, authentication: "identity_unverified" };
+          }
+          if (authenticatedId !== undefined && userId !== undefined && Number(authenticatedId) !== Number(userId)) {
+            throw new LoginDiagnosticError("The authenticated publication session belongs to a different account than --user-id. No session was saved. Check the signed-in account and retry with the correct identity.");
+          }
+        }
+        const resolvedUserId = options.verifyIdentity ? authenticatedId : userId;
+        if (resolvedUserId !== undefined) {
+          validateCredentials(publicationUrl, cookie.value, resolvedUserId);
+          const candidate = { publicationUrl, sessionToken: cookie.value, userId: resolvedUserId };
+          const check = await doctor(true, () => [{ ...candidate, key: options.profile ?? "default", label: "login", source: "stored", missing: [] }], async () => true);
+          if (check.ok) { credentials = candidate; break; }
+          failure = { name: cookie.name, host: cookie.host, authentication: check.publications[0]?.authentication ?? ("code" in check ? check.code : "not_checked") };
+        }
       }
       const remaining = publicationDeadline - Date.now();
       if (remaining > 0) await sleep(Math.min(deps.pollIntervalMs ?? 1500, remaining));
     }
     if (!credentials) {
+      if (failure?.authentication === "identity_unverified") throw new LoginDiagnosticError("The selected publication session's authenticated identity could not be verified. No session was saved. The publication-host self-profile endpoint may be unavailable, blocked or expired. Check the signed-in account; no public-profile/byline or other-host fallback was used.");
       if (failure) throw new LoginDiagnosticError(`Authenticated read failed with ${failure.name} from ${failure.host} (status: ${failure.authentication}). Open your publication dashboard (${dashboard}) in the login window, confirm you can see it, then retry.`);
       throw new LoginDiagnosticError(`No session cookie found for ${host} (looked for connect.sid on ${host}${isSubstackHost(host) ? " or substack.sid on .substack.com" : ""}). Open your publication dashboard (${dashboard}) in the login window and wait for it to load, then retry.`);
     }
     if (store === "keychain") await (deps.keychain ?? createKeychain()).write(options.profile ?? "default", credentials, options.force);
     else if (options.profile) saveProfile(options.profile, credentials, options.force);
     else saveSession(credentials);
-    deps.out(JSON.stringify({ format_version: 1, ok: true, command: "login", profile: options.profile ?? null, authentication: "authenticated_read_succeeded", user_identity: "not_verified", storage: store === "keychain" ? "keychain" : "machine_bound_file" }));
+    deps.out(JSON.stringify({ format_version: 1, ok: true, command: "login", profile: options.profile ?? null, authentication: "authenticated_read_succeeded", user_identity: options.verifyIdentity ? "verified" : "not_verified", ...(options.verifyIdentity ? { identity_source: "authenticated_publication_self_profile" } : {}), storage: store === "keychain" ? "keychain" : "machine_bound_file" }));
     deps.out(options.profile ? `Select this profile with SUBSTACK_PROFILES=${options.profile}. Remove publication credential env vars first.` : "Stored legacy session is used when publication credential env vars are unset.");
     return 0;
   } catch (error) {

@@ -47,7 +47,9 @@ export type ToolKind =
    * the tool runs. Notes have no draft state on Substack, and this server
    * has no delete tools, so there is no undo from here.
    */
-  | "publish";
+  | "publish"
+  /** Consented public community write; never safe for automatic retries. */
+  | "community-publish";
 
 /**
  * Exhaustive tool-name → kind registry.
@@ -95,7 +97,9 @@ export const TOOL_KINDS = {
   update_draft_tags: "draft-update",
   // Additive write returning a publicly-fetchable CDN URL
   upload_image: "public-upload",
-  // Immediate public publishes (Substack Notes)
+  // Immediate public publishes (community writes and Substack Notes)
+  create_post_comment: "community-publish",
+  restack: "community-publish",
   create_note: "publish",
   create_note_with_link: "publish",
 } as const satisfies Record<string, ToolKind>;
@@ -140,6 +144,8 @@ export function buildAnnotations(name: ToolName): ToolAnnotationHints {
         openWorldHint: true,
       };
     case "subscriber-write":
+      return { readOnlyHint: false, destructiveHint: false, openWorldHint: true, idempotentHint: false };
+    case "community-publish":
       return { readOnlyHint: false, destructiveHint: false, openWorldHint: true, idempotentHint: false };
     case "publish":
       return {

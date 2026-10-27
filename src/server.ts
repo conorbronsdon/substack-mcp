@@ -1,3 +1,4 @@
+import { CommunityWrites, commentInput, restackInput, communityOutput, type CommunityOptions } from "./api/community-writes.js";
 import { contractRegistrar, objectOutputSchemas } from "./output-contracts.js";
 import packageMetadata from "../package.json" with { type: "json" };
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -63,6 +64,8 @@ function conversionError(conversion: MarkdownConversion, note = false) {
 }
 
 export interface ServerOptions {
+  /** Live community writes are disabled unless explicitly enabled by the host. */
+  community?: CommunityOptions;
   /** Enables upload_image's image_url. Node entrypoints pass fetchRemoteImage; the Worker does not. */
   fetchRemoteImage?: RemoteImageFetcher;
 }
@@ -89,6 +92,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
   });
 
   const registerTool = contractRegistrar(server);
+  const community = new CommunityWrites(options.community);
   const multi = publications.length > 1;
   const pubKeys = publications.map((p) => p.key) as [string, ...string[]];
   const extraPublicOrigins = extraPublicReadOrigins();
@@ -97,10 +101,11 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     userAgent: process.env.SUBSTACK_USER_AGENT || DEFAULT_BROWSER_USER_AGENT,
     timeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : DEFAULT_REQUEST_TIMEOUT_MS });
 
-  // With exactly one publication configured, every tool's schema is left
+  // With exactly one publication configured, every publication tool's schema is left
   // untouched — no `publication` field at all — so single-publication
-  // deployments (the common case) see zero change. With 2+, every tool gains
-  // a *required* enum field: Zod itself then rejects an unconfigured or
+  // deployments (the common case) see zero change. With 2+, publication tools
+  // gain a required enum field; restack instead selects its separate reader account.
+  // Zod itself then rejects an unconfigured or
   // missing value before any handler (and therefore any Substack API call)
   // runs, so a write tool can never silently land on the wrong publication.
   function publicationField(): Record<string, z.ZodTypeAny> {
@@ -126,6 +131,21 @@ export function createServer(publications: PublicationConfig[], options: ServerO
   // side-effect class (see annotations.ts) so clients can render accurate
   // consent UI. Reads are readOnlyHint:true; draft/upload writes are
   // additive; the Note tools publish public content immediately.
+
+  // --- Experimental community writes ---
+
+  registerTool("create_post_comment", {
+    description: "Comment on a post at the selected configured publication. PUBLISHES IMMEDIATELY when live; no undo from this server. Experimental and disabled for live writes by default. Plain text only. Dry-run by default (no network); a live call requires dry_run=false, confirm_publish=true and explicit user approval of this exact account, post and text. Account identity is checked before writing. One write attempt, then one bounded comments-page readback. Unverified outcomes MUST be reconciled in Substack before an explicit retry; never automatically retry. Automated callers must keep a durable attempt ledger across restarts.",
+    inputSchema: { ...commentInput.shape, ...publicationField() }, outputSchema: communityOutput.shape,
+    annotations: buildAnnotations("create_post_comment"),
+  }, async ({ publication, ...input }: z.output<typeof commentInput> & { publication?: string }) => ({ content: [{ type: "text", text: JSON.stringify(await clientFor(publication).createPostComment(input, community)) }] }));
+
+  // Restacks act as the explicitly selected READER account, not a publication.
+  // Deliberately no publication selector or publication-session fallback.
+  registerTool("restack", {
+    description: "Restack one post or Note without added commentary. PUBLISHES IMMEDIATELY to the configured reader account's public feed when live; no undo from this server. Experimental and disabled for live writes by default. Requires a separate substack.com reader session, never a publication session. account_user_id explicitly selects that reader identity; publication selection does not apply. Dry-run by default (no network); a live call requires dry_run=false, confirm_publish=true and explicit user approval of this exact account and target. One write attempt, then one bounded profile-feed readback; verified confirms presence, not new creation. Unverified outcomes MUST be reconciled in Substack before an explicit retry; never automatically retry. Automated callers must keep a durable attempt ledger across restarts.",
+    inputSchema: restackInput.shape, outputSchema: communityOutput.shape, annotations: buildAnnotations("restack"),
+  }, async input => ({ content: [{ type: "text", text: JSON.stringify(await community.restack(input)) }] }));
 
   // --- Read tools ---
 

@@ -9,6 +9,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
+- Experimental `create_post_comment` and `restack` tools (#146): offline previews, exact per-call consent, authenticated identity checks, isolated reader credentials, immediate-publication warnings, explicit side-effect hints and bounded readbacks. Live writes require `SUBSTACK_EXPERIMENTAL_COMMUNITY_WRITES=1`; endpoint source evidence and pending live verification are documented in `docs/community-writes.md`. No automatic retries.
 - Experimental, CLI-only `subscribers export` writes matching subscribers (best-effort
   completeness) to a local CSV, owner-only (`0600`) on POSIX; on Windows it inherits the
   folder's access rules. Network paths are refused. It needs

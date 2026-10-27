@@ -97,6 +97,7 @@
     "docs/distribution.md",
     "docs/typescript-api.md",
     "docs/reader-sessions.md",
+    "docs/community-writes.md",
     "docs/operator-cli.md",
     "docs/http-transport.md",
     "docs/errors.md"

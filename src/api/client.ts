@@ -24,6 +24,7 @@ import { getPublicationStats, getGrowthSources } from "./publication-analytics.j
 import { listIncomingRecommendations, listOutgoingRecommendations, listOutgoingRecommendationStats, PublicationIdentityUnavailableError } from "./recommendations.js";
 import { z } from "zod";
 import { ResponseError, SubstackAPIError } from "../utils/errors.js";
+import type { CommunityWrites, commentInput } from "./community-writes.js";
 import { validateCredentials } from "../auth/validate-credentials.js";
 
 /**
@@ -150,6 +151,12 @@ export class SubstackClient {
     }
 
     return requestJson<T>(url, { ...options, headers }, this.timeoutMs);
+  }
+
+  /** Community comments stay on this configured origin with this account's cookie. */
+  createPostComment(input: z.input<typeof commentInput>, community: CommunityWrites) {
+    return community.comment(input, this.publicationUrl, this.userId,
+      (path, options) => this.request(`${this.publicationUrl}${path}`, options));
   }
 
   async validateAuth(): Promise<{ authentication: "authenticated_read_succeeded"; user_identity: "not_verified" }> {

@@ -146,7 +146,7 @@ describe("credential routing and identity", () => {
       }
     } finally { await c.close(); }
   });
-  it.each(["example-reader-session\r\nX:bad", "other=1; extra=2", ""]) ("rejects malformed reader credentials without printing them", token => {
+  it.each(["example-reader-session\r\nX:bad", "example-other=1; example-extra=2", ""]) ("rejects malformed reader credentials without printing them", token => {
     expect(() => new CommunityWrites({ reader: { sessionToken: token, userId: "7" } })).toThrow("Invalid session token");
   });
 });

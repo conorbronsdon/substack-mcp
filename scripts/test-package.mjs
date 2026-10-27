@@ -47,6 +47,7 @@ try {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key, value]) =>
     /^(PATH|SYSTEMROOT|WINDIR|TEMP|TMP)$/i.test(key) && value !== undefined));
   const testSessionToken = randomUUID();
+  const readerSessionToken = `example-${randomUUID()}`;
   Object.assign(env, {
     SUBSTACK_MCP_HOME: join(scratch, 'empty-session'),
     SUBSTACK_PUBLICATION_URL: 'http://127.0.0.1:1',
@@ -122,18 +123,18 @@ try {
     });
   }
   for (const mode of ["stdio", "http"]) for (const overrides of [
-    { SUBSTACK_READER_SESSION_TOKEN: 'example-reader-session' },
+    { SUBSTACK_READER_SESSION_TOKEN: readerSessionToken },
     { SUBSTACK_READER_USER_ID: '7' },
     { SUBSTACK_READER_SESSION_TOKEN: '', SUBSTACK_READER_USER_ID: '7' },
-    { SUBSTACK_READER_SESSION_TOKEN: 'example-reader-session; other=bad', SUBSTACK_READER_USER_ID: '7' },
-    { SUBSTACK_READER_SESSION_TOKEN: 'example-reader-session', SUBSTACK_READER_USER_ID: 'not-an-id' },
+    { SUBSTACK_READER_SESSION_TOKEN: `${readerSessionToken}; other=bad`, SUBSTACK_READER_USER_ID: '7' },
+    { SUBSTACK_READER_SESSION_TOKEN: readerSessionToken, SUBSTACK_READER_USER_ID: 'not-an-id' },
   ]) {
     assert.throws(() => execFileSync(process.execPath, [cli, 'serve'], {
       env: { ...doctorEnv, ...overrides, MCP_TRANSPORT: mode }, encoding: 'utf8', timeout: 10_000, stdio: 'pipe',
     }), error => {
       assert.equal(error.status, 1);
       assert.match(error.stderr, /Both SUBSTACK_READER|Invalid session token|Invalid SUBSTACK_USER_ID/);
-      assert.ok(!error.stderr.includes('example-reader-session'), 'Reader startup errors must not print credentials');
+      assert.ok(!error.stderr.includes(readerSessionToken), 'Reader startup errors must not print credentials');
       assert.ok(!error.stderr.includes('server running'), 'Invalid reader config must fail before connection');
       return true;
     });

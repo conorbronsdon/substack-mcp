@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { SubstackClient } from "./api/client.js";
 import { createServer, extraPublicReadOrigins, type PublicationConfig } from "./server.js";
 import { fetchRemoteImage } from "./utils/remote-image.js";
+import { validateCredentials } from "./auth/validate-credentials.js";
 import { resolveSelectedPublications } from "./auth/resolve-publications.js";
 import { startHttpServer, type HttpTransportOptions } from "./transport/http.js";
 
@@ -116,6 +117,18 @@ async function main() {
   // log output stays byte-identical to what it was before this existed.
   const pubSuffix = (label: string): string => (multi ? ` for publication "${label}"` : "");
 
+  const readerToken = process.env.SUBSTACK_READER_SESSION_TOKEN;
+  const readerId = process.env.SUBSTACK_READER_USER_ID;
+  if ((readerToken !== undefined || readerId !== undefined) && (!readerToken || !readerId)) {
+    throw new Error("Both SUBSTACK_READER_SESSION_TOKEN and SUBSTACK_READER_USER_ID are required. No publication-session fallback is allowed.");
+  }
+  if (readerToken && readerId) validateCredentials("https://substack.com", readerToken, readerId);
+  const community = {
+    enabled: process.env.SUBSTACK_EXPERIMENTAL_COMMUNITY_WRITES === "1",
+    reader: readerToken && readerId ? { sessionToken: readerToken, userId: readerId } : undefined,
+    userAgent, timeoutMs,
+  };
+
   const publications: PublicationConfig[] = pubCreds.map((p) => {
     if (p.missing.length > 0) {
       console.error(`Warning: Missing credentials${pubSuffix(p.label)}: ${p.missing.join(", ")}`);
@@ -144,10 +157,10 @@ async function main() {
     const host = process.env.MCP_HTTP_HOST ?? "0.0.0.0";
     // Stateless: each request gets its own McpServer, so there's no single
     // instance to close on shutdown — only the underlying http.Server.
-    const httpServer = startHttpServer(() => createServer(publications, { fetchRemoteImage: url => fetchRemoteImage(url) }), port, host, resolveHttpOptions(port));
+    const httpServer = startHttpServer(() => createServer(publications, { community, fetchRemoteImage: url => fetchRemoteImage(url) }), port, host, resolveHttpOptions(port));
     installShutdownHandlers(() => new Promise((resolve) => httpServer.close(() => resolve())), false);
   } else {
-    const server = createServer(publications, { fetchRemoteImage: url => fetchRemoteImage(url) });
+    const server = createServer(publications, { community, fetchRemoteImage: url => fetchRemoteImage(url) });
     const transport = new StdioServerTransport();
     // Registered before connect so a signal arriving during startup is still
     // handled; McpServer.close() is safe on a server that never connected.

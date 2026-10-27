@@ -14,7 +14,8 @@ selected publication. Reports are never submitted automatically.
 
 | Destination | When | What is sent |
 | --- | --- | --- |
-| The Substack publication you configure | MCP tool calls, and CLI commands that read or write Substack data (`status`, `--help` and other local commands make no request) | Your Substack session cookie and the request needed for that operation: reading posts, drafts, statistics or subscribers; creating or updating drafts; uploading images; publishing Notes; adding consented free subscribers |
+| The Substack publication you configure | MCP tool calls, and CLI commands that read or write Substack data (`status`, `--help` and other local commands make no request) | Your Substack session cookie and the request needed for that operation: reading posts, drafts, statistics or subscribers; creating or updating drafts; uploading images; publishing Notes; posting explicitly consented public comments; adding consented free subscribers |
+| `https://substack.com` | Experimental `restack` live calls only, with separately configured reader credentials and exact per-call consent | Reader `substack.sid`, identity check, selected target ID and one profile-feed readback. This cookie is never forwarded to publications or anonymous public-reader tools |
 | The public page of your publication, and any host it redirects to | The subscriber-count read, when Substack's API does not return a count | A plain HTTPS request with no cookie or credential. Up to 3 HTTPS redirects are followed, including to other hosts |
 | `substack.com`, your publication, and whatever those pages load | `substack-mcp login` only | You sign in through a local browser window, which behaves like any browser: it follows the pages' redirects and loads the resources they request, including third-party hosts. The resulting session cookie for your publication is saved locally |
 | The image host you name, and any host it redirects to | `upload_image` with `image_url` only | A plain HTTPS download request, with no Substack cookie or credential. Up to 3 HTTPS redirects are followed, including to other hosts; private and reserved network addresses are refused. The image is then uploaded to Substack's CDN, where anyone with the returned link can fetch it |
@@ -29,6 +30,12 @@ handled under that client's privacy terms. The CLI prints results to your termin
 or to files you redirect it to. This server only sends your content to Substack
 when a tool you invoke requires it. Substack's handling of your data is
 governed by Substack's terms and privacy policy.
+
+Community-write previews and results include the requested account, target and
+exact comment text (where applicable), which can appear in MCP client transcripts.
+Reader credentials are account credentials with potentially broader privileges;
+they are supplied only through environment variables and are never persisted by
+this feature. [Community-write setup and revocation](docs/community-writes.md).
 
 ## What is stored on your machine
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 export const expectedTools = [
-  'export_draft',
+  'export_draft', 'create_post_comment', 'restack',
   'add_free_subscriber', 'create_draft', 'create_note', 'create_note_with_link',
   'get_draft', 'get_post', 'get_post_analytics', 'get_post_comments', 'get_sections',
   'get_subscriber', 'get_subscriber_count', 'list_drafts', 'list_published_posts',

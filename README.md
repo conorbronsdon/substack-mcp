@@ -20,7 +20,7 @@ Create and manage your Substack newsletter from your AI assistant or terminal. P
 
 The demo runs actual MCP handlers against offline sample data. No live API calls or publication occur. Follow the [draft workflow](docs/workflow.md) to create, find, export and review a post.
 
-**Safe by design — with one loud exception:** This server cannot publish or delete long-form posts. Post tools create and edit drafts only; you review and publish manually through Substack's editor. The exception is Substack **Notes**: `create_note` and `create_note_with_link` publish short-form Notes immediately, because Notes have no draft state on Substack. Treat the Note tools as public-publish actions — there is no preview step and no undo from this server. The split is proportionate review, the piece of trust infrastructure for agents this server cares most about: the high-stakes surface gets a human gate, and the exception is stated loudly.
+**Draft-only long-form posts; explicit public actions:** This server cannot publish or delete long-form posts. Post tools create and edit drafts only; you review and publish manually through Substack's editor. Public community comments/restacks are separately [experimental and consent-gated](docs/community-writes.md). Substack **Notes** also publish publicly: `create_note` and `create_note_with_link` publish short-form Notes immediately, because Notes have no draft state on Substack. Treat the Note tools as public-publish actions — there is no preview step and no undo from this server. The split is proportionate review, the piece of trust infrastructure for agents this server cares most about: the high-stakes surface gets a human gate, and the exception is stated loudly.
 
 This server imposes no Bestseller-status check. Use an authenticated account with permission to manage the publication; individual operations depend on your Substack access. Connect through local stdio or self-hosted HTTP.
 
@@ -298,7 +298,7 @@ paths or userinfo). Redirects are rejected. A `*.substack.com` publication may
 redirect to its custom domain (for example, `lenny.substack.com`); JSON reads do
 not follow that redirect. Add the custom HTTPS origin to
 `SUBSTACK_PUBLIC_READ_ORIGINS` and read through that origin. With multiple
-publications, the `publication` key remains required for every tool.
+publications, the `publication` key remains required for every publication tool.
 
 Profile feed pages are upstream-sized; `has_more: null` means the upstream omitted
 continuation metadata. Thread pages can omit replies when `more_branches` or
@@ -352,6 +352,21 @@ the same fields and returned receipt. Published or known stale drafts are
 rejected. The read/write race remains; check readback outcomes and review in
 Substack. The CLI shares this flow through `drafts plan` and `drafts apply`.
 See [draft changes and migration](docs/draft-changes.md) for examples and limits.
+
+### Public community writes (experimental)
+
+| Tool | Description |
+|------|-------------|
+| `create_post_comment` | Comment at a configured publication; preview by default, **publishes immediately** when live |
+| `restack` | Restack a post or Note as a separate reader account; preview by default, **publishes immediately** when live |
+
+Live attempts require `SUBSTACK_EXPERIMENTAL_COMMUNITY_WRITES=1`,
+`dry_run=false`, `confirm_publish=true` and explicit approval of the exact
+account, target and text. Restacks additionally need a separate reader session.
+Both tools check the authenticated identity before writing, attempt one POST,
+and report bounded readback outcomes without automatic retries. The endpoints
+have source evidence; live verification remains pending. See
+[setup, credential routing, consent and limitations](docs/community-writes.md).
 
 ### Publish (Notes — public immediately)
 
@@ -433,9 +448,11 @@ Keys are compared case-insensitively, with `_` folded to `-`. Two names that res
 
 `<KEY>` accepts ASCII letters, digits, and underscores; the three suffixes must be uppercase and the whole name must have no stray whitespace. Anything that begins with `SUBSTACK_PUB_` but does not fit that shape — a hyphen in the key, a lowercase suffix, an accented character, a trailing space — is a startup error naming the variable, not a variable that gets quietly ignored. For the same reason as above: an ignored publication is not one fewer publication, it is a silent reroute to a different one.
 
-With two or more publications configured, every tool gains a **required** `publication` parameter — one of your configured keys (e.g. `kevin-muldoon`, `sapere` above). The calling model must specify one on every call; an unrecognized value is rejected before any Substack API call is made, so a stray write can't land on the wrong publication. **With exactly one publication configured** — the common case, whether via plain `SUBSTACK_*` vars or a single `SUBSTACK_PUB_<KEY>_*` triplet — **no `publication` parameter is added at all**; every tool's schema is unchanged from single-publication mode.
+With two or more publications configured, every publication tool gains a **required** `publication` parameter — one of your configured keys (e.g. `kevin-muldoon`, `sapere` above). The calling model must specify one on every publication call; an unrecognized value is rejected before any Substack API call is made, so a stray write can't land on the wrong publication. **With exactly one publication configured** — the common case, whether via plain `SUBSTACK_*` vars or a single `SUBSTACK_PUB_<KEY>_*` triplet — **no `publication` parameter is added at all**; every tool's schema is unchanged from single-publication mode.
 
 Don't mix the two styles: if any `SUBSTACK_PUB_<KEY>_*` var is set, the plain `SUBSTACK_*` vars are ignored (with a startup warning) rather than treated as an unnamed extra publication.
+
+The account-wide `restack` tool uses an explicit reader `account_user_id` instead of a `publication` parameter. Its reader credential is configured separately; it never uses a publication session.
 
 `SUBSTACK_USER_AGENT` and `SUBSTACK_REQUEST_TIMEOUT_MS` apply to every configured publication — they are not per-publication. Browser login also supports explicit named profiles; see [Named profiles and migration](#named-profiles-and-migration).
 

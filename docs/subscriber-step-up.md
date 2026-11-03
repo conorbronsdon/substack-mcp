@@ -10,7 +10,7 @@ HTTP 403 {"error":"For your security, please sign out and sign back in to do thi
 
 #190 makes this show up as `auth_reason: "reauthentication_required"` and sync reason
 `substack_reauthentication_required`. This page covers why it happens and how
-`substack-mcp login --subscriber-access` mints a session that passes.
+`substack-mcp login --subscriber-access` attempts the step-up and verifies the resulting access before saving.
 
 ## What Substack checks
 
@@ -31,12 +31,9 @@ signing in) shows the real mechanism:
    `POST /api/v1/reauthenticate/complete {"code": "..."}` and retries the
    original request once.
 
-So the check is a **step-up flag on the session**, set only by completing a
-one-time code. It does not depend on cookie names, a special header, a CSRF
-token or a device fingerprint: the web app sends only the session cookie and a
-JSON body. That explains the symptoms. Conor's Chrome session at some point went
-through the modal, so it passes. A session captured by `login` never had, so it
-was refused no matter how fresh it was.
+This is consistent with a step-up requirement associated with the signed-in
+session. The bundle does not establish its lifetime or all server-side checks,
+and this change has not verified the flow against a live account.
 
 The independent open-source client in [Kilo-Org/cloud#7481](https://github.com/Kilo-Org/cloud/pull/7481)
 uses the same `start`/`complete` sequence, retried once and only after this
@@ -51,8 +48,9 @@ npx substack-mcp login https://yourpublication.com --verify-identity --profile w
 After the usual sign-in and drafts check, login:
 
 1. probes `subscriber-stats` with the reserved address
-   `subscriber-access-probe@example.invalid`, which can never match a real
-   subscriber, so no subscriber data is read;
+   `subscriber-access-probe@example.invalid`, which should not match a real
+   subscriber. If the upstream service ignores the filter, its response could
+   nevertheless contain subscriber data; unexpected nonempty responses fail closed;
 2. on `reauthentication_required`, calls `reauthenticate/start` and asks in the
    terminal for the code Substack emailed you or your authenticator app shows
    (three tries; a blank answer cancels);
@@ -62,7 +60,7 @@ After the usual sign-in and drafts check, login:
    `"subscriber_access":"verified"` and `"step_up":"email"|"totp"|"not_required"`.
 
 Without the flag, login behaves exactly as before and makes no subscriber request.
-The code is used once, never stored or logged, and never printed.
+The code is sent for verification and is not stored or logged; the terminal prompt suppresses echo.
 
 ## What cannot be automated
 

@@ -2,6 +2,7 @@
 /** Browser login is interactive; the legacy binary remains a supported alias. */
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
+import { Writable, type Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { saveSession } from "./auth/session-store.js";
 import { profileKey, saveProfile, assertProfileAvailable } from "./auth/profiles.js";
@@ -57,13 +58,21 @@ async function ask(question: string): Promise<string> {
   const rl = createInterface({ input: stdin, output: stdout });
   try { return (await rl.question(question)).trim(); } finally { rl.close(); }
 }
+/** Read a one-time code without writing typed input to the terminal. */
+export async function askSecret(question: string, input: Readable = stdin, output: Writable = stdout): Promise<string> {
+  const muted = new Writable({ write(_chunk, _encoding, callback) { callback(); } });
+  const rl = createInterface({ input, output: muted, terminal: Boolean((input as typeof stdin).isTTY) });
+  output.write(question);
+  try { return (await rl.question("")).trim(); }
+  finally { rl.close(); muted.destroy(); output.write("\n"); }
+}
 async function loadChromium(): Promise<Chromium> {
   const moduleName = "playwright";
   try { return (await import(moduleName)).chromium; }
   catch { throw new Error("Install the package and Playwright together in a local tools directory: npm install @conorbronsdon/substack-mcp playwright; then npx playwright install chromium; then npx substack-mcp login."); }
 }
 const defaults = { ask, loadChromium, out: (text: string) => console.log(text), error: (text: string) => console.error(text) };
-export async function runLogin(args: string[], deps: typeof defaults & { keychain?: ReturnType<typeof createKeychain>; pollIntervalMs?: number; publicationWaitMs?: number; sleep?: (ms: number) => Promise<void> } = defaults): Promise<number> {
+export async function runLogin(args: string[], deps: typeof defaults & { keychain?: ReturnType<typeof createKeychain>; askSecret?: typeof askSecret; pollIntervalMs?: number; publicationWaitMs?: number; sleep?: (ms: number) => Promise<void> } = defaults): Promise<number> {
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) { deps.out(usage); return 0; }
   let options: ReturnType<typeof parseLoginArguments>;
   try { options = parseLoginArguments(args); } catch { deps.error(usage); return 2; }
@@ -148,7 +157,7 @@ export async function runLogin(args: string[], deps: typeof defaults & { keychai
       if (access === "reauthentication_required") {
         deps.out("Substack asks you to confirm it's you before subscriber data can be read.");
         try {
-          const result = await completeStepUp(publicationUrl, credentials.sessionToken, (method, attempt) => deps.ask(
+          const result = await completeStepUp(publicationUrl, credentials.sessionToken, (method, attempt) => (deps.askSecret ?? askSecret)(
             `${attempt > 1 ? "That code was not accepted. " : ""}${method === "email" ? "Enter the code Substack just emailed you" : "Enter the code from your authenticator app"} (blank to cancel): `));
           validateCredentials(publicationUrl, result.sessionToken, credentials.userId);
           credentials = { ...credentials, sessionToken: result.sessionToken };
@@ -159,7 +168,7 @@ export async function runLogin(args: string[], deps: typeof defaults & { keychai
         }
         access = await probeSubscriberAccess(publicationUrl, credentials.sessionToken);
       }
-      if (access !== "granted") throw new LoginDiagnosticError(`Subscriber reads are still refused for this session (${access}). No session was saved. Confirm this account is an admin of ${publicationUrl}, then retry; omit --subscriber-access if you only need drafts and notes.`);
+      if (access !== "granted") throw new LoginDiagnosticError(`Subscriber reads are still refused for this session (${access}). No session was saved. Check your connection and confirm this account is an admin of ${publicationUrl}, then retry; omit --subscriber-access if you only need drafts and notes.`);
     }
     if (store === "keychain") await (deps.keychain ?? createKeychain()).write(options.profile ?? "default", credentials, options.force);
     else if (options.profile) saveProfile(options.profile, credentials, options.force);

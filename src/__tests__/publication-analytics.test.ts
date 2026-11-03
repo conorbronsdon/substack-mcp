@@ -123,6 +123,20 @@ async function connected(multi: boolean) {
   return { client, close: async () => { await client.close(); await server.close(); } };
 }
 describe("analytics MCP routing", () => {
+  it("reports a reversed growth date range as invalid input without fetching", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const c = await connected(false);
+    try {
+      const reply = await c.client.callTool({ name: "get_growth_sources", arguments: { from_date: "2026-10-10", to_date: "2026-10-01" } });
+      expect(reply.isError).toBe(true);
+      const body = JSON.parse((reply.content as { text: string }[])[0].text);
+      expect(body.code).toBe("invalid_input");
+      expect(body.message).toMatch(/Date range must be ordered/);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally { await c.close(); }
+  });
+
   it.each([false, true])("publishes both schemas and routes to the selected publication (multi=%s)", async multi => {
     const fetchMock = vi.fn(async (url: string) => Response.json(url.endsWith("/summary") ? summary : url.includes("summary-v2") ? range : { sourceMetrics: [source()], totals: [] }));
     vi.stubGlobal("fetch", fetchMock);

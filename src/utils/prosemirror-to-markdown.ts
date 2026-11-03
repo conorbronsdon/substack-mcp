@@ -1,6 +1,7 @@
 import { toMarkdown } from "mdast-util-to-markdown";
 import { gfmToMarkdown } from "mdast-util-gfm";
 import type { Root, BlockContent, DefinitionContent, PhrasingContent, ListItem } from "mdast";
+import { convertMarkdown } from "./markdown-to-prosemirror.js";
 
 export interface ExportLoss { path: string; type: string; reason: string }
 export interface MarkdownExport {
@@ -31,6 +32,29 @@ const safeUrl = (value: unknown, image = false): value is string => {
     return !url.username && !url.password && (image ? url.protocol === "https:" : ["https:", "http:", "mailto:"].includes(url.protocol));
   } catch { return false; }
 };
+
+// Text in document order as runs of one mark set, with mark aliases folded, so
+// a reimported document can be compared with its source.
+const markNames: Record<string, string> = { strong: "bold", em: "italic", strike: "strikethrough" };
+function textRuns(root: unknown): string {
+  const runs: [string, string][] = [];
+  const stack = [root];
+  while (stack.length) {
+    const current = stack.pop();
+    if (!node(current)) continue;
+    if (current.type === "text" && typeof current.text === "string" && current.text) {
+      const marks = Array.isArray(current.marks) ? current.marks.filter(object) : [];
+      const key = [...new Set(marks.map(mark => {
+        const type = typeof mark.type === "string" ? markNames[mark.type] ?? mark.type : "";
+        return type === "link" && object(mark.attrs) ? `link:${String(mark.attrs.href)}` : type;
+      }))].sort().join("|");
+      if (runs.length && runs[runs.length - 1][1] === key) runs[runs.length - 1][0] += current.text;
+      else runs.push([current.text, key]);
+    }
+    stack.push(...children(current).slice().reverse());
+  }
+  return JSON.stringify(runs);
+}
 
 /** Read-only projection. The original serialized body is always retained exactly. */
 export function prosemirrorToMarkdown(source: string): MarkdownExport {
@@ -107,11 +131,17 @@ export function prosemirrorToMarkdown(source: string): MarkdownExport {
     // Reimport through our Markdown converter flags this HTML as unsupported.
     return [{ type: "html", value: `<!-- substack-export-unsupported: ${path} -->` }];
   };
-  const inline = (values: unknown[], path: string): PhrasingContent[] => values.flatMap((value, index): PhrasingContent[] => {
+  // A wrapper is one mark's mdast parent. Keys identify marks that may continue
+  // across adjacent text nodes, so they share one wrapper instead of emitting
+  // `**a****b**`, which Markdown reparses differently.
+  type Wrapper = { key: string; make: () => Extract<PhrasingContent, { children: unknown }> };
+  type Piece = { leaf: PhrasingContent | null; wrappers: Wrapper[] };
+  const pieces = (values: unknown[], path: string): Piece[] => values.map((value, index): Piece => {
     const at = `${path}/${index}`;
+    const plain = (leaf: PhrasingContent | null): Piece => ({ leaf, wrappers: [] });
     if (!node(value)) {
       report(at, "invalid_node", "Malformed inline node retained in source_prosemirror.");
-      return [literal(`[Unsupported inline node at ${at}]`)];
+      return plain(literal(`[Unsupported inline node at ${at}]`));
     }
     if (kind(value) === "hard_break") {
       check(value, at);
@@ -120,9 +150,9 @@ export function prosemirrorToMarkdown(source: string): MarkdownExport {
       const visible = (sibling: unknown) => node(sibling) && kind(sibling) !== "hard_break" && !(kind(sibling) === "text" && sibling.text === "");
       if (!values.slice(0, index).some(visible) || !values.slice(index + 1).some(visible)) {
         report(at, value.type, "A hard break at the start or end of a paragraph has no Markdown representation; omitted, original retained.");
-        return [];
+        return plain(null);
       }
-      return [{ type: "break" }];
+      return plain({ type: "break" });
     }
     if (value.type === "footnoteAnchor") {
       check(value, at, ["number"]);
@@ -130,44 +160,68 @@ export function prosemirrorToMarkdown(source: string): MarkdownExport {
       const number = footnoteNumber(value);
       if (number === null || !footnoteIndex.has(number)) {
         report(at, value.type, "Footnote anchor has no valid number or matching top-level footnote; original node retained.");
-        return [literal(`[Unsupported inline node at ${at}]`)];
+        return plain(literal(`[Unsupported inline node at ${at}]`));
       }
-      return [{ type: "footnoteReference", identifier: String(number), label: String(number) }];
+      return plain({ type: "footnoteReference", identifier: String(number), label: String(number) });
     }
     if (kind(value) !== "text" || typeof value.text !== "string") {
       report(at, value.type, "No verified inline Markdown mapping; original node retained.");
-      return [literal(`[Unsupported inline node at ${at}]`)];
+      return plain(literal(`[Unsupported inline node at ${at}]`));
     }
     check(value, at);
     if (!value.text) report(at, value.type, "Empty text node has no distinct Markdown representation.");
     if (value.content !== undefined) report(at + "/content", value.type, "Text-node children are retained only in source_prosemirror.");
     if (/[\r\n]/.test(value.text)) report(at, value.type, "Text-node newlines may normalize on Markdown reimport.");
-    let result: PhrasingContent = literal(value.text);
     const marks = Array.isArray(value.marks) ? value.marks : [];
     // Code is the innermost mark; other marks wrap the code span.
-    if (marks.some(mark => object(mark) && mark.type === "code")) result = { type: "inlineCode", value: value.text };
-    for (let i = marks.length - 1; i >= 0; i--) {
+    const leaf: PhrasingContent = marks.some(mark => object(mark) && mark.type === "code") ? { type: "inlineCode", value: value.text } : literal(value.text);
+    const wrappers: Wrapper[] = [];
+    for (let i = 0; i < marks.length; i++) {
       const mark = marks[i], markPath = `${at}/marks/${i}`;
       if (!object(mark) || typeof mark.type !== "string") { report(markPath, "invalid_mark", "Malformed mark retained in original source."); continue; }
       const ma = object(mark.attrs) ? mark.attrs : {};
       if (Object.keys(mark).some(key => !["type", "attrs"].includes(key)) ||
           (mark.attrs !== undefined && !object(mark.attrs)) ||
           Object.keys(ma).some(key => !(mark.type === "link" && key === "href"))) report(markPath, mark.type, "Unmapped mark attributes/fields are retained only in source_prosemirror.");
+      const add = (key: string, make: Wrapper["make"]) => { if (!wrappers.some(w => w.key === key)) wrappers.push({ key, make }); };
       switch (mark.type) {
-        case "bold": case "strong": result = { type: "strong", children: [result] }; break;
-        case "italic": case "em": result = { type: "emphasis", children: [result] }; break;
-        case "strike": case "strikethrough": result = { type: "delete", children: [result] }; break;
+        case "bold": case "strong": add("strong", () => ({ type: "strong", children: [] })); break;
+        case "italic": case "em": add("emphasis", () => ({ type: "emphasis", children: [] })); break;
+        case "strike": case "strikethrough": add("delete", () => ({ type: "delete", children: [] })); break;
         case "code": break;
-        case "link":
-          if (!safeUrl(ma.href)) report(markPath, mark.type, "Unsafe or relative link omitted from Markdown; original source retained.");
-          else if (result.type === "link") report(markPath, mark.type, "Nested links are not represented in Markdown; original source retained.");
-          else result = { type: "link", url: ma.href, children: [result as Exclude<PhrasingContent, { type: "link" }>] };
+        case "link": {
+          const href = ma.href;
+          if (!safeUrl(href)) report(markPath, mark.type, "Unsafe or relative link omitted from Markdown; original source retained.");
+          else if (wrappers.some(w => w.key.startsWith("link:"))) report(markPath, mark.type, "Nested links are not represented in Markdown; original source retained.");
+          else add(`link:${href}`, () => ({ type: "link", url: href, children: [] }));
           break;
+        }
         default: report(markPath, mark.type, "No verified Markdown mark mapping; original mark retained.");
       }
     }
-    return value.text ? [result] : [];
+    return { leaf: value.text ? leaf : null, wrappers };
   });
+  const inline = (values: unknown[], path: string): PhrasingContent[] => {
+    const top: PhrasingContent[] = [];
+    const open: { key: string; node: Extract<PhrasingContent, { children: unknown }> }[] = [];
+    const target = () => (open.length ? open[open.length - 1].node.children : top) as PhrasingContent[];
+    for (const { leaf, wrappers } of pieces(values, path)) {
+      if (!leaf) continue;
+      const keys = new Set(wrappers.map(w => w.key));
+      // Keep the longest run of open wrappers this piece still carries; close the rest.
+      let keep = 0;
+      while (keep < open.length && keys.has(open[keep].key)) keep++;
+      open.length = keep;
+      for (const wrapper of wrappers) {
+        if (open.some(o => o.key === wrapper.key)) continue;
+        const created = wrapper.make();
+        target().push(created);
+        open.push({ key: wrapper.key, node: created });
+      }
+      target().push(leaf);
+    }
+    return top;
+  };
   let paywalls = 0;
   const blocks = (values: unknown[], path: string, topLevel = false): Block[] => values.flatMap((value, index): Block[] => {
     const at = `${path}/${index}`;
@@ -284,6 +338,17 @@ export function prosemirrorToMarkdown(source: string): MarkdownExport {
   let markdown: string;
   try { markdown = toMarkdown(tree, { extensions: [gfmToMarkdown()], bullet: "-", emphasis: "*", strong: "*", fences: true }); }
   catch { return unavailable("Markdown serialization failed; original source retained."); }
+  if (!unsupported_nodes.length) {
+    // Markdown cannot express every arrangement of adjacent marks, for example
+    // italic ending exactly where bold code begins. Reimport and compare, so a
+    // "converted" export never silently moves or drops formatting.
+    let same = false;
+    try {
+      const reimport = convertMarkdown(markdown);
+      same = !reimport.unsupported_nodes.length && textRuns(reimport.document) === textRuns(root);
+    } catch { /* over conversion limits: reimport would fail, so it cannot be verified */ }
+    if (!same) report("/content", "marks", "Reimporting this Markdown changes text or formatting boundaries (adjacent marks Markdown cannot express, or content beyond conversion limits); original source retained.");
+  }
   if (unsupported_nodes.length) markdown = "<!-- substack-export-partial: inspect unsupported_nodes and source_prosemirror before reuse -->\n\n" + markdown;
   if (markdown.length > 2_000_000) throw new Error("Markdown exceeds the 2,000,000-character export output limit.");
   return { markdown, source_prosemirror: source, unsupported_nodes, status: unsupported_nodes.length ? "partial" : "converted" };

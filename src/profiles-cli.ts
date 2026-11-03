@@ -20,7 +20,9 @@ export async function runProfiles(args: string[], io = { out: (text: string) => 
     else if (toKeychain) {
       const session = key ? loadProfile(key) : loadSession();
       if (!session) throw new Error("Source file session is missing or invalid.");
-      if (!key && !args.includes("--force") && await keychain.read("default")) throw Object.assign(new Error("Keychain session already exists."), { code: "EEXIST" });
+      // The keychain's own existence check skips "default" so legacy re-login can
+      // replace it; a profile named "default" shares that entry, so check here.
+      if ((!key || key === "default") && !args.includes("--force") && await keychain.read("default")) throw Object.assign(new Error("Keychain session already exists."), { code: "EEXIST" });
       await keychain.write(key ?? "default", session, args.includes("--force"));
       io.out(JSON.stringify({ format_version: 1, ok: true, command: "profiles migrate", profile: key ?? null, destination: "keychain", source_file_retained: true }));
     } else { migrateProfile(args[2], args.includes("--force")); io.out(JSON.stringify({ format_version: 1, ok: true, command: "profiles migrate", profile: args[2], legacy_session_retained: true })); }

@@ -38,6 +38,24 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   on failed runs and in its error log, so `/status` shows where a scheduled run stopped. Error
   messages, tokens and email addresses are still never stored or logged.
 - Empty or whitespace-only `SUBSTACK_PROFILES` now uses the legacy configuration path, as when the variable is unset; empty entries within a profile list remain invalid.
+- `export_draft` keeps formatting that spans adjacent text runs. A bold sentence with an
+  italic word, or bold text ending in inline code, previously exported as `**a*****b***`
+  or `**a ****`, which Markdown reimports with lost or stacked marks, while reporting
+  `converted`. Shared marks now open once, and every `converted` export is reimported and
+  compared with the source; arrangements Markdown cannot express (adjacent marks that
+  meet at a word, or plain-text URLs that GFM would autolink) are reported as `partial`.
+- Markdown that nests the same emphasis (`**a **b** c**`) no longer gives text two
+  identical marks.
+- `preflight_draft` no longer warns that footnotes created by this server are unrecognized.
+- `update_draft_tags`, `upload_image` and `get_growth_sources` report invalid argument
+  combinations (duplicate or overlapping tags, no or several image sources, a reversed
+  date range) as `invalid_input` with zero attempts. They previously said a write may
+  have occurred and asked for reconciliation.
+- `upload_image` with `image_path` refuses devices, FIFOs and directories, which could
+  hang the server, and files over 25 MB, returning `local_image_unreadable`. Symlinks to
+  regular files still work.
+- `profiles migrate --to keychain --name default` no longer silently replaces the legacy
+  keychain session, which shares that entry; it requires `--force` like other names.
 
 ## [1.3.0] - 2026-09-23
 

@@ -156,6 +156,7 @@ export async function runLogin(args: string[], deps: typeof defaults & { keychai
       stepUp = "not_required";
       if (access === "reauthentication_required") {
         deps.out("Substack asks you to confirm it's you before subscriber data can be read.");
+        const originalToken = credentials.sessionToken;
         try {
           const result = await completeStepUp(publicationUrl, credentials.sessionToken, (method, attempt) => (deps.askSecret ?? askSecret)(
             `${attempt > 1 ? "That code was not accepted. " : ""}${method === "email" ? "Enter the code Substack just emailed you" : "Enter the code from your authenticator app"} (blank to cancel): `));
@@ -165,6 +166,15 @@ export async function runLogin(args: string[], deps: typeof defaults & { keychai
         } catch (error) {
           const code = error instanceof StepUpError ? error.code : "start_failed";
           throw new LoginDiagnosticError(`Substack's confirm-it's-you step did not complete (${code}). No session was saved. Retry substack-mcp login --subscriber-access and enter the newest code; codes are single-use.`);
+        }
+        if (credentials.sessionToken !== originalToken) {
+          try {
+            if (options.verifyIdentity && String(await readAuthenticatedUserId(publicationUrl, credentials.sessionToken)) !== credentials.userId) throw new Error("Identity mismatch");
+            const check = await doctor(true, () => [{ ...credentials!, key: options.profile ?? "default", label: "login", source: "stored", missing: [] }], async () => true);
+            if (!check.ok) throw new Error("Authenticated read failed");
+          } catch {
+            throw new LoginDiagnosticError("The rotated session could not be reverified for authenticated reads and the requested identity. No session was saved.");
+          }
         }
         access = await probeSubscriberAccess(publicationUrl, credentials.sessionToken);
       }

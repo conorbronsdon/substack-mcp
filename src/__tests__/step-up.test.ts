@@ -15,8 +15,8 @@ const REAUTH = JSON.stringify({ error: "For your security, please sign out and s
  * completed reauthenticate/start + /complete with the right code. Completing rotates the cookie,
  * and only the rotated session passes, as the web app's retry-after-step-up flow implies.
  */
-function fakeSubstack(options: { method?: string | null; rotate?: boolean } = {}) {
-  const { method = "email", rotate = true } = options;
+function fakeSubstack(options: { method?: string | null; rotate?: boolean; rotatedIdentity?: number; rotatedDraftsOk?: boolean } = {}) {
+  const { method = "email", rotate = true, rotatedIdentity = 42, rotatedDraftsOk = true } = options;
   const steppedUp = new Set<string>(), started = new Set<string>();
   const calls: { path: string; token: string; body?: unknown }[] = [];
   const fetch = vi.fn(async (input: string | URL | Request, init: RequestInit = {}) => {
@@ -24,7 +24,9 @@ function fakeSubstack(options: { method?: string | null; rotate?: boolean } = {}
     const token = /connect\.sid=([^;]+)/.exec(cookie)?.[1] ?? "";
     const body = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
     calls.push({ path: url.pathname, token, body });
-    if (url.pathname === "/api/v1/post_management/drafts") return Response.json({ posts: [] });
+    if (url.pathname === "/api/v1/post_management/drafts") return token === "example-stepped-up-token" && !rotatedDraftsOk
+      ? Response.json({ error: "denied" }, { status: 403 }) : Response.json({ posts: [] });
+    if (url.pathname === "/api/v1/user/profile/self") return Response.json({ id: token === "example-stepped-up-token" ? rotatedIdentity : 42 });
     if (url.pathname === "/api/v1/subscriber-stats") {
       return steppedUp.has(token) ? Response.json({ count: 0, subscribers: [] })
         : new Response(REAUTH, { status: 403, headers: { "content-type": "application/json; charset=utf-8" } });
@@ -65,13 +67,13 @@ describe("login --subscriber-access: 403 reauthentication_required, then success
     expect(await runLogin([ORIGIN, "--user-id", "42", "--subscriber-access"], deps)).toBe(0);
     expect(server.calls.map(c => c.path)).toEqual([
       "/api/v1/post_management/drafts", "/api/v1/subscriber-stats",
-      "/api/v1/reauthenticate/start", "/api/v1/reauthenticate/complete", "/api/v1/subscriber-stats",
+      "/api/v1/reauthenticate/start", "/api/v1/reauthenticate/complete", "/api/v1/post_management/drafts", "/api/v1/subscriber-stats",
     ]);
     // The first probe is the fresh login session; Substack refuses it.
     expect(server.calls[1].token).toBe("example-fresh-login-token");
     expect(server.calls[3].body).toEqual({ code: CODE });
     // The rotated session is what gets verified and saved.
-    expect(server.calls[4].token).toBe("example-stepped-up-token");
+    expect(server.calls[5].token).toBe("example-stepped-up-token");
     expect(loadSession()).toMatchObject({ sessionToken: "example-stepped-up-token", userId: "42" });
     expect(await probeSubscriberAccess(ORIGIN, loadSession()!.sessionToken)).toBe("granted");
     const prompt = deps.ask.mock.calls.map(c => c[0]).find(q => q.includes("emailed"));
@@ -81,6 +83,27 @@ describe("login --subscriber-access: 403 reauthentication_required, then success
     expect(output).toContain('"step_up":"email"');
     expect(output).not.toContain("example-stepped-up-token");
     expect(output).not.toContain(CODE);
+  });
+
+  it("rechecks the identity and authenticated read of a rotated token before saving", async () => {
+    fakeSubstack({ rotatedIdentity: 43 });
+    const deps = browser();
+    expect(await runLogin([ORIGIN, "--verify-identity", "--subscriber-access"], deps)).toBe(1);
+    expect(loadSession()).toBeNull();
+    expect(deps.error.mock.calls.join("\n")).toContain("rotated session could not be reverified");
+  });
+
+  it("rejects a rotated token that cannot read drafts", async () => {
+    fakeSubstack({ rotatedDraftsOk: false });
+    const deps = browser();
+    expect(await runLogin([ORIGIN, "--user-id", "42", "--subscriber-access"], deps)).toBe(1);
+    expect(loadSession()).toBeNull();
+  });
+
+  it("accepts the rotated token when its verified identity and drafts read still match", async () => {
+    fakeSubstack();
+    expect(await runLogin([ORIGIN, "--verify-identity", "--subscriber-access"], browser())).toBe(0);
+    expect(loadSession()).toMatchObject({ sessionToken: "example-stepped-up-token", userId: "42" });
   });
 
   it("keeps the session token when Substack marks the session without rotating its cookie", async () => {

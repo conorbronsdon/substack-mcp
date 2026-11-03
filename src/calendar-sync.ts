@@ -18,6 +18,45 @@ import { stateSchema, ingest, parseBooking, processContacts, type SyncState, typ
 export { contactKey, ingest, parseBooking, processContacts, type BookingMessage, type SyncState, type Contact } from "./calendar-consent.js";
 const emailSchema = z.string().email().max(254);
 
+/** A failure with a stable, email-free reason code for logs and alerts. */
+export class SyncFailure extends Error {
+  constructor(public reason: string, message: string, public status?: number) { super(message); this.name = "SyncFailure"; }
+}
+
+const HINTS: Record<string, string> = {
+  substack_reauthentication_required: "Substack wants a recent sign-in for subscriber data; run substack-mcp login.",
+  substack_invalid_or_expired: "The Substack session is invalid or expired; run substack-mcp login.",
+  credentials_missing: "No matching stored Substack credentials; run substack-mcp login for this publication.",
+  lock_held: "Another run holds the lock, or a crashed run left it; remove the .lock file only after confirming no run is active.",
+  gmail_unreachable: "The Gmail CLI (gws_command) failed; check its authentication.",
+  scan_cap: "More booking messages than max_messages; raise the cap or narrow days.",
+  state_mismatch: "The state file belongs to another publication or organizer.",
+  invalid_config_or_state: "The config or state file failed validation.",
+};
+
+/** Reduce any thrown value to a reason code and a one-line message that never contains an email or token. */
+export function describeSyncFailure(error: unknown): { reason: string; line: string } {
+  let reason = "unexpected", status: number | undefined;
+  if (error instanceof SyncFailure) { reason = error.reason; status = error.status; }
+  else if ((error as { code?: unknown } | null)?.code === "EEXIST") reason = "lock_held";
+  else if (error instanceof z.ZodError || error instanceof SyntaxError) reason = "invalid_config_or_state";
+  const hint = HINTS[reason] ?? "Inspect credentials, state, scan cap and lock.";
+  return { reason, line: `Calendar newsletter sync failed (reason=${reason}${status ? `, status=${status}` : ""}). ${hint} No automatic retry of recorded adds.` };
+}
+
+/** Turn an MCP tool error payload into a SyncFailure, keeping only its code fields. */
+export function toolFailure(name: string, content: unknown): SyncFailure {
+  let code = "upstream_error", status: number | undefined;
+  try {
+    const block = (content as Array<{ type: string; text?: string }>).find(c => c.type === "text");
+    const payload = JSON.parse(block?.text ?? "{}") as { code?: unknown; status?: unknown; auth_reason?: unknown };
+    const pick = (v: unknown) => typeof v === "string" && /^[a-z_]{1,64}$/.test(v) ? v : undefined;
+    code = pick(payload.auth_reason) ?? pick(payload.code) ?? code;
+    status = Number.isInteger(payload.status) ? payload.status as number : undefined;
+  } catch { /* keep the generic code */ }
+  return new SyncFailure(`substack_${code}`, `MCP operation ${name} failed.`, status);
+}
+
 function save(path: string, state: SyncState) {
   const temporary = `${path}.new`, fd = openSync(temporary, "w", 0o600);
   try { writeFileSync(fd, JSON.stringify(state)); fsyncSync(fd); } finally { closeSync(fd); }
@@ -35,20 +74,22 @@ async function main() {
   let client: Client | undefined, server: ReturnType<typeof createServer> | undefined;
   try {
     const state = existsSync(statePath) ? stateSchema.parse(JSON.parse(readFileSync(statePath, "utf8"))) : stateSchema.parse({ version: 1, publication_url: config.publication_url, organizer_email: config.organizer_email, seen_ids: [], contacts: {}, attempts: {} });
-    if (state.publication_url !== config.publication_url || state.organizer_email !== config.organizer_email) throw new Error("State belongs to a different publication or organizer.");
+    if (state.publication_url !== config.publication_url || state.organizer_email !== config.organizer_email) throw new SyncFailure("state_mismatch", "State belongs to a different publication or organizer.");
     const creds = await resolveSelectedPublications();
     const selected = creds.find(p => p.key === config.publication_key);
-    if (!selected || selected.missing.length || selected.publicationUrl.replace(/\/$/, "") !== config.publication_url.replace(/\/$/, "")) throw new Error("Missing or mismatched publication credentials.");
+    if (!selected || selected.missing.length || selected.publicationUrl.replace(/\/$/, "") !== config.publication_url.replace(/\/$/, "")) throw new SyncFailure("credentials_missing", "Missing or mismatched publication credentials.");
     const gws = async (operation: "list" | "get", params: Record<string, unknown>) => {
-      const result = await exec(config.gws_command, ["gmail", "users", "messages", operation, "--params", JSON.stringify({ userId: "me", ...params })], { encoding: "utf8", timeout: 30000, maxBuffer: 4 * 1024 * 1024, windowsHide: true });
-      return JSON.parse(result.stdout || "{}");
+      let stdout: string;
+      try { stdout = (await exec(config.gws_command, ["gmail", "users", "messages", operation, "--params", JSON.stringify({ userId: "me", ...params })], { encoding: "utf8", timeout: 30000, maxBuffer: 4 * 1024 * 1024, windowsHide: true })).stdout; }
+      catch { throw new SyncFailure("gmail_unreachable", "Gmail CLI call failed."); }
+      return JSON.parse(stdout || "{}");
     };
     const seen = new Set(state.seen_ids), ids: string[] = [];
     let pageToken: string | undefined;
     do {
       const page = z.object({ resultSizeEstimate: z.number().int().nonnegative(), messages: z.array(z.object({ id: z.string() })).optional(), nextPageToken: z.string().optional() }).parse(await gws("list", { q: `from:${config.organizer_email} subject:"Appointment booked" newer_than:${config.days}d`, maxResults: 10, ...(pageToken ? { pageToken } : {}) }));
       ids.push(...(page.messages ?? []).map(m => m.id)); pageToken = page.nextPageToken;
-      if (ids.length > config.max_messages || (pageToken && ids.length >= config.max_messages)) throw new Error("Booking scan exceeded its cap; no adds performed.");
+      if (ids.length > config.max_messages || (pageToken && ids.length >= config.max_messages)) throw new SyncFailure("scan_cap", "Booking scan exceeded its cap; no adds performed.");
     } while (pageToken);
     for (const id of new Set(ids)) {
       if (seen.has(id)) continue;
@@ -67,7 +108,7 @@ async function main() {
     const activeClient = client;
     const call: Call = async (name, toolArgs) => {
       const result = await activeClient.callTool({ name, arguments: toolArgs });
-      if (result.isError) throw new Error("MCP operation failed.");
+      if (result.isError) throw toolFailure(name, result.content);
       const block = (result.content as Array<{type: string; text?: string}>).find(c => c.type === "text");
       if (!block?.text) throw new Error("Missing MCP result.");
       return JSON.parse(block.text);
@@ -80,5 +121,5 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main().catch(() => { console.error("Calendar newsletter sync failed; inspect credentials, state, scan cap, and lock. No automatic retry of recorded adds."); process.exitCode = 1; });
+  main().catch(error => { console.error(describeSyncFailure(error).line); process.exitCode = 1; });
 }

@@ -13,11 +13,20 @@ export class SubstackAPIError extends Error {
   }
 }
 
+export type AuthenticationReason = "invalid_or_expired" | "reauthentication_required";
 export class AuthenticationError extends SubstackAPIError {
-  constructor(endpoint: string, status = 401) {
-    super(status, "Session token is invalid or expired. Get a fresh token from browser DevTools > Application > Cookies > connect.sid (or substack.sid on substack.com)", endpoint);
+  constructor(endpoint: string, status = 401, public reason: AuthenticationReason = "invalid_or_expired") {
+    super(status, reason === "reauthentication_required"
+      ? "Substack requires a recent sign-in for this action (reauthentication_required). The session still works for other reads; run substack-mcp login again."
+      : "Session token is invalid or expired. Get a fresh token from browser DevTools > Application > Cookies > connect.sid (or substack.sid on substack.com)", endpoint);
     this.name = "AuthenticationError";
   }
+}
+
+/** Substack's 403 for sensitive admin reads (for example subscriber-stats) on a session it does not treat as recent:
+ * {"error":"For your security, please sign out and sign back in to do this.","type":"reauthentication_required"} */
+export function isReauthenticationDetail(detail: string): boolean {
+  return /reauthentication_required|sign out and sign back in/i.test(detail);
 }
 
 /** HTTP 429 — too many requests against the Substack API. */
@@ -107,7 +116,8 @@ export function isAbortError(err: unknown): boolean {
  */
 export function mapHttpStatusToError(status: number, detail: string, endpoint: string, retryAfter?: string, bodyIssue?: ResponseBodyIssue): SubstackAPIError {
   let error: SubstackAPIError;
-  if (status === 401 || status === 403) error = new AuthenticationError(endpoint, status);
+  if (status === 403 && isReauthenticationDetail(detail)) error = new AuthenticationError(endpoint, status, "reauthentication_required");
+  else if (status === 401 || status === 403) error = new AuthenticationError(endpoint, status);
   else if (status === 429) error = new RateLimitError(endpoint, detail, retryAfter);
   else if (status === 400) error = new ValidationError(endpoint, detail);
   else if (status === 404) error = new NotFoundError(endpoint, detail);

@@ -1,4 +1,4 @@
-import { extractErrorDetail, isAbortError, mapHttpStatusToError, ResponseError, SubstackAPIError, TimeoutError, type ResponseBodyIssue } from "../utils/errors.js";
+import { AuthenticationError, extractErrorDetail, isAbortError, isReauthenticationDetail, mapHttpStatusToError, ResponseError, SubstackAPIError, TimeoutError, type ResponseBodyIssue } from "../utils/errors.js";
 
 export const MAX_JSON_BYTES = 10 * 1024 * 1024;
 export const MAX_HTML_BYTES = 2 * 1024 * 1024;
@@ -107,7 +107,14 @@ async function request(url: string, options: RequestInit, timeoutMs: number, for
       break;
     }
     if ([401, 403, 429].includes(response.status)) {
-      discard(response);
+      // A 403 body is read (bounded) only to recognise Substack's reauthentication response;
+      // its text is never surfaced. Every other auth/rate-limit body is discarded unread.
+      let reauthentication = false;
+      if (response.status === 403) {
+        try { reauthentication = isReauthenticationDetail(await readBounded(response, MAX_ERROR_BYTES, signal, url, expiresAt)); }
+        catch { discard(response); }
+      } else discard(response);
+      if (reauthentication) throw new AuthenticationError(url, 403, "reauthentication_required");
       throw mapHttpStatusToError(response.status, "Too many requests", url, retryAfter(response));
     }
     if (!response.ok) {

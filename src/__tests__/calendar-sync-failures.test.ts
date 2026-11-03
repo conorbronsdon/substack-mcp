@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { requestJson } from "../api/request.js";
 import { z } from "zod";
 import { describeSyncFailure, SyncFailure, toolFailure } from "../calendar-sync.js";
 import { AuthenticationError, mapHttpStatusToError } from "../utils/errors.js";
@@ -17,6 +18,29 @@ describe("Substack reauthentication 403", () => {
   it("keeps the expired-session reason for other 401/403 responses", () => {
     expect((mapHttpStatusToError(403, "Forbidden", "/api") as AuthenticationError).reason).toBe("invalid_or_expired");
     expect((mapHttpStatusToError(401, REAUTH_DETAIL, "/api") as AuthenticationError).reason).toBe("invalid_or_expired");
+  });
+});
+
+describe("Substack reauthentication 403 through the request layer", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+  const url = "https://example.substack.com/api/v1/subscriber-stats";
+  const live = JSON.stringify({ error: REAUTH_DETAIL, type: "reauthentication_required" });
+
+  it("classifies Substack's live reauthentication body", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(live, { status: 403, headers: { "content-type": "application/json; charset=utf-8" } })));
+    const error = await requestJson(url, { method: "POST", body: "{}" }).catch(e => e) as AuthenticationError;
+    expect(error).toBeInstanceOf(AuthenticationError);
+    expect(error.reason).toBe("reauthentication_required");
+    expect(error.statusCode).toBe(403);
+    expect(error.message).not.toContain("For your security");
+  });
+
+  it("keeps other 401/403 bodies as invalid_or_expired", async () => {
+    for (const [status, body] of [[403, "Forbidden"], [401, live], [403, ""]] as const) {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status })));
+      const error = await requestJson(url).catch(e => e) as AuthenticationError;
+      expect(error.reason).toBe("invalid_or_expired");
+    }
   });
 });
 

@@ -1,4 +1,4 @@
-import { AuthenticationError, extractErrorDetail, isAbortError, isReauthenticationDetail, mapHttpStatusToError, ResponseError, SubstackAPIError, TimeoutError, type ResponseBodyIssue } from "../utils/errors.js";
+import { extractErrorDetail, isAbortError, isReauthenticationDetail, mapHttpStatusToError, ResponseError, SubstackAPIError, TimeoutError, type ResponseBodyIssue } from "../utils/errors.js";
 
 export const MAX_JSON_BYTES = 10 * 1024 * 1024;
 export const MAX_HTML_BYTES = 2 * 1024 * 1024;
@@ -123,8 +123,7 @@ async function request(url: string, options: RequestInit, timeoutMs: number, for
           if (performance.now() >= expiresAt) throw new TimeoutError(url, timeoutMs);
         }
       } else discard(response);
-      if (reauthentication) throw new AuthenticationError(url, 403, "reauthentication_required");
-      throw mapHttpStatusToError(response.status, "Too many requests", url, retryAfter(response));
+      throw mapHttpStatusToError(response.status, reauthentication ? "reauthentication_required" : "Too many requests", url, retryAfter(response));
     }
     if (!response.ok) {
       let detail: string;

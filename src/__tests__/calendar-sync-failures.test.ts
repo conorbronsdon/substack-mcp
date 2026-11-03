@@ -4,6 +4,12 @@ import { z } from "zod";
 import { describeSyncFailure, SyncFailure, toolFailure } from "../calendar-sync.js";
 import { AuthenticationError, mapHttpStatusToError, SubstackAPIError } from "../utils/errors.js";
 import { contractRegistrar } from "../output-contracts.js";
+import { execFile } from "node:child_process";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 const REAUTH_DETAIL = "For your security, please sign out and sign back in to do this.";
 
@@ -37,6 +43,18 @@ describe("Substack reauthentication 403 through the request layer", () => {
 
   const json = { "content-type": "application/json" };
 
+  it("preserves validated Retry-After on reauthentication responses", async () => {
+    for (const retry of ["120", "example-private-value"]) {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(live, {
+        status: 403, headers: { ...json, "retry-after": retry },
+      })));
+      const error = await requestJson(url).catch(e => e) as AuthenticationError;
+      expect(error.reason).toBe("reauthentication_required");
+      expect(error.retryAfter).toBe(retry === "120" ? "120" : undefined);
+      expect(error.message).not.toContain("example-private-value");
+    }
+  });
+
   it("gives up on a stalled JSON 403 body after the 2 s probe window", async () => {
     const cancel = vi.fn();
     vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ cancel }), { status: 403, headers: json })));
@@ -47,6 +65,20 @@ describe("Substack reauthentication 403 through the request layer", () => {
     expect(elapsed).toBeGreaterThanOrEqual(1900);
     expect(elapsed).toBeLessThan(2600);
     expect(cancel).toHaveBeenCalled();
+  });
+
+  it("stops a ready body at the probe deadline before the request deadline", async () => {
+    let clock = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => clock);
+    const body = new ReadableStream({ pull(controller) {
+      clock = 2100;
+      controller.enqueue(new TextEncoder().encode(live));
+      controller.close();
+    } }, { highWaterMark: 0 });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 403, headers: json })));
+    const error = await requestJson(url, {}, 30000).catch(e => e) as AuthenticationError;
+    expect(error.reason).toBe("invalid_or_expired");
+    expect(error.statusCode).toBe(403);
   });
 
   it("cancels a body that keeps streaming once it passes the 4 KB cap", async () => {
@@ -73,9 +105,11 @@ describe("Substack reauthentication 403 through the request layer", () => {
     const caller = new AbortController();
     let reading!: () => void;
     const started = new Promise<void>(resolve => { reading = resolve; });
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ pull() { reading(); return new Promise(() => {}); } }), { status: 403, headers: json })));
+    const response = new Response(new ReadableStream({ pull() { reading(); return new Promise(() => {}); } }, { highWaterMark: 0 }), { status: 403, headers: json });
+    vi.stubGlobal("fetch", vi.fn(async () => response));
     const pending = requestJson(url, { signal: caller.signal }, 30000).catch(e => e);
     await started;
+    expect(response.body?.locked).toBe(true);
     caller.abort();
     const error = await pending;
     expect(error).not.toBeInstanceOf(AuthenticationError);
@@ -124,13 +158,33 @@ describe("calendar sync failure reasons", () => {
 
   it("classifies lock, validation and unknown failures", () => {
     expect(describeSyncFailure(Object.assign(new Error("exists"), { code: "EEXIST" })).reason).toBe("lock_held");
-    expect(describeSyncFailure(z.string().safeParse(1).error).reason).toBe("invalid_config_or_state");
-    expect(describeSyncFailure(new SyntaxError("bad json")).reason).toBe("invalid_config_or_state");
+    expect(describeSyncFailure(new SyncFailure("invalid_config_or_state", "x")).reason).toBe("invalid_config_or_state");
+    expect(describeSyncFailure(z.string().safeParse(1).error).reason).toBe("unexpected");
+    expect(describeSyncFailure(new SyntaxError("upstream bad json")).reason).toBe("unexpected");
     expect(describeSyncFailure(new SyncFailure("scan_cap", "x")).reason).toBe("scan_cap");
     const unknown = describeSyncFailure(new Error("reader@example.org exploded"));
     expect(unknown.reason).toBe("unexpected");
     expect(unknown.line).not.toContain("@");
   });
+});
+
+describe("calendar sync config/state parsing context", () => {
+  const exec = promisify(execFile);
+  const cli = fileURLToPath(new URL("../calendar-sync.ts", import.meta.url));
+  it.each(["config JSON", "config schema", "state JSON"])("names invalid %s before external operations", async target => {
+    const scratch = await mkdtemp(join(tmpdir(), "example-sync-diagnostics-"));
+    try {
+      const statePath = join(scratch, "state.json"), configPath = join(scratch, "config.json");
+      const config = { organizer_email: "example-organizer@example.org", publication_url: "https://example.substack.com", publication_key: "example", state_path: statePath };
+      await writeFile(configPath, target === "config JSON" ? "{" : JSON.stringify(target === "config schema" ? {} : config));
+      if (target === "state JSON") await writeFile(statePath, "{");
+      const result = await exec(process.execPath, ["--import", "tsx", cli, configPath], { timeout: 10000, windowsHide: true })
+        .then(() => ({ code: 0, stderr: "" }), error => ({ code: error.code, stderr: String(error.stderr) }));
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("reason=invalid_config_or_state");
+      expect(result.stderr).not.toContain("example-organizer");
+    } finally { await rm(scratch, { recursive: true, force: true }); }
+  }, 15000);
 });
 
 describe("tool error contract", () => {

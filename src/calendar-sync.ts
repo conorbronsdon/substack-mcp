@@ -17,6 +17,7 @@ const exec = promisify(execFile);
 import { stateSchema, ingest, parseBooking, processContacts, type SyncState, type BookingMessage, type Call } from "./calendar-consent.js";
 export { contactKey, ingest, parseBooking, processContacts, type BookingMessage, type SyncState, type Contact } from "./calendar-consent.js";
 const emailSchema = z.string().email().max(254);
+const configSchema = z.object({ organizer_email: emailSchema, publication_url: z.string().url(), publication_key: z.string(), state_path: z.string().min(1), gws_command: z.string().default("gws"), days: z.number().int().min(1).max(365).default(180), max_messages: z.number().int().min(10).max(1000).default(200), max_adds: z.number().int().min(1).max(10).default(5), send_welcome_email: z.boolean().default(false) }).strict();
 
 /** A failure with a stable, email-free reason code for logs and alerts. */
 export class SyncFailure extends Error {
@@ -39,7 +40,6 @@ export function describeSyncFailure(error: unknown): { reason: string; line: str
   let reason = "unexpected", status: number | undefined;
   if (error instanceof SyncFailure) { reason = error.reason; status = error.status; }
   else if ((error as { code?: unknown } | null)?.code === "EEXIST") reason = "lock_held";
-  else if (error instanceof z.ZodError || error instanceof SyntaxError) reason = "invalid_config_or_state";
   const hint = HINTS[reason] ?? "Inspect credentials, state, scan cap and lock.";
   return { reason, line: `Calendar newsletter sync failed (reason=${reason}${status ? `, status=${status}` : ""}). ${hint} No automatic retry of recorded adds.` };
 }
@@ -66,14 +66,18 @@ function save(path: string, state: SyncState) {
 async function main() {
   const args = process.argv.slice(2);
   if (args.length < 1 || args.length > 2 || (args[1] !== undefined && args[1] !== "--write")) throw new Error("Usage: node dist/calendar-sync.js CONFIG.json [--write]");
-  const config = z.object({ organizer_email: emailSchema, publication_url: z.string().url(), publication_key: z.string(), state_path: z.string().min(1), gws_command: z.string().default("gws"), days: z.number().int().min(1).max(365).default(180), max_messages: z.number().int().min(10).max(1000).default(200), max_adds: z.number().int().min(1).max(10).default(5), send_welcome_email: z.boolean().default(false) }).strict().parse(JSON.parse(readFileSync(args[0], "utf8")));
+  let config: z.infer<typeof configSchema>;
+  try { config = configSchema.parse(JSON.parse(readFileSync(args[0], "utf8"))); }
+  catch { throw new SyncFailure("invalid_config_or_state", "The config file could not be read or parsed."); }
   const statePath = resolve(config.state_path), write = args[1] === "--write";
   mkdirSync(dirname(statePath), { recursive: true, mode: 0o700 });
   // A stale lock after a crash is deliberately not automatically removed.
   const lockPath = `${statePath}.lock`, lock = openSync(lockPath, "wx", 0o600);
   let client: Client | undefined, server: ReturnType<typeof createServer> | undefined;
   try {
-    const state = existsSync(statePath) ? stateSchema.parse(JSON.parse(readFileSync(statePath, "utf8"))) : stateSchema.parse({ version: 1, publication_url: config.publication_url, organizer_email: config.organizer_email, seen_ids: [], contacts: {}, attempts: {} });
+    let state: SyncState;
+    try { state = existsSync(statePath) ? stateSchema.parse(JSON.parse(readFileSync(statePath, "utf8"))) : stateSchema.parse({ version: 1, publication_url: config.publication_url, organizer_email: config.organizer_email, seen_ids: [], contacts: {}, attempts: {} }); }
+    catch { throw new SyncFailure("invalid_config_or_state", "The state file could not be read or parsed."); }
     if (state.publication_url !== config.publication_url || state.organizer_email !== config.organizer_email) throw new SyncFailure("state_mismatch", "State belongs to a different publication or organizer.");
     const creds = await resolveSelectedPublications();
     const selected = creds.find(p => p.key === config.publication_key);

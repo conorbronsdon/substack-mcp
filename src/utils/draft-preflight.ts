@@ -88,7 +88,9 @@ function itemText(item: unknown): string | null {
 
 /** Normalize the prepublish response; an unexpected shape is reported as unavailable, never guessed. */
 export function normalizePrepublish(raw: unknown): SubstackCheck {
-  if (!object(raw) || (!Array.isArray(raw.errors) && !Array.isArray(raw.suggestions))) {
+  if (!object(raw) || (!Array.isArray(raw.errors) && !Array.isArray(raw.suggestions)) ||
+      (raw.errors !== undefined && !Array.isArray(raw.errors)) ||
+      (raw.suggestions !== undefined && !Array.isArray(raw.suggestions))) {
     return { status: "unavailable", reason: "unexpected_response", note: SUBSTACK_CHECK_NOTE };
   }
   const list = (v: unknown) => (Array.isArray(v) ? v : []).map(itemText).filter((t): t is string => t !== null).slice(0, MAX_SUBSTACK_ITEMS);

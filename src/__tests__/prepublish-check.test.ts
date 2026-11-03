@@ -65,6 +65,11 @@ describe("normalizePrepublish", () => {
   it("treats an unexpected shape as unavailable instead of guessing", () => {
     expect(normalizePrepublish({ ok: true })).toMatchObject({ status: "unavailable", reason: "unexpected_response" });
     expect(normalizePrepublish(null)).toMatchObject({ status: "unavailable" });
+    for (const raw of [
+      { errors: "example upstream error", suggestions: [] },
+      { errors: [], suggestions: { message: "example suggestion" } },
+      { errors: null, suggestions: [] },
+    ]) expect(normalizePrepublish(raw)).toMatchObject({ status: "unavailable", reason: "unexpected_response" });
     expect(normalizePrepublish({ errors: [] })).toMatchObject({ status: "ok", errors: [], suggestions: [] });
   });
 

@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { writeFile, mkdtemp, rm } from "node:fs/promises";
+import { writeFile, mkdtemp, rm, symlink, truncate } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileToDataUri, SUPPORTED_IMAGE_EXTENSIONS } from "../utils/image.js";
+import { fileToDataUri, SUPPORTED_IMAGE_EXTENSIONS, LOCAL_IMAGE_MAX_BYTES } from "../utils/image.js";
 
 describe("fileToDataUri", () => {
   let dir: string;
@@ -51,5 +52,34 @@ describe("fileToDataUri", () => {
   it("exposes the supported extension list", () => {
     expect(SUPPORTED_IMAGE_EXTENSIONS).toContain(".png");
     expect(SUPPORTED_IMAGE_EXTENSIONS).toContain(".webp");
+  });
+  it("follows a symlink to a regular image", async context => {
+    const target = join(dir, "real.png"), link = join(dir, "link.png");
+    await writeFile(target, pngBytes);
+    try { await symlink(target, link); }
+    catch (error) {
+      if (process.platform === "win32" && (error as NodeJS.ErrnoException).code === "EPERM") {
+        context.skip("Windows requires symlink privilege; Linux CI exercises this control.");
+        return;
+      }
+      throw error;
+    }
+    expect(await fileToDataUri(link)).toBe(`data:image/png;base64,${pngBytes.toString("base64")}`);
+  });
+
+  it.skipIf(process.platform === "win32")("refuses devices and FIFOs instead of reading forever", async () => {
+    const device = join(dir, "zero.png");
+    await symlink("/dev/zero", device);
+    await expect(fileToDataUri(device)).rejects.toThrow(/not a regular file/);
+    const fifo = join(dir, "pipe.png");
+    execFileSync("mkfifo", [fifo]);
+    await expect(fileToDataUri(fifo)).rejects.toThrow(/not a regular file/);
+  });
+
+  it("refuses files over the local image limit without reading them", async () => {
+    const path = join(dir, "huge.png");
+    await writeFile(path, "");
+    await truncate(path, LOCAL_IMAGE_MAX_BYTES + 1);
+    await expect(fileToDataUri(path)).rejects.toThrow(/limited to 25 MB/);
   });
 });

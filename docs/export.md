@@ -36,8 +36,8 @@ API body remains null; a malformed JSON body remains its original string.
 
 | Status | Meaning |
 | --- | --- |
-| `converted` | The converter found no unsupported constructs; Markdown syntax still normalizes |
-| `partial` | Some structures, marks, attributes or layout details require the original source |
+| `converted` | The converter found no unsupported constructs, and reimporting the Markdown reproduces the text and its marks; Markdown syntax still normalizes |
+| `partial` | Some structures, marks, attributes or layout details require the original source. This includes adjacent marks Markdown cannot express and plain-text URLs that reimport would turn into links (reported as type `marks` at `/content`) |
 | `unavailable` | Markdown could not be produced; the original source and a diagnostic remain available |
 
 `unsupported_nodes` entries name a JSON-pointer-style path, node/mark type and

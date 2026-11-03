@@ -265,9 +265,10 @@ describe("upload_image with image_url through MCP", () => {
       const upload = vi.spyOn(api, "uploadImage").mockResolvedValue({ url: "https://substackcdn.com/image/b.png" } as never);
       for (const args of [{}, { image_url: "https://img.example/a.png", image_base64: "data:image/png;base64,AAAA" }, { image_url: "https://img.example/a.png", image_path: "/tmp/a.png" }]) {
         const result = await mcp.callTool({ name: "upload_image", arguments: args });
-        // Existing contract: argument conflicts surface as a generic tool failure before any fetch or upload.
+        // Argument conflicts are invalid input, reported before any fetch or upload.
         expect(result.isError).toBe(true);
-        expect(body(result).code).toBe("tool_execution_failed");
+        expect(body(result)).toMatchObject({ code: "invalid_input", upload_attempts: 0 });
+        expect(body(result).message).not.toMatch(/write may have occurred/);
       }
       expect(fetchRemote).not.toHaveBeenCalled(); expect(upload).not.toHaveBeenCalled();
       const result = await mcp.callTool({ name: "upload_image", arguments: { image_base64: "data:image/png;base64,AAAA" } });
@@ -294,6 +295,12 @@ describe("upload_image with image_url through MCP", () => {
         expect(fetchRemote).not.toHaveBeenCalled();
         const missing = await mcp.callTool({ name: "upload_image", arguments: { image_path: join(dir, "missing.png") } });
         expect(missing.isError).toBe(true);
+        expect(body(missing)).toMatchObject({ code: "local_image_unreadable", upload_attempts: 0 });
+        // A directory (and likewise a FIFO or device) is refused before any read.
+        const { mkdir } = await import("node:fs/promises");
+        await mkdir(join(dir, "folder.png"));
+        const notFile = await mcp.callTool({ name: "upload_image", arguments: { image_path: join(dir, "folder.png") } });
+        expect(body(notFile)).toMatchObject({ code: "local_image_unreadable", upload_attempts: 0 });
         expect(upload).toHaveBeenCalledTimes(1);
       });
     } finally { await rm(dir, { recursive: true, force: true }); }

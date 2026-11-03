@@ -144,4 +144,4 @@ derives the ID from the selected publication session's authenticated self-profil
 An optional supplied ID is an assertion, not a fallback. The existing bounded
 draft-list read must still pass before file/keychain storage. A mismatch or
 unavailable identity response saves nothing. The default manual-ID login path
-remains unverified; see [setup and limits](../README.md#option-a-browser-login).
+remains unverified; see [setup and limits](../README.md#option-a--browser-login-optional-no-manual-cookie-copying).

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { requestJson } from "../api/request.js";
 import { z } from "zod";
 import { describeSyncFailure, SyncFailure, toolFailure } from "../calendar-sync.js";
-import { AuthenticationError, mapHttpStatusToError } from "../utils/errors.js";
+import { AuthenticationError, mapHttpStatusToError, SubstackAPIError } from "../utils/errors.js";
 import { contractRegistrar } from "../output-contracts.js";
 
 const REAUTH_DETAIL = "For your security, please sign out and sign back in to do this.";
@@ -35,14 +35,58 @@ describe("Substack reauthentication 403 through the request layer", () => {
     expect(error.message).not.toContain("For your security");
   });
 
-  it("gives up on a stalled JSON 403 body after the probe window", async () => {
+  const json = { "content-type": "application/json" };
+
+  it("gives up on a stalled JSON 403 body after the 2 s probe window", async () => {
     const cancel = vi.fn();
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ cancel }), { status: 403, headers: { "content-type": "application/json" } })));
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ cancel }), { status: 403, headers: json })));
+    const started = performance.now();
+    const error = await requestJson(url, {}, 30000).catch(e => e) as AuthenticationError;
+    const elapsed = performance.now() - started;
+    expect(error.reason).toBe("invalid_or_expired");
+    expect(elapsed).toBeGreaterThanOrEqual(1900);
+    expect(elapsed).toBeLessThan(2600);
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it("cancels a body that keeps streaming once it passes the 4 KB cap", async () => {
+    let pulls = 0;
+    const endless = new ReadableStream({ pull(c) { pulls++; c.enqueue(new Uint8Array(1)); } });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(endless, { status: 403, headers: json })));
     const started = performance.now();
     const error = await requestJson(url, {}, 30000).catch(e => e) as AuthenticationError;
     expect(error.reason).toBe("invalid_or_expired");
-    expect(performance.now() - started).toBeLessThan(5000);
-    expect(cancel).toHaveBeenCalled();
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(pulls).toBeLessThanOrEqual(4100); // the cap plus the stream's one-chunk read-ahead
+  });
+
+  it("caps the probe at exactly 4 KB", async () => {
+    const sized = (n: number) => { const head = JSON.stringify({ type: "reauthentication_required", pad: "" }); return head.replace('"pad":""', `"pad":"${"x".repeat(n - head.length)}"`); };
+    expect(Buffer.byteLength(sized(4096))).toBe(4096);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(sized(4096), { status: 403, headers: json })));
+    expect(((await requestJson(url).catch(e => e)) as AuthenticationError).reason).toBe("reauthentication_required");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(sized(4097), { status: 403, headers: json })));
+    expect(((await requestJson(url).catch(e => e)) as AuthenticationError).reason).toBe("invalid_or_expired");
+  });
+
+  it("propagates caller cancellation during the probe instead of reporting a 403", async () => {
+    const caller = new AbortController();
+    let reading!: () => void;
+    const started = new Promise<void>(resolve => { reading = resolve; });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ pull() { reading(); return new Promise(() => {}); } }), { status: 403, headers: json })));
+    const pending = requestJson(url, { signal: caller.signal }, 30000).catch(e => e);
+    await started;
+    caller.abort();
+    const error = await pending;
+    expect(error).not.toBeInstanceOf(AuthenticationError);
+    expect(error).toMatchObject({ code: "request_cancelled" });
+  });
+
+  it("reports the request's own deadline as a timeout, not an expired session", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ pull() { return new Promise(() => {}); } }), { status: 403, headers: json })));
+    const error = await requestJson(url, {}, 300).catch(e => e) as SubstackAPIError;
+    expect(error).not.toBeInstanceOf(AuthenticationError);
+    expect(error.statusCode).toBe(408);
   });
 
   it("does not read non-JSON 403 bodies", async () => {

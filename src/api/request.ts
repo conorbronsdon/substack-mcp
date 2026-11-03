@@ -113,9 +113,15 @@ async function request(url: string, options: RequestInit, timeoutMs: number, for
       // so a stalled body cannot hold an auth failure open.
       let reauthentication = false;
       if (response.status === 403 && /application\/json/i.test(response.headers.get("content-type") ?? "")) {
+        // The timer signal covers a stalled read; the explicit deadline covers reads that stay ready.
         const probe = AbortSignal.any([signal, AbortSignal.timeout(REAUTH_PROBE_MS)]);
-        try { reauthentication = isReauthenticationDetail(await readBounded(response, REAUTH_PROBE_BYTES, probe, url, expiresAt)); }
-        catch { discard(response); signal.throwIfAborted(); }
+        try { reauthentication = isReauthenticationDetail(await readBounded(response, REAUTH_PROBE_BYTES, probe, url, Math.min(expiresAt, performance.now() + REAUTH_PROBE_MS))); }
+        catch {
+          discard(response);
+          signal.throwIfAborted();
+          // The request's own deadline passing is a timeout, not an expired session.
+          if (performance.now() >= expiresAt) throw new TimeoutError(url, timeoutMs);
+        }
       } else discard(response);
       if (reauthentication) throw new AuthenticationError(url, 403, "reauthentication_required");
       throw mapHttpStatusToError(response.status, "Too many requests", url, retryAfter(response));

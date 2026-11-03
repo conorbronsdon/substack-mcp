@@ -83,18 +83,23 @@ function itemText(item: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
   // Strip control characters so upstream text cannot break the JSON report.
   const clean = value.replace(/[\x00-\x1f\x7f]/g, " ").trim();
+  if (!clean) return null;
   return clean.length > MAX_SUBSTACK_ITEM_CHARS ? `${clean.slice(0, MAX_SUBSTACK_ITEM_CHARS - 1)}…` : clean;
 }
 
 /** Normalize the prepublish response; an unexpected shape is reported as unavailable, never guessed. */
 export function normalizePrepublish(raw: unknown): SubstackCheck {
-  if (!object(raw) || (!Array.isArray(raw.errors) && !Array.isArray(raw.suggestions)) ||
-      (raw.errors !== undefined && !Array.isArray(raw.errors)) ||
+  if (!object(raw) || !Array.isArray(raw.errors) ||
       (raw.suggestions !== undefined && !Array.isArray(raw.suggestions))) {
     return { status: "unavailable", reason: "unexpected_response", note: SUBSTACK_CHECK_NOTE };
   }
+  const errors = raw.errors.map(itemText);
+  // Never turn a non-empty but unreadable error list into an apparently clean check.
+  if (errors.some(text => text === null)) {
+    return { status: "unavailable", reason: "unexpected_response", note: SUBSTACK_CHECK_NOTE };
+  }
   const list = (v: unknown) => (Array.isArray(v) ? v : []).map(itemText).filter((t): t is string => t !== null).slice(0, MAX_SUBSTACK_ITEMS);
-  return { status: "ok", errors: list(raw.errors), suggestions: list(raw.suggestions), note: SUBSTACK_CHECK_NOTE };
+  return { status: "ok", errors: errors.filter((text): text is string => text !== null).slice(0, MAX_SUBSTACK_ITEMS), suggestions: list(raw.suggestions), note: SUBSTACK_CHECK_NOTE };
 }
 
 /** Run the prepublish read; any failure becomes an "unavailable" result so the static preflight still returns. */

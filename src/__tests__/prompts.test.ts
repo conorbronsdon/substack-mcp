@@ -69,6 +69,20 @@ describe("prompts", () => {
     } finally { await client.close(); await server.close(); }
   });
 
+  it("rejects an unknown draft audience instead of widening it", async () => {
+    const { client, server, fetchMock } = await connect(["a"]);
+    try {
+      for (const audience of ["paid", "only-paid"]) {
+        await expect(client.getPrompt({ name: "draft_from_idea", arguments: { idea: "example idea", audience } })).rejects.toThrow();
+      }
+      const paid = promptText(await client.getPrompt({ name: "draft_from_idea", arguments: { idea: "example idea", audience: "only_paid" } }));
+      expect(paid).toContain('audience "only_paid"');
+      const omitted = promptText(await client.getPrompt({ name: "draft_from_idea", arguments: { idea: "example idea" } }));
+      expect(omitted).toContain('audience "everyone"');
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally { await client.close(); await server.close(); }
+  });
+
   it("clamps numeric prompt arguments", () => {
     expect(intArg(undefined, 90, 365)).toBe(90);
     expect(intArg("30", 90, 365)).toBe(30);

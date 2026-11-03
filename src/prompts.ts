@@ -88,12 +88,12 @@ export function registerPromptsAndResources(server: McpServer, publications: Pro
       description: "Check past coverage, outline, then create a private draft and preflight it. Creates a draft only; nothing is published.",
       argsSchema: {
         idea: z.string().describe("The post idea, angle or working title."),
-        audience: z.string().optional().describe("everyone (default), only_paid, founding or only_free."),
+        audience: z.enum(["everyone", "only_paid", "founding", "only_free"]).optional().describe("everyone (default), only_paid, founding or only_free."),
         ...publicationArg,
       },
     },
     ({ idea, audience, publication }: { idea: string; audience?: string; publication?: string }) => {
-      const aud = ["everyone", "only_paid", "founding", "only_free"].includes(audience ?? "") ? audience : "everyone";
+      const aud = audience ?? "everyone";
       return user(
         `${target(publication)}Help me turn this idea into a Substack draft: ${idea}\n\n` +
           "1. Call search_posts with a short query for the idea (status \"published\", then \"drafts\") so we do not repeat a past post or duplicate a draft in progress. Tell me what you found.\n" +

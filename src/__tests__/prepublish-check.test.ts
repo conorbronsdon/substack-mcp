@@ -69,6 +69,12 @@ describe("normalizePrepublish", () => {
       { errors: "example upstream error", suggestions: [] },
       { errors: [], suggestions: { message: "example suggestion" } },
       { errors: null, suggestions: [] },
+      { suggestions: [] },
+      { suggestions: [], validation_errors: ["example hidden error"] },
+      { errors: [7] },
+      { errors: [["example error"]] },
+      { errors: [{ message: { text: "example error" } }] },
+      { errors: ["\n\u0000"] },
     ]) expect(normalizePrepublish(raw)).toMatchObject({ status: "unavailable", reason: "unexpected_response" });
     expect(normalizePrepublish({ errors: [] })).toMatchObject({ status: "ok", errors: [], suggestions: [] });
   });

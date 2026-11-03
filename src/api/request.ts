@@ -1,8 +1,9 @@
-import { extractErrorDetail, isAbortError, mapHttpStatusToError, ResponseError, SubstackAPIError, TimeoutError, type ResponseBodyIssue } from "../utils/errors.js";
+import { extractErrorDetail, isAbortError, isReauthenticationDetail, mapHttpStatusToError, ResponseError, SubstackAPIError, TimeoutError, type ResponseBodyIssue } from "../utils/errors.js";
 
 export const MAX_JSON_BYTES = 10 * 1024 * 1024;
 export const MAX_HTML_BYTES = 2 * 1024 * 1024;
 export const MAX_ERROR_BYTES = 64 * 1024;
+const REAUTH_PROBE_BYTES = 4 * 1024, REAUTH_PROBE_MS = 2000;
 
 /** Race operations against cancellation, including body reads and custom fetches. */
 async function abortable<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -107,8 +108,22 @@ async function request(url: string, options: RequestInit, timeoutMs: number, for
       break;
     }
     if ([401, 403, 429].includes(response.status)) {
-      discard(response);
-      throw mapHttpStatusToError(response.status, "Too many requests", url, retryAfter(response));
+      // A JSON 403 body is read (4 KB, at most 2 s) only to recognise Substack's reauthentication
+      // response; its text is never surfaced. Every other auth/rate-limit body is discarded unread,
+      // so a stalled body cannot hold an auth failure open.
+      let reauthentication = false;
+      if (response.status === 403 && /application\/json/i.test(response.headers.get("content-type") ?? "")) {
+        // The timer signal covers a stalled read; the explicit deadline covers reads that stay ready.
+        const probe = AbortSignal.any([signal, AbortSignal.timeout(REAUTH_PROBE_MS)]);
+        try { reauthentication = isReauthenticationDetail(await readBounded(response, REAUTH_PROBE_BYTES, probe, url, Math.min(expiresAt, performance.now() + REAUTH_PROBE_MS))); }
+        catch {
+          discard(response);
+          signal.throwIfAborted();
+          // The request's own deadline passing is a timeout, not an expired session.
+          if (performance.now() >= expiresAt) throw new TimeoutError(url, timeoutMs);
+        }
+      } else discard(response);
+      throw mapHttpStatusToError(response.status, reauthentication ? "reauthentication_required" : "Too many requests", url, retryAfter(response));
     }
     if (!response.ok) {
       let detail: string;

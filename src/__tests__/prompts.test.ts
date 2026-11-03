@@ -83,6 +83,18 @@ describe("prompts", () => {
     } finally { await client.close(); await server.close(); }
   });
 
+  it("separates unfiltered archive ranks from windowed stats and requests both directions", async () => {
+    const { client, server, fetchMock } = await connect(["a"]);
+    try {
+      const text = promptText(await client.getPrompt({ name: "what_worked", arguments: { range_days: "30" } }));
+      expect(text).toContain('direction "desc" then "asc"');
+      expect(text).toContain("unfiltered archive rankings, not rankings within the look-back window");
+      expect(text).toContain("Do not infer period winners from unfiltered archive ranks");
+      expect(text).toContain("range_days 30");
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally { await client.close(); await server.close(); }
+  });
+
   it("clamps numeric prompt arguments", () => {
     expect(intArg(undefined, 90, 365)).toBe(90);
     expect(intArg("30", 90, 365)).toBe(30);

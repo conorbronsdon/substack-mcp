@@ -463,7 +463,7 @@ prompt adds no endpoint, write path or permission:
 | Prompt | What it does |
 |--------|--------------|
 | `review_draft` | `export_draft`, then `preflight_draft` with `substack_check`; reports static findings, Substack's own findings and an editorial read separately. Edits go through `plan_draft_update` and `update_draft` only after you approve |
-| `what_worked` | `rank_posts` by subscribes and open rate, `get_publication_stats` and `get_growth_sources` over a window (default 90 days), with each number's source and missing values kept as missing |
+| `what_worked` | Unfiltered archive `rank_posts` by subscribes/open rate in both directions, separately from `get_publication_stats` and `get_growth_sources` over a window (default 90 days), with sources and missing values kept explicit |
 | `draft_from_idea` | Checks past posts and drafts with `search_posts`, proposes an outline, and after approval creates a private draft and preflights it |
 | `plan_notes` | Proposes Notes that resurface recent posts as text only. It never calls `create_note`: Notes publish immediately, so you post each approved one yourself |
 

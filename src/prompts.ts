@@ -59,7 +59,7 @@ export function registerPromptsAndResources(server: McpServer, publications: Pro
     "what_worked",
     {
       title: "What worked recently",
-      description: "Rank recent posts and read publication and growth stats to find what drove opens, signups and subscriptions. Reads only.",
+      description: "Read archive post rankings alongside recent publication and growth stats to find what drove opens, signups and subscriptions. Reads only.",
       argsSchema: {
         range_days: z.string().optional().describe("Look-back window in days (default 90, max 365)."),
         ...publicationArg,
@@ -72,10 +72,10 @@ export function registerPromptsAndResources(server: McpServer, publications: Pro
       const iso = (d: Date) => d.toISOString().slice(0, 10);
       return user(
         `${target(publication)}Work out what has worked on my Substack over the last ${days} days.\n\n` +
-          "1. Call rank_posts with metric \"subscribes\", then again with metric \"open_rate\" (limit 10 each).\n" +
+          "1. Call rank_posts with metric \"subscribes\" and \"open_rate\", using direction \"desc\" then \"asc\" for each (limit 10). These are unfiltered archive rankings, not rankings within the look-back window; keep them separate from the windowed stats.\n" +
           `2. Call get_publication_stats with range_days ${days}.\n` +
           `3. Call get_growth_sources with from_date ${iso(from)} and to_date ${iso(to)}.\n` +
-          "4. Report the top and bottom posts with the metric each ranking used, the growth sources that brought subscribers, and three specific ideas for next posts tied to that evidence.\n\n" +
+          "4. Report the top and bottom archive posts with the metric each ranking used, the windowed publication/growth stats and the sources that brought subscribers, then three specific ideas tied to that evidence. Do not infer period winners from unfiltered archive ranks.\n\n" +
           "Keep each number's source next to it. When a value is missing or unavailable, say so; never treat missing as zero. If ranking coverage is partial, say how many posts it covered.",
       );
     },

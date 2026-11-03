@@ -53,10 +53,17 @@ describe("fileToDataUri", () => {
     expect(SUPPORTED_IMAGE_EXTENSIONS).toContain(".png");
     expect(SUPPORTED_IMAGE_EXTENSIONS).toContain(".webp");
   });
-  it("follows a symlink to a regular image", async () => {
+  it("follows a symlink to a regular image", async context => {
     const target = join(dir, "real.png"), link = join(dir, "link.png");
     await writeFile(target, pngBytes);
-    await symlink(target, link);
+    try { await symlink(target, link); }
+    catch (error) {
+      if (process.platform === "win32" && (error as NodeJS.ErrnoException).code === "EPERM") {
+        context.skip("Windows requires symlink privilege; Linux CI exercises this control.");
+        return;
+      }
+      throw error;
+    }
     expect(await fileToDataUri(link)).toBe(`data:image/png;base64,${pngBytes.toString("base64")}`);
   });
 

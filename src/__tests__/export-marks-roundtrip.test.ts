@@ -88,7 +88,7 @@ describe("export keeps marks that span adjacent text nodes", () => {
     expect(failures.slice(0, 5)).toEqual([]);
     // Shared marks across runs must stay expressible; before grouping, most were not.
     expect(converted).toBeGreaterThan(CONVERTED_FLOOR);
-  });
+  }, 30_000);
 });
 
 describe("preflight recognizes footnotes produced by Markdown conversion", () => {

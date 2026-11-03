@@ -134,4 +134,22 @@ describe("named profile storage", () => {
     expect(JSON.parse(io.error.mock.calls[0][0])).toMatchObject({ code: "profile_exists", message: expect.stringContaining("--force") });
     expect(JSON.stringify(io.out.mock.calls)).not.toContain(sample.sessionToken);
   });
+  it("does not let a profile named default replace the legacy keychain session without --force", async () => {
+    const other = { ...sample, publicationUrl: "https://other.substack.com" };
+    saveSession(sample); saveProfile("default", other);
+    const entries = new Map<string, string>();
+    const keychain = createKeychain("linux", async (_file, args, input) => {
+      const key = args.at(-1)!;
+      if (args[0] === "store") { entries.set(key, input); return { code: 0, stdout: "", stderr: "" }; }
+      const stored = entries.get(key);
+      return { code: stored ? 0 : 1, stdout: stored ?? "", stderr: "" };
+    });
+    const io = { out: vi.fn(), error: vi.fn() };
+    expect(await runProfiles(["migrate", "--to", "keychain"], io, keychain)).toBe(0);
+    expect(await runProfiles(["migrate", "--to", "keychain", "--name", "default"], io, keychain)).toBe(1);
+    expect(JSON.parse(io.error.mock.calls.at(-1)![0]).code).toBe("profile_exists");
+    expect(JSON.parse(entries.get("default")!).publicationUrl).toBe(sample.publicationUrl);
+    expect(await runProfiles(["migrate", "--to", "keychain", "--name", "default", "--force"], io, keychain)).toBe(0);
+    expect(JSON.parse(entries.get("default")!).publicationUrl).toBe(other.publicationUrl);
+  });
 });

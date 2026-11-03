@@ -42,7 +42,11 @@ export const objectOutputSchemas: Record<string, z.AnyZodObject> = {
   add_free_subscriber: z.object({ status: z.enum(["existing", "verified", "dry_run", "blocked", "unverified", "busy", "retryable"]), email: text.email().max(254), subscriber: subscriber.optional(), note: text, publication: text, consent_evidence: z.object({ source: text, recorded_at: text }).optional() }),
   search_posts: z.object({ query: text, status: z.enum(["published", "drafts", "scheduled"]), offset: count, limit: count, returned: count, total: count.nullable(), has_more: z.boolean().nullable(), next_offset: count.nullable(), search_scope: text, publication: text,
     posts: z.array(z.object({ id, title: maybeText, draft_title: maybeText, subtitle: maybeText, draft_subtitle: maybeText, slug: maybeText, audience: maybeText, post_date: maybeText, trigger_at: maybeText, draft_updated_at: maybeText, canonical_url: maybeText })).max(50) }),
-  preflight_draft: z.object({ draft_id: id, checks_passed: z.boolean(), findings: z.array(finding), counts: z.object({ complete: z.boolean(), nodes: count, images: count, paywalls: count, text_characters: count }), limitations: text, publication: text, editor_url: text.url() }),
+  preflight_draft: z.object({ draft_id: id, checks_passed: z.boolean(), findings: z.array(finding), counts: z.object({ complete: z.boolean(), nodes: count, images: count, paywalls: count, text_characters: count }), limitations: text, publication: text, editor_url: text.url(),
+    substack_check: z.discriminatedUnion("status", [
+      z.object({ status: z.literal("ok"), errors: z.array(text.max(300)).max(50), suggestions: z.array(text.max(300)).max(50), note: text }),
+      z.object({ status: z.literal("unavailable"), reason: text, note: text }),
+    ]).optional() }),
 };
 const arrayOutputSchemas: Record<string, z.ZodTypeAny> = {
   list_drafts: z.array(draft).max(50),

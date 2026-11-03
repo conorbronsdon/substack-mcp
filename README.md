@@ -292,7 +292,7 @@ authoritative wording.
 | `search_posts` | Search a publication archive by query and status; bounded pages with continuation metadata |
 | `plan_draft_update` | Review proposed changes, preflight and a receipt for best-effort stale detection; no writes |
 | `export_draft` | Editable Markdown, exact original body, conversion diagnostics, preflight and editor link |
-| `preflight_draft` | Read-only checks for title, audience, body structure, images, and paywalls, with an editor link |
+| `preflight_draft` | Read-only checks for title, audience, body structure, images, and paywalls, with an editor link; optionally adds Substack's own prepublish errors and suggestions |
 | `list_drafts` | List draft posts |
 | `get_post` | Get full content of a published post by ID |
 | `get_draft` | Get full content of a draft by ID |
@@ -356,6 +356,15 @@ and edge placement. Unknown nodes and external images produce review warnings.
 Bodies over two million characters, 10,000 nodes, or depth 100 are not fully
 checked; `counts.complete` is false and aggregate checks are skipped after a
 scan limit. Unknown-node warnings name up to five types for editor review.
+
+With `substack_check: true`, it also makes one more read: Substack's own
+prepublish validator (`GET /api/v1/drafts/{id}/prepublish`, the check the editor
+runs before its publish dialog). The result comes back separately as
+`substack_check` with `errors` and `suggestions` (up to 50 each, 300 characters
+each) and never changes `checks_passed` or `findings`. The endpoint is
+undocumented and its response shape is not yet live-verified: any failure or
+unexpected shape returns `substack_check.status: "unavailable"` with a reason, and
+the static checks still return. A clean result is not publish approval.
 This is a focused static check, not full ProseMirror validation or
 publish approval. It does not fetch links/images, verify access settings, or
 prove final rendering. Review the draft in Substack; no content is modified.
@@ -444,6 +453,26 @@ For Google Calendar booking opt-ins, the [calendar sync helper](docs/calendar-sy
 provides a bounded Gmail scan, latest-answer selection, a private durable attempt
 ledger, and read-only reconciliation after uncertain writes. Scheduling is an
 explicit local setup step; installing the MCP does not start a background job.
+
+### Prompts and resources
+
+Clients that support MCP prompts (often shown as slash commands) get four
+workflows. Each one only tells the model which existing tools to chain, so a
+prompt adds no endpoint, write path or permission:
+
+| Prompt | What it does |
+|--------|--------------|
+| `review_draft` | `export_draft`, then `preflight_draft` with `substack_check`; reports static findings, Substack's own findings and an editorial read separately. Edits go through `plan_draft_update` and `update_draft` only after you approve |
+| `what_worked` | Unfiltered archive `rank_posts` by subscribes/open rate in both directions, separately from `get_publication_stats` and `get_growth_sources` over a window (default 90 days), with sources and missing values kept explicit |
+| `draft_from_idea` | Checks past posts and drafts with `search_posts`, proposes an outline, and after approval creates a private draft and preflights it |
+| `plan_notes` | Proposes Notes that resurface recent posts as text only. It never calls `create_note`: Notes publish immediately, so you post each approved one yourself |
+
+With several publications configured, each prompt takes a required `publication`
+argument, matching the tools.
+
+The `substack://publications` resource lists the configured publications (key,
+label, origin) from local configuration, so a client can load them without a
+tool call. It makes no request and contains no credentials.
 
 ### Intentionally excluded
 

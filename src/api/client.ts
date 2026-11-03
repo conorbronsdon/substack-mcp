@@ -353,6 +353,15 @@ export class SubstackClient {
     );
   }
 
+  /**
+   * Substack's own prepublish validator for a draft (the check its editor runs
+   * before the publish dialog). Read-only. Undocumented: the route comes from
+   * other open-source clients and its response shape is not live-verified.
+   */
+  async getPrepublishCheck(id: number): Promise<unknown> {
+    return this.request<unknown>(`${this.publicationUrl}/api/v1/drafts/${id}/prepublish`);
+  }
+
   async getPost(id: number): Promise<SubstackPost> {
     // /posts/:slug treats a numeric ID as a slug and returns 404 (#125).
     // The numeric route returns { post, publication, publicationSettings }.

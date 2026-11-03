@@ -4664,6 +4664,11 @@ exports[`stable output contracts > classifies any public schema drift as potenti
           ],
           "type": "string",
         },
+        "substack_check": {
+          "default": false,
+          "description": "Also read Substack's own prepublish validator for this draft (read-only, one extra request). Undocumented endpoint: a failure returns substack_check.status "unavailable" and the static checks still return.",
+          "type": "boolean",
+        },
       },
       "required": [
         "draft_id",
@@ -4750,6 +4755,66 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         },
         "publication": {
           "$ref": "#/properties/findings/items/properties/code",
+        },
+        "substack_check": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "errors": {
+                  "items": {
+                    "maxLength": 300,
+                    "type": "string",
+                  },
+                  "maxItems": 50,
+                  "type": "array",
+                },
+                "note": {
+                  "$ref": "#/properties/findings/items/properties/code",
+                },
+                "status": {
+                  "const": "ok",
+                  "type": "string",
+                },
+                "suggestions": {
+                  "items": {
+                    "maxLength": 300,
+                    "type": "string",
+                  },
+                  "maxItems": 50,
+                  "type": "array",
+                },
+              },
+              "required": [
+                "status",
+                "errors",
+                "suggestions",
+                "note",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "note": {
+                  "$ref": "#/properties/findings/items/properties/code",
+                },
+                "reason": {
+                  "$ref": "#/properties/findings/items/properties/code",
+                },
+                "status": {
+                  "const": "unavailable",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+                "note",
+              ],
+              "type": "object",
+            },
+          ],
         },
       },
       "required": [
@@ -10494,6 +10559,11 @@ exports[`stable output contracts > classifies any public schema drift as potenti
           "maximum": 9007199254740991,
           "type": "integer",
         },
+        "substack_check": {
+          "default": false,
+          "description": "Also read Substack's own prepublish validator for this draft (read-only, one extra request). Undocumented endpoint: a failure returns substack_check.status "unavailable" and the static checks still return.",
+          "type": "boolean",
+        },
       },
       "required": [
         "draft_id",
@@ -10579,6 +10649,66 @@ exports[`stable output contracts > classifies any public schema drift as potenti
         },
         "publication": {
           "$ref": "#/properties/findings/items/properties/code",
+        },
+        "substack_check": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "errors": {
+                  "items": {
+                    "maxLength": 300,
+                    "type": "string",
+                  },
+                  "maxItems": 50,
+                  "type": "array",
+                },
+                "note": {
+                  "$ref": "#/properties/findings/items/properties/code",
+                },
+                "status": {
+                  "const": "ok",
+                  "type": "string",
+                },
+                "suggestions": {
+                  "items": {
+                    "maxLength": 300,
+                    "type": "string",
+                  },
+                  "maxItems": 50,
+                  "type": "array",
+                },
+              },
+              "required": [
+                "status",
+                "errors",
+                "suggestions",
+                "note",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "note": {
+                  "$ref": "#/properties/findings/items/properties/code",
+                },
+                "reason": {
+                  "$ref": "#/properties/findings/items/properties/code",
+                },
+                "status": {
+                  "const": "unavailable",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "status",
+                "reason",
+                "note",
+              ],
+              "type": "object",
+            },
+          ],
         },
       },
       "required": [

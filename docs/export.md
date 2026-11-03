@@ -128,5 +128,6 @@ prints a JSON receipt with paths and conversion diagnostics. Keep export files
 private when the draft is private; export does not change sharing permissions.
 
 `preflight_draft` also returns an editor link. Preflight remains a static review
-aid, not publishing approval or a complete editor-schema validator. Draft change
+aid, not publishing approval or a complete editor-schema validator; its optional
+`substack_check` adds Substack's own prepublish findings, reported separately. Draft change
 planning and stale-edit protection use the [reviewed change flow](draft-changes.md).

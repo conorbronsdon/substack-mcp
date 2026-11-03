@@ -292,7 +292,7 @@ authoritative wording.
 | `search_posts` | Search a publication archive by query and status; bounded pages with continuation metadata |
 | `plan_draft_update` | Review proposed changes, preflight and a receipt for best-effort stale detection; no writes |
 | `export_draft` | Editable Markdown, exact original body, conversion diagnostics, preflight and editor link |
-| `preflight_draft` | Read-only checks for title, audience, body structure, images, and paywalls, with an editor link |
+| `preflight_draft` | Read-only checks for title, audience, body structure, images, and paywalls, with an editor link; optionally adds Substack's own prepublish errors and suggestions |
 | `list_drafts` | List draft posts |
 | `get_post` | Get full content of a published post by ID |
 | `get_draft` | Get full content of a draft by ID |
@@ -356,6 +356,15 @@ and edge placement. Unknown nodes and external images produce review warnings.
 Bodies over two million characters, 10,000 nodes, or depth 100 are not fully
 checked; `counts.complete` is false and aggregate checks are skipped after a
 scan limit. Unknown-node warnings name up to five types for editor review.
+
+With `substack_check: true`, it also makes one more read: Substack's own
+prepublish validator (`GET /api/v1/drafts/{id}/prepublish`, the check the editor
+runs before its publish dialog). The result comes back separately as
+`substack_check` with `errors` and `suggestions` (up to 50 each, 300 characters
+each) and never changes `checks_passed` or `findings`. The endpoint is
+undocumented and its response shape is not yet live-verified: any failure or
+unexpected shape returns `substack_check.status: "unavailable"` with a reason, and
+the static checks still return. A clean result is not publish approval.
 This is a focused static check, not full ProseMirror validation or
 publish approval. It does not fetch links/images, verify access settings, or
 prove final rendering. Review the draft in Substack; no content is modified.

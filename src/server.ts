@@ -15,7 +15,7 @@ import { fileToDataUri } from "./utils/image.js";
 import { RemoteImageError, type RemoteImageFetcher } from "./utils/remote-image-errors.js";
 import { REMOTE_IMAGE_DEADLINE_MS, REMOTE_IMAGE_MAX_BYTES, REMOTE_IMAGE_MAX_REDIRECTS } from "./utils/remote-image-limits.js";
 import { searchInput } from "./api/search.js";
-import { preflightDraft } from "./utils/draft-preflight.js";
+import { preflightDraft, runSubstackCheck } from "./utils/draft-preflight.js";
 import { exportDraft, exportDraftInput, exportDraftOutput, draftEditorUrl } from "./api/draft-export.js";
 import { publicationOutput } from "./api/publication.js";
 import { listTagsInput, postTagsInput, listTagsOutput, postTagsOutput } from "./api/tags.js";
@@ -331,12 +331,21 @@ export function createServer(publications: PublicationConfig[], options: ServerO
   }));
 
   registerTool("preflight_draft", {
-    description: "Read a draft and check title, audience, body structure, images and paywalls. Static review aid only: never modifies or publishes; does not guarantee rendering, link availability or publish readiness. Review the findings in Substack.",
-    inputSchema: { draft_id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER), ...publicationField() },
+    description: "Read a draft and check title, audience, body structure, images and paywalls. Static review aid only: never modifies or publishes; does not guarantee rendering, link availability or publish readiness. Review the findings in Substack. Set substack_check=true to also read Substack's own prepublish errors and suggestions (one extra read), reported separately as substack_check.",
+    inputSchema: {
+      draft_id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+      substack_check: z.boolean().default(false).describe("Also read Substack's own prepublish validator for this draft (read-only, one extra request). Undocumented endpoint: a failure returns substack_check.status \"unavailable\" and the static checks still return."),
+      ...publicationField(),
+    },
     annotations: buildAnnotations("preflight_draft"),
-  }, async ({ draft_id, publication }: { draft_id: number; publication?: string }) => ({
-    content: [{ type: "text", text: JSON.stringify({ ...preflightDraft(await clientFor(publication).getDraft(draft_id), draft_id), publication: publication ?? pubKeys[0], editor_url: draftEditorUrl(clientFor(publication).origin, draft_id) }) }],
-  }));
+  }, async ({ draft_id, substack_check, publication }: { draft_id: number; substack_check?: boolean; publication?: string }) => {
+    const client = clientFor(publication);
+    const result = preflightDraft(await client.getDraft(draft_id), draft_id);
+    const substack = substack_check ? { substack_check: await runSubstackCheck(() => client.getPrepublishCheck(draft_id)) } : {};
+    return {
+      content: [{ type: "text", text: JSON.stringify({ ...result, ...substack, publication: publication ?? pubKeys[0], editor_url: draftEditorUrl(client.origin, draft_id) }) }],
+    };
+  });
 
   registerTool("list_subscribers", {
     description: "Read a page of private subscriber email addresses and subscription IDs. Dashboard data may lag recent changes. Use get_subscriber for exact membership checks.",

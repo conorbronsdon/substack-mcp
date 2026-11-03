@@ -3,6 +3,7 @@ import { AuthenticationError, extractErrorDetail, isAbortError, isReauthenticati
 export const MAX_JSON_BYTES = 10 * 1024 * 1024;
 export const MAX_HTML_BYTES = 2 * 1024 * 1024;
 export const MAX_ERROR_BYTES = 64 * 1024;
+const REAUTH_PROBE_BYTES = 4 * 1024, REAUTH_PROBE_MS = 2000;
 
 /** Race operations against cancellation, including body reads and custom fetches. */
 async function abortable<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -107,12 +108,14 @@ async function request(url: string, options: RequestInit, timeoutMs: number, for
       break;
     }
     if ([401, 403, 429].includes(response.status)) {
-      // A 403 body is read (bounded) only to recognise Substack's reauthentication response;
-      // its text is never surfaced. Every other auth/rate-limit body is discarded unread.
+      // A JSON 403 body is read (4 KB, at most 2 s) only to recognise Substack's reauthentication
+      // response; its text is never surfaced. Every other auth/rate-limit body is discarded unread,
+      // so a stalled body cannot hold an auth failure open.
       let reauthentication = false;
-      if (response.status === 403) {
-        try { reauthentication = isReauthenticationDetail(await readBounded(response, MAX_ERROR_BYTES, signal, url, expiresAt)); }
-        catch { discard(response); }
+      if (response.status === 403 && /application\/json/i.test(response.headers.get("content-type") ?? "")) {
+        const probe = AbortSignal.any([signal, AbortSignal.timeout(REAUTH_PROBE_MS)]);
+        try { reauthentication = isReauthenticationDetail(await readBounded(response, REAUTH_PROBE_BYTES, probe, url, expiresAt)); }
+        catch { discard(response); signal.throwIfAborted(); }
       } else discard(response);
       if (reauthentication) throw new AuthenticationError(url, 403, "reauthentication_required");
       throw mapHttpStatusToError(response.status, "Too many requests", url, retryAfter(response));

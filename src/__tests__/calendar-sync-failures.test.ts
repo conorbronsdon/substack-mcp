@@ -35,6 +35,24 @@ describe("Substack reauthentication 403 through the request layer", () => {
     expect(error.message).not.toContain("For your security");
   });
 
+  it("gives up on a stalled JSON 403 body after the probe window", async () => {
+    const cancel = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ cancel }), { status: 403, headers: { "content-type": "application/json" } })));
+    const started = performance.now();
+    const error = await requestJson(url, {}, 30000).catch(e => e) as AuthenticationError;
+    expect(error.reason).toBe("invalid_or_expired");
+    expect(performance.now() - started).toBeLessThan(5000);
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it("does not read non-JSON 403 bodies", async () => {
+    const cancel = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ cancel }), { status: 403 })));
+    const error = await requestJson(url).catch(e => e) as AuthenticationError;
+    expect(error.reason).toBe("invalid_or_expired");
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps other 401/403 bodies as invalid_or_expired", async () => {
     for (const [status, body] of [[403, "Forbidden"], [401, live], [403, ""]] as const) {
       vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status })));

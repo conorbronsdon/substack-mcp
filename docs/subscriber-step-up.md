@@ -60,7 +60,7 @@ After the usual sign-in and drafts check, login:
    `"subscriber_access":"verified"` and `"step_up":"email"|"totp"|"not_required"`.
 
 Without the flag, login behaves exactly as before and makes no subscriber request.
-The code is sent for verification and is not stored or logged; the terminal prompt suppresses echo.
+The code is sent for verification and is not stored or logged; the prompt suppresses echo on a TTY. Other input environments may echo it.
 
 ## What cannot be automated
 

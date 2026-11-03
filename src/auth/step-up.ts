@@ -81,9 +81,10 @@ async function post(origin: string, path: string, sessionToken: string, body?: u
   const token = rotatedSessionToken(response, sessionToken);
   let payload: unknown;
   try { payload = JSON.parse(await readBounded(response, STEP_UP_BODY_BYTES, signal, url)); } catch { payload = undefined; }
-  const ok = response.status >= 200 && response.status < 300 && !(payload && typeof payload === "object"
-    && ("error" in payload || ("success" in payload && payload.success === false) || ("errors" in payload && Array.isArray(payload.errors) && payload.errors.length > 0)));
-  return { ok, payload, token };
+  const valid = payload !== null && typeof payload === "object" && !Array.isArray(payload);
+  const ok = valid && response.status >= 200 && response.status < 300
+    && !("error" in payload || ("success" in payload && payload.success === false) || ("errors" in payload && Array.isArray(payload.errors) && payload.errors.length > 0));
+  return { ok, valid, payload, token };
 }
 
 /**
@@ -107,6 +108,7 @@ export async function completeStepUp(origin: string, sessionToken: string, askCo
     let complete: Awaited<ReturnType<typeof post>>;
     try { complete = await post(origin, "/api/v1/reauthenticate/complete", token, { code }); }
     catch { throw new StepUpError("complete_failed"); }
+    if (!complete.valid) throw new StepUpError("complete_failed");
     if (complete.ok) return { sessionToken: complete.token, method };
   }
   throw new StepUpError("code_rejected");

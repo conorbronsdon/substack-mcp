@@ -141,6 +141,18 @@ describe("step-up protocol", () => {
   });
 
 
+  it("fails closed on unreadable step-up responses without retrying completion", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const path = new URL(String(input)).pathname; calls.push(path);
+      return path.endsWith("/start") ? Response.json({ method: "email" }) : new Response("<html>interstitial</html>");
+    }));
+    await expect(completeStepUp(ORIGIN, "example-token", async () => CODE)).rejects.toEqual(new StepUpError("complete_failed"));
+    expect(calls).toEqual(["/api/v1/reauthenticate/start", "/api/v1/reauthenticate/complete"]);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>interstitial</html>")));
+    await expect(completeStepUp(ORIGIN, "example-token", async () => CODE)).rejects.toEqual(new StepUpError("start_failed"));
+  });
+
   it("does not carry a rejected attempt's rotated cookie into the retry", async () => {
     const cookies: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init: RequestInit = {}) => {

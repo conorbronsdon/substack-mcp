@@ -9,6 +9,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 ## [Unreleased]
 
 ### Added
+- MCP prompts `review_draft`, `what_worked`, `draft_from_idea` and `plan_notes`, which chain existing tools and add no endpoint or write path (`plan_notes` never calls `create_note`, because Notes publish immediately), and a `substack://publications` resource listing configured publications from local configuration without a request or credentials.
 - `preflight_draft` accepts `substack_check: true` to also read Substack's own prepublish validator (`GET /api/v1/drafts/{id}/prepublish`) in one extra read. Its errors and suggestions are returned separately as `substack_check` and never change `checks_passed` or `findings`. The endpoint is undocumented and comes from other open-source clients; a failure or unexpected shape returns `status: "unavailable"`, and live verification is pending. Default behavior and output are unchanged.
 - Experimental `create_post_comment` and `restack` tools (#146): offline previews, exact per-call consent, authenticated identity checks, isolated reader credentials, immediate-publication warnings, explicit side-effect hints and bounded readbacks. Live writes require `SUBSTACK_EXPERIMENTAL_COMMUNITY_WRITES=1`; endpoint source evidence and pending live verification are documented in `docs/community-writes.md`. No automatic retries.
 - Experimental, CLI-only `subscribers export` writes matching subscribers (best-effort

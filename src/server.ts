@@ -9,6 +9,7 @@ import {
   ANALYTICS_SCAN_DEPTH,
 } from "./api/client.js";
 import { buildAnnotations } from "./annotations.js";
+import { registerPromptsAndResources } from "./prompts.js";
 import { consentEvidenceSchema, subscriberSearchInput, SubscriberSearchError, type ConsentEvidence } from "./api/subscribers.js";
 import { convertMarkdown, type MarkdownConversion } from "./utils/markdown-to-prosemirror.js";
 import { fileToDataUri } from "./utils/image.js";
@@ -960,6 +961,8 @@ export function createServer(publications: PublicationConfig[], options: ServerO
       };
     },
   );
+
+  registerPromptsAndResources(server, publications.map((p) => ({ key: p.key, label: p.label, origin: p.client.origin })));
 
   return server;
 }

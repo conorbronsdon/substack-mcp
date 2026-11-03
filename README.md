@@ -454,6 +454,26 @@ provides a bounded Gmail scan, latest-answer selection, a private durable attemp
 ledger, and read-only reconciliation after uncertain writes. Scheduling is an
 explicit local setup step; installing the MCP does not start a background job.
 
+### Prompts and resources
+
+Clients that support MCP prompts (often shown as slash commands) get four
+workflows. Each one only tells the model which existing tools to chain, so a
+prompt adds no endpoint, write path or permission:
+
+| Prompt | What it does |
+|--------|--------------|
+| `review_draft` | `export_draft`, then `preflight_draft` with `substack_check`; reports static findings, Substack's own findings and an editorial read separately. Edits go through `plan_draft_update` and `update_draft` only after you approve |
+| `what_worked` | `rank_posts` by subscribes and open rate, `get_publication_stats` and `get_growth_sources` over a window (default 90 days), with each number's source and missing values kept as missing |
+| `draft_from_idea` | Checks past posts and drafts with `search_posts`, proposes an outline, and after approval creates a private draft and preflights it |
+| `plan_notes` | Proposes Notes that resurface recent posts as text only. It never calls `create_note`: Notes publish immediately, so you post each approved one yourself |
+
+With several publications configured, each prompt takes a required `publication`
+argument, matching the tools.
+
+The `substack://publications` resource lists the configured publications (key,
+label, origin) from local configuration, so a client can load them without a
+tool call. It makes no request and contains no credentials.
+
 ### Intentionally excluded
 
 - **Publish posts** — Publishing long-form posts should be a deliberate human action (Notes are the documented exception above)

@@ -145,14 +145,16 @@ export function convertMarkdown(markdown: string, target: "draft" | "note" = "dr
     markLiteral(node);
     return inline ? textNodes(raw(node), marks) : [{ type: "code_block", content: textNodes(raw(node)) }];
   };
+  // `**a **b** c**` nests strong in strong; a mark set holds each attribute-free mark once.
+  const withMark = (marks: PMMark[], type: string): PMMark[] => marks.some(mark => mark.type === type) ? marks : [...marks, { type }];
   const inline = (nodes: Nodes[], marks: PMMark[] = []): PMNode[] => nodes.flatMap((node): PMNode[] => {
     switch (node.type) {
       case "text": return textNodes(node.value.replace(/\r?\n/g, " "), marks);
       case "break": return [{ type: "hard_break" }];
-      case "inlineCode": return textNodes(node.value, [...marks, { type: "code" }]);
-      case "strong": return inline(node.children, [...marks, { type: "bold" }]);
-      case "emphasis": return inline(node.children, [...marks, { type: "italic" }]);
-      case "delete": return inline(node.children, [...marks, { type: "strikethrough" }]);
+      case "inlineCode": return textNodes(node.value, withMark(marks, "code"));
+      case "strong": return inline(node.children, withMark(marks, "bold"));
+      case "emphasis": return inline(node.children, withMark(marks, "italic"));
+      case "delete": return inline(node.children, withMark(marks, "strikethrough"));
       case "link":
       case "linkReference": {
         const link = node.type === "link" ? node : definitions.get(node.identifier);

@@ -127,6 +127,17 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     return found.client;
   }
 
+  // Input that the advertised JSON schema cannot express (cross-field rules) is
+  // checked in the handler. Report it as invalid input with zero attempts:
+  // a thrown error would reach the write-tool fallback and wrongly say a write
+  // may have occurred.
+  function invalidInput(message: string, attempts: Record<string, 0>) {
+    return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: "invalid_input", message, ...attempts }) }] };
+  }
+  function zodFields(error: z.ZodError): string {
+    return [...new Set(error.issues.map(issue => String(issue.path[0] ?? "input")))].join(", ");
+  }
+
   // Every tool is registered with MCP annotations derived from its declared
   // side-effect class (see annotations.ts) so clients can render accurate
   // consent UI. Reads are readOnlyHint:true; draft/upload writes are
@@ -266,6 +277,8 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     outputSchema: growthSourcesOutput.shape,
     annotations: buildAnnotations("get_growth_sources"),
   }, async ({ publication, ...input }) => {
+    const parsed = growthSourcesInput.safeParse(input);
+    if (!parsed.success) return invalidInput(`Invalid growth sources input: ${parsed.error.issues.map(issue => issue.message).join("; ")} No reads or writes were attempted.`, {});
     let growth;
     try { growth = await clientFor(publication).growthSources(input as z.input<typeof growthSourcesInput>); }
     catch (error) {
@@ -785,7 +798,9 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     annotations: buildAnnotations("update_draft_tags"),
   }, async (args) => {
     const { publication, ...input } = args as DraftTagsInput & { publication?: string };
-    const validated = draftTagsInput.parse(input);
+    const parsed = draftTagsInput.safeParse(input);
+    if (!parsed.success) return invalidInput(`Invalid draft tag input: ${zodFields(parsed.error)}. Tag IDs must be distinct, at least one change is required, and a tag cannot be both added and removed. No write was attempted.`, { write_attempts: 0 });
+    const validated = parsed.data;
     try {
       const result = await clientFor(publication).updateDraftTags(validated, publication ?? pubKeys[0]);
       return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
@@ -837,9 +852,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
       publication?: string;
     }) => {
       if ([image_base64, image_path, image_url].filter(Boolean).length !== 1) {
-        throw new Error(
-          "Provide exactly one of `image_base64`, `image_path` or `image_url`.",
-        );
+        return invalidInput("Provide exactly one of `image_base64`, `image_path` or `image_url`. Nothing was uploaded.", { upload_attempts: 0 });
       }
       const remoteError = (code: string, message: string) => ({
         isError: true,
@@ -855,9 +868,13 @@ export function createServer(publications: PublicationConfig[], options: ServerO
           return remoteError(error.code, `${error.message} Nothing was uploaded.`);
         }
       } else {
-        dataUri = image_path
-          ? await fileToDataUri(image_path)
-          : (image_base64 as string);
+        try {
+          dataUri = image_path
+            ? await fileToDataUri(image_path)
+            : (image_base64 as string);
+        } catch {
+          return remoteError("local_image_unreadable", "The local image could not be read. Use an absolute path to an existing regular image file with a supported extension, at most 25 MB. Nothing was uploaded.");
+        }
       }
       const result = await clientFor(publication).uploadImage(dataUri);
       return {

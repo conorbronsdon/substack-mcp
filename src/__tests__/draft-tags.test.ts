@@ -42,6 +42,19 @@ afterEach(() => vi.unstubAllGlobals());
 const data = (reply: Awaited<ReturnType<Awaited<ReturnType<typeof setup>>["run"]>>) => JSON.parse((reply.content as { text: string }[])[0].text);
 
 describe("update_draft_tags", () => {
+  it("reports cross-field input errors as invalid input with no write attempted", async () => {
+    const c = await setup({ definitions: [definition(A)], associations: [] });
+    try {
+      for (const args of [{ add: [], remove: [] }, { add: [A, A] }, { add: [A], remove: [A] }]) {
+        const reply = await c.run(args);
+        expect(reply.isError).toBe(true);
+        expect(data(reply)).toMatchObject({ code: "invalid_input", write_attempts: 0 });
+        expect(data(reply).message).not.toMatch(/write may have occurred/);
+      }
+      expect(c.calls()).toHaveLength(0);
+    } finally { await c.close(); }
+  });
+
   it("dry-runs by default with hidden names and zero non-GET requests", async () => {
     const c = await setup({ definitions: [definition(A, 7, true), definition(B)], associations: [link(B)] });
     try {

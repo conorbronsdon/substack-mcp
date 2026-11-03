@@ -58,4 +58,7 @@ on. There, `image_url` returns `remote_image_unavailable`; use `image_path` or
 
 Local file and data URI uploads are unchanged: `image_path` still infers the
 type from the file extension. The byte-signature and address checks above apply
-only to `image_url`.
+only to `image_url`. `image_path` must name a regular file (a symlink to one is
+fine) of at most 25 MB; devices, FIFOs, directories, missing and oversized files
+return `local_image_unreadable` with `upload_attempts: 0`. Supplying no image
+source, or more than one, returns `invalid_input`.

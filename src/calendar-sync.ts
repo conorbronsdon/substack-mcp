@@ -25,7 +25,7 @@ export class SyncFailure extends Error {
 }
 
 const HINTS: Record<string, string> = {
-  substack_reauthentication_required: "Substack wants a recent sign-in for subscriber data; run substack-mcp login.",
+  substack_reauthentication_required: "Substack wants a confirm-it's-you code for subscriber data; run substack-mcp login --subscriber-access.",
   substack_invalid_or_expired: "The Substack session is invalid or expired; run substack-mcp login.",
   credentials_missing: "No matching stored Substack credentials; run substack-mcp login for this publication.",
   lock_held: "Another run holds the lock, or a crashed run left it; remove the .lock file only after confirming no run is active.",

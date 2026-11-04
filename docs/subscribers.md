@@ -5,6 +5,10 @@ existing session-cookie client. These are unofficial endpoints and can change.
 
 ## Read
 
+Subscriber reads need a session that has passed Substack's "Confirm it's you"
+step-up. Use `substack-mcp login --subscriber-access`; see
+[subscriber-step-up.md](subscriber-step-up.md).
+
 `POST /api/v1/subscriber-stats` accepts `{filters, limit, offset}`. Exact email
 lookup uses `filters.user_email_address_string_is`; a top-level search is not
 equivalent. The MCP checks returned addresses and counts, failing closed if a

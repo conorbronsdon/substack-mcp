@@ -117,6 +117,11 @@ This is an observation at login time, not a persisted identity attestation or
 proof of write permission. Ordinary `doctor` continues to report identity as
 unverified.
 
+For subscriber tools or the calendar opt-in sync, add `--subscriber-access`.
+Substack asks for a one-time "Confirm it's you" code (by email or authenticator
+app) before it allows subscriber reads, and login prompts for it. See
+[docs/subscriber-step-up.md](docs/subscriber-step-up.md).
+
 Self-profile support on publication hosts has not been live-verified for every
 Substack/custom-domain configuration. If the endpoint is unavailable, expired,
 redirected or malformed, verified mode fails closed and saves nothing. The

@@ -83,3 +83,6 @@ scheduling and monitor the task's exit status. `pending`, `blocked`, and `review
 counts identify records that may need inspection in the private state. Session
 expiry, Gmail authentication, or a changed upstream response can stop the job;
 there is no unattended login or credential refresh workaround in this helper.
+Subscriber reads also need Substack's one-time "Confirm it's you" code: create the
+sync's session with `substack-mcp login --subscriber-access` and re-run it when the
+sync reports `substack_reauthentication_required` ([details](subscriber-step-up.md)).

@@ -2,6 +2,7 @@
 /** Browser login is interactive; the legacy binary remains a supported alias. */
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
+import { Writable, type Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { saveSession } from "./auth/session-store.js";
 import { profileKey, saveProfile, assertProfileAvailable } from "./auth/profiles.js";
@@ -9,8 +10,9 @@ import { publicationOrigin, validateCredentials } from "./auth/validate-credenti
 import { readAuthenticatedUserId } from "./auth/authenticated-identity.js";
 import { doctor } from "./doctor.js";
 import { createKeychain, credentialStore } from "./auth/keychain.js";
+import { completeStepUp, probeSubscriberAccess, StepUpError, type StepUpMethod } from "./auth/step-up.js";
 
-const usage = "Usage: substack-mcp-login [publication-url] [--user-id id] [--profile key] [--force] [--verify-identity]\nAlias: substack-mcp login [same options]\nInteractive browser sign-in. Missing URL/user ID are prompted. Without --verify-identity, user ID must be your own configured Substack ID and remains unverified. --verify-identity derives the ID from the selected publication session; a supplied --user-id must match. Unavailable identity endpoints fail closed; no public-profile/byline fallback. --profile stores a named session; existing profiles require --force. Requires Playwright. --help is offline.";
+const usage = "Usage: substack-mcp-login [publication-url] [--user-id id] [--profile key] [--force] [--verify-identity] [--subscriber-access]\nAlias: substack-mcp login [same options]\nInteractive browser sign-in. Missing URL/user ID are prompted. Without --verify-identity, user ID must be your own configured Substack ID and remains unverified. --verify-identity derives the ID from the selected publication session; a supplied --user-id must match. Unavailable identity endpoints fail closed; no public-profile/byline fallback. --profile stores a named session; existing profiles require --force. --subscriber-access also checks subscriber reads and, if Substack asks you to confirm it is you, prompts for the one-time code it emails you or your authenticator app shows; the session is saved only if subscriber reads then succeed. Requires Playwright. --help is offline.";
 interface SessionCookie { name: string; domain: string; value: string }
 interface CookieContext { cookies(url: string): Promise<SessionCookie[]> }
 class LoginDiagnosticError extends Error {}
@@ -20,7 +22,7 @@ interface Chromium { launch(options: { headless: boolean }): Promise<LoginBrowse
 
 export function parseLoginArguments(args: string[]) {
   let publicationUrl: string | undefined, userId: string | undefined, profile: string | undefined;
-  let force = false, verifyIdentity = false;
+  let force = false, verifyIdentity = false, subscriberAccess = false;
   const seen = new Set<string>();
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -28,13 +30,14 @@ export function parseLoginArguments(args: string[]) {
     if (seen.has(arg)) throw new Error("Duplicate login option."); seen.add(arg);
     if (arg === "--verify-identity") { verifyIdentity = true; continue; }
     if (arg === "--force") { force = true; continue; }
+    if (arg === "--subscriber-access") { subscriberAccess = true; continue; }
     if (!["--user-id", "--profile"].includes(arg) || !args[i + 1]) throw new Error("Unknown or incomplete login option.");
     const value = args[++i];
     if (arg === "--profile") profile = profileKey(value);
     else { validateCredentials("https://example.invalid", "validation-only", value); userId = value; }
   }
   if (force && !profile) throw new Error("--force requires --profile.");
-  return { publicationUrl, userId, profile, force, verifyIdentity };
+  return { publicationUrl, userId, profile, force, verifyIdentity, subscriberAccess };
 }
 
 /** Select only the publication host's session, with Substack-hosted fallback. */
@@ -55,13 +58,21 @@ async function ask(question: string): Promise<string> {
   const rl = createInterface({ input: stdin, output: stdout });
   try { return (await rl.question(question)).trim(); } finally { rl.close(); }
 }
+/** Read a one-time code without writing typed input to the terminal. */
+export async function askSecret(question: string, input: Readable = stdin, output: Writable = stdout): Promise<string> {
+  const muted = new Writable({ write(_chunk, _encoding, callback) { callback(); } });
+  const rl = createInterface({ input, output: muted, terminal: Boolean((input as typeof stdin).isTTY) });
+  output.write(question);
+  try { return (await rl.question("")).trim(); }
+  finally { rl.close(); muted.destroy(); output.write("\n"); }
+}
 async function loadChromium(): Promise<Chromium> {
   const moduleName = "playwright";
   try { return (await import(moduleName)).chromium; }
   catch { throw new Error("Install the package and Playwright together in a local tools directory: npm install @conorbronsdon/substack-mcp playwright; then npx playwright install chromium; then npx substack-mcp login."); }
 }
 const defaults = { ask, loadChromium, out: (text: string) => console.log(text), error: (text: string) => console.error(text) };
-export async function runLogin(args: string[], deps: typeof defaults & { keychain?: ReturnType<typeof createKeychain>; pollIntervalMs?: number; publicationWaitMs?: number; sleep?: (ms: number) => Promise<void> } = defaults): Promise<number> {
+export async function runLogin(args: string[], deps: typeof defaults & { keychain?: ReturnType<typeof createKeychain>; askSecret?: typeof askSecret; pollIntervalMs?: number; publicationWaitMs?: number; sleep?: (ms: number) => Promise<void> } = defaults): Promise<number> {
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) { deps.out(usage); return 0; }
   let options: ReturnType<typeof parseLoginArguments>;
   try { options = parseLoginArguments(args); } catch { deps.error(usage); return 2; }
@@ -138,10 +149,41 @@ export async function runLogin(args: string[], deps: typeof defaults & { keychai
       if (failure) throw new LoginDiagnosticError(`Authenticated read failed with ${failure.name} from ${failure.host} (status: ${failure.authentication}). Open your publication dashboard (${dashboard}) in the login window, confirm you can see it, then retry.`);
       throw new LoginDiagnosticError(`No session cookie found for ${host} (looked for connect.sid on ${host}${isSubstackHost(host) ? " or substack.sid on .substack.com" : ""}). Open your publication dashboard (${dashboard}) in the login window and wait for it to load, then retry.`);
     }
+    let stepUp: StepUpMethod | "not_required" | undefined;
+    if (options.subscriberAccess) {
+      // A fresh sign-in does not satisfy Substack's step-up for subscriber data; see src/auth/step-up.ts.
+      let access = await probeSubscriberAccess(publicationUrl, credentials.sessionToken);
+      stepUp = "not_required";
+      if (access === "reauthentication_required") {
+        deps.out("Substack asks you to confirm it's you before subscriber data can be read.");
+        const originalToken = credentials.sessionToken;
+        try {
+          const result = await completeStepUp(publicationUrl, credentials.sessionToken, (method, attempt) => (deps.askSecret ?? askSecret)(
+            `${attempt > 1 ? "That code was not accepted. " : ""}${method === "email" ? "Enter the code Substack just emailed you" : "Enter the code from your authenticator app"} (blank to cancel): `));
+          validateCredentials(publicationUrl, result.sessionToken, credentials.userId);
+          credentials = { ...credentials, sessionToken: result.sessionToken };
+          stepUp = result.method ?? "not_required";
+        } catch (error) {
+          const code = error instanceof StepUpError ? error.code : "start_failed";
+          throw new LoginDiagnosticError(`Substack's confirm-it's-you step did not complete (${code}). No session was saved. Retry substack-mcp login --subscriber-access and enter the newest code; codes are single-use.`);
+        }
+        if (credentials.sessionToken !== originalToken) {
+          try {
+            if (options.verifyIdentity && String(await readAuthenticatedUserId(publicationUrl, credentials.sessionToken)) !== credentials.userId) throw new Error("Identity mismatch");
+            const check = await doctor(true, () => [{ ...credentials!, key: options.profile ?? "default", label: "login", source: "stored", missing: [] }], async () => true);
+            if (!check.ok) throw new Error("Authenticated read failed");
+          } catch {
+            throw new LoginDiagnosticError("The rotated session could not be reverified for authenticated reads and the requested identity. No session was saved.");
+          }
+        }
+        access = await probeSubscriberAccess(publicationUrl, credentials.sessionToken);
+      }
+      if (access !== "granted") throw new LoginDiagnosticError(`Subscriber reads are still refused for this session (${access}). No session was saved. Check your connection and confirm this account is an admin of ${publicationUrl}, then retry; omit --subscriber-access if you only need drafts and notes.`);
+    }
     if (store === "keychain") await (deps.keychain ?? createKeychain()).write(options.profile ?? "default", credentials, options.force);
     else if (options.profile) saveProfile(options.profile, credentials, options.force);
     else saveSession(credentials);
-    deps.out(JSON.stringify({ format_version: 1, ok: true, command: "login", profile: options.profile ?? null, authentication: "authenticated_read_succeeded", user_identity: options.verifyIdentity ? "verified" : "not_verified", ...(options.verifyIdentity ? { identity_source: "authenticated_publication_self_profile" } : {}), storage: store === "keychain" ? "keychain" : "machine_bound_file" }));
+    deps.out(JSON.stringify({ format_version: 1, ok: true, command: "login", profile: options.profile ?? null, authentication: "authenticated_read_succeeded", user_identity: options.verifyIdentity ? "verified" : "not_verified", ...(options.verifyIdentity ? { identity_source: "authenticated_publication_self_profile" } : {}), storage: store === "keychain" ? "keychain" : "machine_bound_file", ...(stepUp ? { subscriber_access: "verified", step_up: stepUp } : {}) }));
     deps.out(options.profile ? `Select this profile with SUBSTACK_PROFILES=${options.profile}. Remove publication credential env vars first.` : "Stored legacy session is used when publication credential env vars are unset.");
     return 0;
   } catch (error) {

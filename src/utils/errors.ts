@@ -17,7 +17,7 @@ export type AuthenticationReason = "invalid_or_expired" | "reauthentication_requ
 export class AuthenticationError extends SubstackAPIError {
   constructor(endpoint: string, status = 401, public reason: AuthenticationReason = "invalid_or_expired") {
     super(status, reason === "reauthentication_required"
-      ? "Substack requires a recent sign-in for this action (reauthentication_required). The session still works for other reads; run substack-mcp login again."
+      ? "Substack requires a recent sign-in for this action (reauthentication_required). The session still works for other reads; run substack-mcp login --subscriber-access and enter the code Substack sends."
       : "Session token is invalid or expired. Get a fresh token from browser DevTools > Application > Cookies > connect.sid (or substack.sid on substack.com)", endpoint);
     this.name = "AuthenticationError";
   }

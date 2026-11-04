@@ -81,9 +81,10 @@ async function post(origin: string, path: string, sessionToken: string, body?: u
   const token = rotatedSessionToken(response, sessionToken);
   let payload: unknown;
   try { payload = JSON.parse(await readBounded(response, STEP_UP_BODY_BYTES, signal, url)); } catch { payload = undefined; }
-  const valid = payload !== null && typeof payload === "object" && !Array.isArray(payload);
-  const ok = valid && response.status >= 200 && response.status < 300
-    && !("error" in payload || ("success" in payload && payload.success === false) || ("errors" in payload && Array.isArray(payload.errors) && payload.errors.length > 0));
+  const objectPayload = payload !== null && typeof payload === "object" && !Array.isArray(payload) ? payload : null;
+  const valid = objectPayload !== null;
+  const ok = objectPayload !== null && response.status >= 200 && response.status < 300
+    && !("error" in objectPayload || ("success" in objectPayload && objectPayload.success === false) || ("errors" in objectPayload && Array.isArray(objectPayload.errors) && objectPayload.errors.length > 0));
   return { ok, valid, payload, token };
 }
 

@@ -265,7 +265,8 @@ Tool output compatibility, response limits and versioning are documented in
 
 The CLI exposes operator commands and configuration checks through the same MCP
 handlers and credential resolution as the server. `drafts create` writes one
-private draft; the other operator commands read:
+private draft and `images upload` returns a publicly fetchable (unlisted) image
+URL for it; the other operator commands read:
 
 ```sh
 substack-mcp status --json

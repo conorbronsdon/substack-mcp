@@ -217,7 +217,7 @@ async function run() {
     process.exitCode = await runSubscriberExport(args.slice(2));
     return;
   }
-  if (["analytics", "subscribers", "posts"].includes(args[0]) || (args[0] === "drafts" && ["list", "get", "create", "preflight"].includes(args[1]))) {
+  if (["analytics", "subscribers", "posts", "images"].includes(args[0]) || (args[0] === "drafts" && ["list", "get", "create", "preflight"].includes(args[1]))) {
     const { runOperator } = await import("./operator-cli.js");
     process.exitCode = await runOperator(args);
     return;
@@ -242,7 +242,7 @@ async function run() {
     return runDoctor(args.slice(1));
   }
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) {
-    console.log("Usage: substack-mcp [serve | login [options] | profiles list/migrate [options] | status [--json] | compatibility report [options] | doctor [--json] [--check-auth] | export <draft-id> [options] | drafts list/get/create/preflight/export/plan/apply [options] | posts search <query> | analytics post <id> | analytics rank [options] | subscribers count/get]\nWith no command, starts the MCP server. doctor checks configuration without network access; --check-auth adds a bounded read per publication. export saves Markdown and original JSON without changing Substack; run export --help. For reviewed updates, run drafts --help. Read commands: drafts list/get/preflight, posts search, analytics post/rank, subscribers count/get. drafts create writes one private, unpublished draft from a Markdown file. Add --publication when needed. status is offline. compatibility report prints a shareable allowlisted diagnostic report; run compatibility --help. Login: substack-mcp login (substack-mcp-login remains an alias). Named sessions: profiles --help.");
+    console.log("Usage: substack-mcp [serve | login [options] | profiles list/migrate [options] | status [--json] | compatibility report [options] | doctor [--json] [--check-auth] | export <draft-id> [options] | drafts list/get/create/preflight/export/plan/apply [options] | images upload <image-file> | --url <https-url> | posts search <query> | analytics post <id> | analytics rank [options] | subscribers count/get]\nWith no command, starts the MCP server. doctor checks configuration without network access; --check-auth adds a bounded read per publication. export saves Markdown and original JSON without changing Substack; run export --help. For reviewed updates, run drafts --help. Read commands: drafts list/get/preflight, posts search, analytics post/rank, subscribers count/get. drafts create writes one private, unpublished draft from a Markdown file. images upload sends one image to Substack's CDN and prints a publicly fetchable (unlisted) URL to use in drafts. Add --publication when needed. status is offline. compatibility report prints a shareable allowlisted diagnostic report; run compatibility --help. Login: substack-mcp login (substack-mcp-login remains an alias). Named sessions: profiles --help.");
     return;
   }
   if (args.length && !(args.length === 1 && args[0] === "serve")) {

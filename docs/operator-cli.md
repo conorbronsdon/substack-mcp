@@ -3,12 +3,14 @@
 Configuration, credentials and client setup are in the [README](../README.md#setup).
 
 The CLI also exposes workflows through the same MCP handlers. Every command
-below is read-only except `drafts create`, which writes one private draft:
+below is read-only except `drafts create`, which writes one private draft, and
+`images upload`, which uploads one image and returns a publicly fetchable URL:
 
 ```sh
 substack-mcp status --json
 substack-mcp drafts list --limit 10 --offset 0
 substack-mcp drafts get 42
+substack-mcp images upload ./chart.png
 substack-mcp drafts create post.md --title "Post title"
 substack-mcp posts search "Post title" --status drafts --limit 10
 substack-mcp drafts preflight 42
@@ -52,6 +54,19 @@ exist: check `drafts list` or `posts search <title> --status drafts` before an
 explicit retry. `posts search` returns one bounded page with the continuation
 fields of `search_posts`, and `drafts preflight` runs the static checks of
 `preflight_draft`; neither approves publication.
+
+`images upload <image-file>` reads one local image (`.png`, `.jpg`, `.jpeg`,
+`.gif`, `.webp`, `.svg`, `.bmp`, `.avif`, `.tif` or `.tiff`, at most 25 MB) and
+sends it through the same `upload_image` handler as the MCP tool.
+`images upload --url <https-url>` downloads a public HTTPS image first, under the
+[remote image rules](remote-images.md), without Substack cookies. Success data is
+`image_url`, a `markdown` line (`![](image_url)`) to paste into the file given to
+`drafts create`, and `visibility: "public_unlisted"`: anyone with the URL can
+fetch the image, it is not added to your feed, and this CLI cannot delete it.
+A missing or unsupported file, a refused remote image or a configuration
+failure reports `upload_not_attempted` with `upload_attempts: 0`. Any later
+failure reports `upload_unverified` with a category, because the image may have
+been uploaded. Nothing is retried automatically.
 
 `status` reports installed version, Node/platform and the same offline
 configuration diagnostics as doctor. It never opens a browser or claims a

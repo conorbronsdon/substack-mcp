@@ -9,6 +9,8 @@ import { doctor } from "./doctor.js";
 import { searchInput } from "./api/search.js";
 import { draftEditorUrl } from "./api/draft-export.js";
 import { readBoundedFile } from "./utils/bounded-file.js";
+import { fetchRemoteImage } from "./utils/remote-image.js";
+import { resolve } from "node:path";
 import packageMetadata from "../package.json" with { type: "json" };
 import { RANK_METRICS, RANK_MAX_LIMIT } from "./api/rankings.js";
 
@@ -29,12 +31,15 @@ const usage = `Usage: substack-mcp drafts list [--offset n] [--limit 1-50] [--pu
        substack-mcp drafts get <draft-id> [--publication key]
        substack-mcp drafts preflight <draft-id> [--publication key]
        substack-mcp drafts create <markdown-file> --title <text> [--subtitle <text>] [--audience everyone|only_paid|founding|only_free] [--allow-unsupported] [--publication key]
+       substack-mcp images upload <image-file> [--publication key]
+       substack-mcp images upload --url <https-url> [--publication key]
        substack-mcp posts search <query> [--status published|drafts|scheduled] [--offset n] [--limit 1-50] [--publication key]
        substack-mcp analytics post <post-id> [--publication key]
        substack-mcp analytics rank [--metric views|opened|sent|open_rate|click_through_rate|signups|subscribes|estimated_value|post_date] [--direction desc|asc] [--offset n] [--limit 1-20] [--publication key]
        substack-mcp subscribers count [--publication key]
        substack-mcp subscribers get <email> [--publication key]
-Read-only JSON output for every command except drafts create, which writes one private, unpublished draft and never publishes. --json is accepted explicitly. Pagination performs one bounded page, not an automatic full export.
+Read-only JSON output for every command except drafts create, which writes one private, unpublished draft and never publishes, and images upload, which makes one public-URL upload. --json is accepted explicitly. Pagination performs one bounded page, not an automatic full export.
+images upload sends one image (a local file of at most 25 MB, or a public HTTPS image downloaded without Substack cookies) to Substack's image CDN and prints its image_url plus a Markdown image line for drafts create. The URL is publicly fetchable by anyone who has it (unlisted, not added to your feed), and this CLI cannot delete it. After an upload request fails, the result is upload_unverified; nothing is retried.
 drafts create reads a UTF-8 Markdown file of at most 1 MiB and stops before writing when the Markdown is unsupported; review unsupported_nodes before using --allow-unsupported. After a create request fails, the result is write_unverified: check drafts list or posts search before any explicit retry.
 Subscriber and draft results are private; protect redirected output. analytics post uses the same bounded recent-post scan as MCP; analytics rank reads one page of Substack's email statistics, keeps its order and marks values reported, null or absent. preflight is a static check, not publish approval.
 Failed reads keep code read_failed and add a category (authentication, rate_limited, timeout, not_found, invalid_request, upstream_unavailable, response_invalid, response_too_large, cancelled, output_limit, configuration, statistics_unavailable, unknown).`;
@@ -57,7 +62,7 @@ function argument(value: string | undefined) {
 
 function parse(args: string[]) {
   const command = args.slice(0, 2).join(" ");
-  const tools: Record<string, string> = { "drafts list": "list_drafts", "drafts get": "get_draft", "drafts preflight": "preflight_draft", "drafts create": "create_draft",
+  const tools: Record<string, string> = { "drafts list": "list_drafts", "drafts get": "get_draft", "drafts preflight": "preflight_draft", "drafts create": "create_draft", "images upload": "upload_image",
     "posts search": "search_posts", "analytics post": "get_post_analytics", "analytics rank": "rank_posts", "subscribers count": "get_subscriber_count", "subscribers get": "get_subscriber" };
   const tool = tools[command];
   if (!tool) throw new Error("invalid command");
@@ -65,6 +70,7 @@ function parse(args: string[]) {
   let index = 2, file: string | undefined;
   if (command === "drafts get" || command === "drafts preflight") input.draft_id = integer(args[index++], 1);
   if (command === "drafts create") file = argument(args[index++]);
+  if (command === "images upload" && args[index] !== undefined && !args[index].startsWith("--")) input.image_path = resolve(args[index++]);
   if (command === "posts search") input.query = searchInput.shape.query.parse(argument(args[index++]));
   if (command === "analytics post") input.post_id = integer(args[index++], 1);
   if (command === "subscribers get") input.email = z.string().trim().email().max(254).parse(args[index++]);
@@ -97,9 +103,15 @@ function parse(args: string[]) {
       if (subtitle.length > MAX_TITLE_CHARACTERS) throw new Error("invalid subtitle");
       input.subtitle = subtitle;
     } else if (command === "drafts create" && flag === "--audience") input.audience = audiences.parse(argument(value));
+    else if (command === "images upload" && flag === "--url" && input.image_path === undefined) {
+      const url = argument(value);
+      if (url.length > 2048 || new URL(url).protocol !== "https:") throw new Error("invalid url");
+      input.image_url = url;
+    }
     else throw new Error("unknown option");
   }
   if (command === "drafts create" && input.title === undefined) throw new Error("missing title");
+  if (command === "images upload" && input.image_path === undefined && input.image_url === undefined) throw new Error("missing image");
   return { command, tool, input, publication, file };
 }
 
@@ -183,6 +195,17 @@ function conversionRejection(text: string) {
       : "No draft was written. The Markdown exceeds conversion bounds or uses an unsupported structure; simplify it first." };
 }
 
+/** upload_image rejections before the upload request carry upload_attempts: 0; copy only the validated code. */
+function uploadRejection(text: string) {
+  const parsed = jsonObject(text);
+  if (!parsed || parsed.upload_attempts !== 0) return undefined;
+  const upstream = typeof parsed.code === "string" && /^[a-z_]{1,64}$/.test(parsed.code) ? parsed.code : undefined;
+  return { code: "upload_not_attempted", ...(upstream ? { upstream_code: upstream } : {}), upload_attempts: 0,
+    message: upstream === "local_image_unreadable"
+      ? "Nothing was uploaded. Use an existing regular image file (.png, .jpg, .jpeg, .gif, .webp, .svg, .bmp, .avif, .tif, .tiff) of at most 25 MB."
+      : "Nothing was uploaded. The remote image was refused or could not be downloaded; check upstream_code, or download it yourself and upload the file." };
+}
+
 /** Uses the real MCP handlers so projection, pagination, conversion and write semantics stay shared. */
 export async function runOperator(args: string[], load: () => ReturnType<typeof resolvePublications> | Promise<ReturnType<typeof resolvePublications>> = resolveSelectedPublications,
   io = { out: (text: string) => console.log(text), error: (text: string) => console.error(text) }): Promise<number> {
@@ -197,9 +220,13 @@ export async function runOperator(args: string[], load: () => ReturnType<typeof 
       io.error(JSON.stringify({ format_version: 1, ok: false, command, code: "invalid_input_file", message: "Read a regular UTF-8 Markdown file of at most 1 MiB. No write was attempted." })); return 2;
     }
   }
-  const write = options.tool === "create_draft";
+  const write = options.tool === "create_draft", upload = options.tool === "upload_image";
   const fail = (projection: FailureProjection) => {
-    const envelope = !write ? { format_version: 1, ok: false, command, code: "read_failed", ...projection }
+    const envelope = upload ? (projection.category === "configuration"
+        ? { format_version: 1, ok: false, command, code: "upload_not_attempted", ...projection, upload_attempts: 0, message: `${failureMessages.configuration} Nothing was uploaded.` }
+        : { format_version: 1, ok: false, command, code: "upload_unverified", ...projection,
+          message: "The image may or may not have been uploaded; an uploaded image is publicly fetchable at its URL. Nothing was retried automatically." })
+      : !write ? { format_version: 1, ok: false, command, code: "read_failed", ...projection }
       : projection.category === "configuration" ? { format_version: 1, ok: false, command, code: "write_not_attempted", ...projection, message: `${failureMessages.configuration} No write was attempted.` }
       : { format_version: 1, ok: false, command, code: "write_unverified", ...projection,
         message: "The draft may or may not have been created. Check substack-mcp drafts list or posts search <title> --status drafts before any explicit retry; nothing was retried automatically." };
@@ -219,7 +246,7 @@ export async function runOperator(args: string[], load: () => ReturnType<typeof 
     // Checking both here reports configuration instead of an unknown failure inside the request.
     if (userAgent) validateHeaderValue("user-agent", new Headers({ "user-agent": userAgent }).get("user-agent") ?? "");
     const substack = new SubstackClient(selected.publicationUrl, selected.sessionToken, selected.userId, userAgent, Number(process.env.SUBSTACK_REQUEST_TIMEOUT_MS) || undefined);
-    server = createServer([{ key: selected.key, label: selected.label, client: substack }]);
+    server = createServer([{ key: selected.key, label: selected.label, client: substack }], { fetchRemoteImage: url => fetchRemoteImage(url) });
     configured = true;
     const [ct, st] = InMemoryTransport.createLinkedPair();
     await Promise.all([client.connect(ct), server.connect(st)]);
@@ -227,13 +254,14 @@ export async function runOperator(args: string[], load: () => ReturnType<typeof 
     const content = reply.content as { type: string; text?: string }[];
     const text = content.length === 1 && content[0].type === "text" ? content[0].text : undefined;
     if (reply.isError) {
-      const rejected = write && text !== undefined ? conversionRejection(text) : undefined;
+      const rejected = text === undefined ? undefined : write ? conversionRejection(text) : upload ? uploadRejection(text) : undefined;
       if (rejected) { io.error(JSON.stringify({ format_version: 1, ok: false, command, ...rejected })); return 1; }
       return fail(text === undefined ? failure("unknown") : projectFailure(text));
     }
     if (!text) return fail(failure("unknown"));
     const parsed: unknown = JSON.parse(text);
-    const data = write ? { ...(parsed as Record<string, unknown>), editor_url: draftEditorUrl(substack.origin, (parsed as { id: number }).id) } : parsed;
+    const data = write ? { ...(parsed as Record<string, unknown>), editor_url: draftEditorUrl(substack.origin, (parsed as { id: number }).id) }
+      : upload ? { image_url: (parsed as { image_url: string }).image_url, markdown: `![](${(parsed as { image_url: string }).image_url})`, visibility: "public_unlisted" } : parsed;
     const output = JSON.stringify({ format_version: 1, ok: true, command, publication: selected.key, data });
     if (Buffer.byteLength(output, "utf8") > 4 * 1024 * 1024) return fail(failure("output_limit"));
     io.out(output); return 0;

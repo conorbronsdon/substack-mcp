@@ -94,6 +94,25 @@ describe("operator images upload", () => {
     expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ code: "upload_unverified", category: "response_invalid" });
   });
 
+  it.each(["http://example.com/image.png", "https://user:password@example.com/image.png"])("reports an unusable uploaded URL as unverified: %s", async url => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ url })));
+    const output = io();
+    expect(await runOperator(["images", "upload", png], () => [credentials], output)).toBe(1);
+    expect(output.out).not.toHaveBeenCalled();
+    expect(JSON.parse(output.error.mock.calls[0][0])).toMatchObject({ code: "upload_unverified", category: "response_invalid" });
+  });
+
+  it("encodes URL parentheses so the Markdown round-trips into a draft image", async () => {
+    const url = "https://example.com/image(1).png";
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ url })));
+    const output = io();
+    expect(await runOperator(["images", "upload", png], () => [credentials], output)).toBe(0);
+    const result = JSON.parse(output.out.mock.calls[0][0]);
+    const converted = convertMarkdown(result.data.markdown);
+    expect(converted.unsupported_nodes).toEqual([]);
+    expect(converted.document.content[0]).toMatchObject({ type: "captionedImage", content: [{ type: "image2", attrs: { src: "https://example.com/image%281%29.png" } }] });
+  });
+
   it("reports configuration failures as not attempted", async () => {
     const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
     const output = io();

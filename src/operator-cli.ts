@@ -260,8 +260,19 @@ export async function runOperator(args: string[], load: () => ReturnType<typeof 
     }
     if (!text) return fail(failure("unknown"));
     const parsed: unknown = JSON.parse(text);
+    let uploadData: { image_url: string; markdown: string; visibility: string } | undefined;
+    if (upload) {
+      const imageUrl = (parsed as { image_url?: unknown })?.image_url;
+      if (typeof imageUrl !== "string" || /[\u0000-\u0020\u007f]/.test(imageUrl)) return fail(failure("response_invalid"));
+      let url: URL;
+      try { url = new URL(imageUrl); } catch { return fail(failure("response_invalid")); }
+      if (url.protocol !== "https:" || url.username || url.password) return fail(failure("response_invalid"));
+      // Parentheses have Markdown syntax, so encode them in the destination.
+      const destination = url.href.replace(/[()]/g, ch => ch === "(" ? "%28" : "%29");
+      uploadData = { image_url: imageUrl, markdown: `![](${destination})`, visibility: "public_unlisted" };
+    }
     const data = write ? { ...(parsed as Record<string, unknown>), editor_url: draftEditorUrl(substack.origin, (parsed as { id: number }).id) }
-      : upload ? { image_url: (parsed as { image_url: string }).image_url, markdown: `![](${(parsed as { image_url: string }).image_url})`, visibility: "public_unlisted" } : parsed;
+      : upload ? uploadData : parsed;
     const output = JSON.stringify({ format_version: 1, ok: true, command, publication: selected.key, data });
     if (Buffer.byteLength(output, "utf8") > 4 * 1024 * 1024) return fail(failure("output_limit"));
     io.out(output); return 0;

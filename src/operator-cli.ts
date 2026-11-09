@@ -267,8 +267,9 @@ export async function runOperator(args: string[], load: () => ReturnType<typeof 
       let url: URL;
       try { url = new URL(imageUrl); } catch { return fail(failure("response_invalid")); }
       if (url.protocol !== "https:" || url.username || url.password) return fail(failure("response_invalid"));
-      // Parentheses have Markdown syntax, so encode them in the destination.
-      const destination = url.href.replace(/[()]/g, ch => ch === "(" ? "%28" : "%29");
+      // Preserve literal backslashes and entity-looking query text through Markdown;
+      // parentheses are Markdown delimiters and must be percent-encoded.
+      const destination = url.href.replace(/\\/g, "\\\\").replace(/&/g, "&amp;").replace(/[()]/g, ch => ch === "(" ? "%28" : "%29");
       uploadData = { image_url: imageUrl, markdown: `![](${destination})`, visibility: "public_unlisted" };
     }
     const data = write ? { ...(parsed as Record<string, unknown>), editor_url: draftEditorUrl(substack.origin, (parsed as { id: number }).id) }

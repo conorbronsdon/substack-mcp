@@ -113,6 +113,16 @@ describe("operator images upload", () => {
     expect(converted.document.content[0]).toMatchObject({ type: "captionedImage", content: [{ type: "image2", attrs: { src: "https://example.com/image%281%29.png" } }] });
   });
 
+  it.each(["https://example.com/image.png?x=1&amp;y=2", "https://example.com/image.png?x=1&y=2", "https://example.com/image.png?q=a\\*b"])("preserves URL query bytes in generated Markdown: %s", async url => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ url })));
+    const output = io();
+    expect(await runOperator(["images", "upload", png], () => [credentials], output)).toBe(0);
+    const result = JSON.parse(output.out.mock.calls[0][0]);
+    const converted = convertMarkdown(result.data.markdown);
+    expect(converted.unsupported_nodes).toEqual([]);
+    expect(converted.document.content[0]).toMatchObject({ type: "captionedImage", content: [{ type: "image2", attrs: { src: url } }] });
+  });
+
   it("reports configuration failures as not attempted", async () => {
     const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
     const output = io();

@@ -57,7 +57,9 @@ fields of `search_posts`, and `drafts preflight` runs the static checks of
 
 `images upload <image-file>` reads one local image (`.png`, `.jpg`, `.jpeg`,
 `.gif`, `.webp`, `.svg`, `.bmp`, `.avif`, `.tif` or `.tiff`, at most 25 MB) and
-sends it through the same `upload_image` handler as the MCP tool.
+sends it through the same `upload_image` handler as the MCP tool. Local type is
+inferred from the filename extension; the file's contents are not inspected.
+Verify that you selected the intended file before uploading.
 `images upload --url <https-url>` downloads a public HTTPS image first, under the
 [remote image rules](remote-images.md), without Substack cookies. Success data is
 `image_url`, a `markdown` line (`![](image_url)`) to paste into the file given to

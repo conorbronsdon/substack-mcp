@@ -159,5 +159,6 @@ describe("operator images upload", () => {
     expect(load).not.toHaveBeenCalled();
     expect(output.out.mock.calls[0][0]).toContain("images upload <image-file>");
     expect(output.out.mock.calls[0][0]).toContain("publicly fetchable");
+    expect(output.out.mock.calls[0][0]).toContain("file contents are not inspected");
   });
 });

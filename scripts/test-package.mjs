@@ -90,6 +90,8 @@ try {
   for (const args of [['drafts', 'create', '--help'], ['posts', 'search', '--help'], ['drafts', 'preflight', '--help']]) {
     assert.match(execFileSync(process.execPath, [cli, ...args], { env, encoding: 'utf8', timeout: 10_000 }), /drafts create <markdown-file>/);
   }
+  assert.match(execFileSync(process.execPath, [cli, 'images', 'upload', '--help'], { env, encoding: 'utf8', timeout: 10_000 }), /images upload <image-file>/);
+  assert.throws(() => execFileSync(process.execPath, [cli, 'images', 'upload'], { env, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }), error => error.status === 2);
   const unsupportedMarkdown = join(scratch, 'unsupported.md');
   writeFileSync(unsupportedMarkdown, ['| A | B |', '|---|---|', '| x | y |'].join(String.fromCharCode(10)));
   assert.throws(() => execFileSync(process.execPath, [cli, 'drafts', 'create', unsupportedMarkdown, '--title', 'T'], { env: doctorEnv, encoding: 'utf8', timeout: 10_000, stdio: 'pipe' }),

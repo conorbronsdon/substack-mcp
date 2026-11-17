@@ -8,6 +8,10 @@ membership checks and the calendar opt-in sync) can fail with:
 HTTP 403 {"error":"For your security, please sign out and sign back in to do this.","type":"reauthentication_required"}
 ```
 
+Commands below use `npx @conorbronsdon/substack-mcp`. With a global install
+(`npm install -g @conorbronsdon/substack-mcp`) you can run `substack-mcp` directly.
+Do not use the unscoped `npx substack-mcp`: that npm name belongs to a different project.
+
 #190 makes this show up as `auth_reason: "reauthentication_required"` and sync reason
 `substack_reauthentication_required`. This page covers why it happens and how
 `substack-mcp login --subscriber-access` attempts the step-up and verifies the resulting access before saving.

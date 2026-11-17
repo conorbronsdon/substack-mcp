@@ -102,7 +102,7 @@ export async function runLogin(args: string[], deps: typeof defaults & { keychai
     let chromium: Chromium;
     try { chromium = await deps.loadChromium(); } catch { deps.error("Browser login needs Playwright. In a local tools directory run npm install @conorbronsdon/substack-mcp playwright, then npx playwright install chromium, then npx @conorbronsdon/substack-mcp login."); return 1; }
     try { browser = await chromium.launch({ headless: false }); }
-    catch { throw new LoginDiagnosticError("Playwright could not start Chromium. In the same tools directory run npx playwright install chromium, then retry; browser login also needs a desktop session that can open a window. No session was saved."); }
+    catch { throw new LoginDiagnosticError("Playwright could not start Chromium. No session was saved. If the browser is not installed, run npx playwright install chromium in the same tools directory, then retry; browser login also needs a desktop session that can open a window."); }
     const context = await browser.newContext(), page = await context.newPage();
     deps.out("Sign in to Substack in the opened browser, including any CAPTCHA. Waiting up to five minutes.");
     await page.goto("https://substack.com/sign-in");

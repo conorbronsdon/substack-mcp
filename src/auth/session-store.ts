@@ -25,12 +25,19 @@ import {
   existsSync,
   rmSync,
   chmodSync,
+  openSync,
+  closeSync,
+  fsyncSync,
+  renameSync,
+  unlinkSync,
+  constants,
 } from "node:fs";
 import { homedir, hostname, userInfo } from "node:os";
 import { join } from "node:path";
 import {
   scryptSync,
   randomBytes,
+  randomUUID,
   createCipheriv,
   createDecipheriv,
 } from "node:crypto";
@@ -99,12 +106,29 @@ export function encodeSession(session: Omit<StoredSession, "savedAt">): string {
   return JSON.stringify(envelope);
 }
 
-/** Encrypt and write the session `0600`. Returns the file path. */
+/**
+ * Encrypt and write the session `0600`. Returns the file path.
+ *
+ * The key derives from the non-secret account and host names, so file
+ * permissions are the real protection. The directory is created `0700` (as
+ * named profiles are), and the ciphertext goes to a fresh `O_EXCL` `0600`
+ * temporary file renamed over the target: it is never readable under a looser
+ * mode, and an existing `session.json` symlink is replaced, not followed.
+ */
 export function saveSession(session: Omit<StoredSession, "savedAt">): string {
-  mkdirSync(sessionDir(), { recursive: true });
+  mkdirSync(sessionDir(), { recursive: true, mode: 0o700 });
   const file = sessionFile();
-  writeFileSync(file, encodeSession(session), { mode: 0o600 });
-  // writeFileSync's mode is ignored if the file already existed; force it.
+  const temporary = join(sessionDir(), `.session-${randomUUID()}.tmp`);
+  let fd: number | undefined;
+  try {
+    fd = openSync(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
+    writeFileSync(fd, encodeSession(session)); fsyncSync(fd); closeSync(fd); fd = undefined;
+    renameSync(temporary, file);
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+    try { unlinkSync(temporary); } catch { /* Renamed into place, or never created. */ }
+  }
+  // A process umask can still narrow, never widen, the open mode; enforce it.
   try {
     chmodSync(file, 0o600);
   } catch {

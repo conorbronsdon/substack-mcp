@@ -82,9 +82,14 @@ describe("resolveCredentials", () => {
 
   it("never echoes the stored token in the refusal", () => {
     const env = { SUBSTACK_PUBLICATION_URL: "https://other.substack.com" } as NodeJS.ProcessEnv;
-    expect(() => resolveCredentials(env, () => stored)).toThrow(
-      expect.objectContaining({ message: expect.not.stringContaining("example-stored-token") }),
-    );
+    let message = "";
+    try {
+      resolveCredentials(env, () => stored);
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toMatch(/Refusing to send the stored session token/);
+    expect(message).not.toContain("example-stored-token");
   });
 
   it("still resolves a stored token with an env URL on the same origin (source=mixed)", () => {

@@ -52,7 +52,9 @@ For 1.0 setup coverage and account eligibility, see [compatibility](docs/compati
    [Claude Desktop or Claude Code](#2-configure-your-mcp-client), or use the
    [Codex plugin](#codex-plugin). Environment variables take precedence; omit
    them to use the stored browser-login session. A stored session is never sent
-   to a `SUBSTACK_PUBLICATION_URL` on a different origin; startup fails instead.
+   to a `SUBSTACK_PUBLICATION_URL` on a different origin (scheme, host and port;
+   the path is ignored); startup fails instead. Run `substack-mcp-login` for the
+   other host, including a publication's custom domain.
    Then ask your assistant:
    "How many Substack subscribers do I have?"
 4. **Prepare a draft for review.** Follow the [draft workflow](docs/workflow.md):

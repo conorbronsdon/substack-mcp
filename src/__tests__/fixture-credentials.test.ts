@@ -5,7 +5,13 @@ import { fileURLToPath } from "node:url";
 
 // AGENTS.md: synthetic credential fixtures must be clearly `example-*`-prefixed,
 // so a reviewer (or a secret scanner) can tell a fixture from a pasted session.
-// This guard covers the literal shapes the suites use to pass a session token.
+//
+// Scope: this is a backstop for the literal shapes the suites actually use to
+// pass a session token (listed in PATTERNS below), not a proof that no
+// non-example token exists. It does not resolve values reached through other
+// indirection (a variable whose name lacks "Token", destructuring, imports,
+// function arguments). AGENTS.md: "Credential hygiene requires reviewer
+// inspection as well as automated checks."
 // Empty and whitespace-only values are allowed: they test missing credentials.
 
 const PATTERNS: RegExp[] = [
@@ -60,7 +66,7 @@ describe("synthetic credential fixtures", () => {
     expect(nonExampleCredentials("const testSessionToken = `example-${randomUUID()}`;")).toEqual([]);
   });
 
-  it("every test and test-config file uses example-* session tokens", () => {
+  it("the known session-token literal shapes in test, fixture and script files are example-*", () => {
     const self = fileURLToPath(import.meta.url);
     const testsDir = dirname(self);
     const root = join(testsDir, "..", "..");

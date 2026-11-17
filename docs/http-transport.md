@@ -18,6 +18,10 @@ docker run -d --restart unless-stopped -p 127.0.0.1:8080:8080 \
   substack-mcp
 ```
 
+The image name `substack-mcp` above is a local build (`docker build -t substack-mcp .`
+from a clone of this repository). To use the published image instead, substitute
+`ghcr.io/conorbronsdon/substack-mcp:<version>`; see [container distribution](containers.md).
+
 `MCP_HTTP_PORT` (default `8080`) and `MCP_HTTP_HOST` (default `0.0.0.0`, which is what makes a container reachable through `-p`) configure the listener. Each request gets its own server instance — there's no session state kept between requests, so nothing to lose if the container restarts.
 
 ## What this listener will accept

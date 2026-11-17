@@ -42,7 +42,7 @@ exact 403. It also carries forward any `Set-Cookie` rotation.
 ## The fix: `login --subscriber-access`
 
 ```bash
-npx substack-mcp login https://yourpublication.com --verify-identity --profile work --subscriber-access
+npx @conorbronsdon/substack-mcp login https://yourpublication.com --verify-identity --profile work --subscriber-access
 ```
 
 After the usual sign-in and drafts check, login:

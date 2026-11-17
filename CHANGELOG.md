@@ -8,6 +8,10 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+### Fixed
+- `login` reports a Chromium launch failure (browser not installed with `npx playwright install chromium`, or no desktop session) with that next step instead of the generic "Login or local saving failed".
+- Login help text and docs use `npx @conorbronsdon/substack-mcp`. The unscoped `npx substack-mcp` runs an unrelated npm package when this one is not installed in the current directory.
+
 ## [1.4.0] - 2026-11-17
 
 ### Added

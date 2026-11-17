@@ -32,6 +32,19 @@ describe("browser login contract", () => {
     const f = fixture(); expect(await runLogin(["--help"], f.deps)).toBe(0);
     expect(f.deps.loadChromium).not.toHaveBeenCalled(); expect(f.deps.ask).not.toHaveBeenCalled(); expect(f.fetch).not.toHaveBeenCalled();
   });
+  it("names the browser install step when Chromium cannot start, and saves nothing", async () => {
+    const f = fixture(); f.launch.mockRejectedValueOnce(new Error("Executable doesn't exist at /example/chromium"));
+    expect(await runLogin(["https://example.com", "--user-id", "42"], f.deps)).toBe(1);
+    const errors = f.deps.error.mock.calls.map(call => call[0]).join("\n");
+    expect(errors).toContain("npx playwright install chromium"); expect(errors).not.toContain("/example/chromium");
+    expect(loadSession()).toBeNull(); expect(f.fetch).not.toHaveBeenCalled(); expect(f.goto).not.toHaveBeenCalled();
+  });
+  it("points a missing Playwright install at the scoped package, not the unrelated unscoped npm name", async () => {
+    const f = fixture(); f.deps.loadChromium.mockRejectedValueOnce(new Error("Cannot find package 'playwright'"));
+    expect(await runLogin(["https://example.com", "--user-id", "42"], f.deps)).toBe(1);
+    const errors = f.deps.error.mock.calls.map(call => call[0]).join("\n");
+    expect(errors).toContain("npx @conorbronsdon/substack-mcp login"); expect(errors).not.toMatch(/npx substack-mcp\b/);
+  });
   it("uses only a cookie scoped to the publication API and never infers a byline ID", async () => {
     const f = fixture(); expect(await runLogin(["https://example.com", "--user-id", "42", "--profile", "work"], f.deps)).toBe(0);
     expect(f.cookies.mock.calls.map(call => call[0])).toEqual(["https://substack.com", "https://example.com/api/v1/post_management/drafts"]);

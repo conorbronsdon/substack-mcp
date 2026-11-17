@@ -2,9 +2,13 @@ import { z } from "zod";
 import { SubstackAPIError } from "../utils/errors.js";
 
 const emailSchema = z.string().trim().email().max(254).transform(s => s.toLowerCase());
+// zod 3's datetime({ offset: true }) grammar: seconds optional, offset colon optional. zod 4's is narrower.
+const offsetDatetime = () => z.string()
+  .regex(/^((\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-((0[13578]|1[02])-(0[1-9]|[12]\d|3[01])|(0[469]|11)-(0[1-9]|[12]\d|30)|(02)-(0[1-9]|1\d|2[0-8])))T([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d+)?)?(Z|([+-]\d{2}:?\d{2}))$/, "Invalid datetime")
+  .meta({ format: "date-time" });
 export const consentEvidenceSchema = z.object({
   source: z.string().trim().min(1).max(500),
-  recorded_at: z.string().datetime({ offset: true }),
+  recorded_at: offsetDatetime(),
 });
 export type ConsentEvidence = z.infer<typeof consentEvidenceSchema>;
 const rowSchema = z.object({
@@ -43,7 +47,7 @@ export type SubscriberSearchInput = z.input<typeof subscriberSearchInput>;
 const searchRow = rowSchema.extend({
   subscription_interval: z.string().max(40).nullable(),
   activity_rating: z.number().finite().nullable(),
-  subscription_created_at: z.string().datetime({ offset: true }).max(40).nullable(),
+  subscription_created_at: offsetDatetime().max(40).nullable(),
   total_revenue_generated: z.number().finite().nullable(),
   is_comp: z.boolean().nullable(), is_founding: z.boolean().nullable(), is_gift: z.boolean().nullable(), is_free_trial: z.boolean().nullable(),
 });

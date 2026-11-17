@@ -5,8 +5,9 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { githubOutputs as attestationOutputs, prepareContainerAttestation, SPDX_PREDICATE_TYPE, tamperAttestationBundle } from './container-attestation.mjs';
-import { githubOutputs, publishContainer } from './publish-container.mjs';
+import { describeFailure, githubOutputs, publishContainer } from './publish-container.mjs';
 import pkg from '../package.json' with { type: 'json' };
+import ts from 'typescript';
 const input = { version: pkg.version, revision: 'a'.repeat(40), run: '1', attempt: '1', temp: '/temporary' };
 const image = 'ghcr.io/conorbronsdon/substack-mcp';
 function fixture(mode) {
@@ -15,6 +16,11 @@ function fixture(mode) {
   const differentManifest = { config: { digest: 'sha256:' + 'c'.repeat(64) } };
   const registryDigest = 'sha256:' + 'e'.repeat(64);
   const differentRegistryDigest = 'sha256:' + 'd'.repeat(64);
+  // What `docker manifest inspect` returns once BuildKit attaches its own attestation manifest.
+  const imageIndex = { schemaVersion: 2, mediaType: 'application/vnd.oci.image.index.v1+json', manifests: [
+    { mediaType: 'application/vnd.oci.image.manifest.v1+json', digest: registryDigest, platform: { architecture: 'amd64', os: 'linux' } },
+    { mediaType: 'application/vnd.oci.image.manifest.v1+json', digest: 'sha256:' + '9'.repeat(64), platform: { architecture: 'unknown', os: 'unknown' }, annotations: { 'vnd.docker.reference.type': 'attestation-manifest' } },
+  ] };
   const usesExistingRelease = ref => mode === 'existing_different' && (ref === `${image}:${pkg.version}` || ref === `${image}:latest` || ref.startsWith(`${image}:sha-`));
   const docker = (...args) => {
     calls.push(args);
@@ -34,6 +40,7 @@ function fixture(mode) {
         if (mode === 'manifest_list') return JSON.stringify([{ Descriptor: { digest: registryDigest } }]);
         return JSON.stringify({ Descriptor: { digest: usesExistingRelease(ref) ? differentRegistryDigest : registryDigest } });
       }
+      if (mode === 'image_index') return JSON.stringify(imageIndex);
       if (args[2] === `${image}:${pkg.version}` && ++versionLookups === 1 && ['absent', 'unknown'].includes(mode)) throw Object.assign(new Error('lookup failed'), { stderr: mode === 'absent' ? 'manifest unknown' : 'unauthorized' });
       return JSON.stringify(usesExistingRelease(args[2]) ? differentManifest : manifest);
     }
@@ -66,6 +73,216 @@ for (const mode of ['missing_digest', 'conflicting_digests', 'manifest_list']) t
   const f = fixture(mode); assert.throws(f.run, /manifest descriptor digest/);
   assert.ok(!f.calls.some(args => args[0] === 'tag' && /:(latest|sha-|[0-9]+\.)/.test(args[2])));
 });
+test('an image index candidate stops before release aliases move and names the failed check', () => {
+  const f = fixture('image_index'); let failure;
+  assert.throws(f.run, error => { failure = error; return /single-platform image manifest/.test(error.message); });
+  assert.ok(!f.calls.some(args => args[0] === 'tag' && /:(latest|sha-|[0-9]+\.)/.test(args[2])));
+  assert.ok(!f.calls.some(args => args[0] === 'push' && args[1] !== `${image}:build-1-1`), 'Only the candidate may be pushed');
+  assert.equal(describeFailure(failure), 'Container identity mismatch; publication stopped: Expected a single-platform image manifest');
+});
+test('failure output names only fixed messages', () => {
+  const generic = 'Container publication failed unexpectedly; inspect the release stage and reconcile before retrying.';
+  let generated;
+  try { assert.deepEqual({ config: { digest: 'sha256:' + 'b'.repeat(64) } }, { config: { digest: 'sha256:' + 'c'.repeat(64) } }); } catch (error) { generated = error; }
+  assert.equal(generated.generatedMessage, true);
+  assert.equal(describeFailure(generated), 'Container identity mismatch; publication stopped.');
+  assert.equal(describeFailure(new Error('Command failed: docker push secret-bearing-args')), 'Container command failed; inspect the release stage and reconcile before retrying.');
+  // JSON.parse quotes the start of its input, which here would be a registry or daemon body.
+  let parse;
+  try { JSON.parse('registry-body-fragment'); } catch (error) { parse = error; }
+  assert.ok(parse.message.includes('registry'), 'Expected the parser message to quote its input');
+  for (const error of [parse, new TypeError('Cannot read properties of undefined (reading body)'), new Error('unlisted message'), 'thrown string', undefined]) {
+    assert.equal(describeFailure(error), generic);
+  }
+  // The publisher's own fixed stop messages are still named.
+  let stop;
+  assert.throws(fixture('private').run, error => { stop = error; return true; });
+  assert.equal(describeFailure(stop), `Anonymous access failed for ${image}:build-1-1. Verify the GHCR package is public, then rerun Publish; inspect existing tags before retrying.`);
+  let unknown;
+  assert.throws(fixture('unknown').run, error => { unknown = error; return true; });
+  assert.equal(describeFailure(unknown), 'Cannot determine existing container release; stop without moving version tags.');
+});
+
+// The message argument position for each assert method the publisher may use.
+const messageArgument = { ok: 1, equal: 2, notEqual: 2, strictEqual: 2, notStrictEqual: 2, deepEqual: 2, notDeepEqual: 2, deepStrictEqual: 2, notDeepStrictEqual: 2, match: 2, doesNotMatch: 2, throws: 2, doesNotThrow: 2, rejects: 2, doesNotReject: 2, fail: 0 };
+// For these, a string literal second argument is the message (no error validator given).
+const optionalValidator = new Set(['throws', 'doesNotThrow', 'rejects', 'doesNotReject']);
+// Names that may be interpolated into a printed message: image references built from the
+// fixed image name and validated tags. Nothing here can hold a registry or daemon body.
+const printableNames = new Set(['ref', 'alias']);
+function isFixedMessage(node) {
+  if (!node) return false;
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return true;
+  return ts.isTemplateExpression(node) && node.templateSpans.every(span => ts.isIdentifier(span.expression) && printableNames.has(span.expression.text));
+}
+// Every printed message source in the publisher: assertions and PublicationStop.
+function assertionsWithoutMessages(source) {
+  const file = ts.createSourceFile('publisher.mjs', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const missing = []; let count = 0;
+  const visit = node => {
+    let message, checked = false;
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      const method = ts.isIdentifier(callee) && callee.text === 'assert' ? 'ok'
+        : ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression) && callee.expression.text === 'assert' ? callee.name.text : undefined;
+      if (method) {
+        checked = true;
+        const second = node.arguments[1];
+        const at = optionalValidator.has(method) && second && (ts.isStringLiteral(second) || ts.isNoSubstitutionTemplateLiteral(second) || ts.isTemplateExpression(second)) ? 1 : messageArgument[method];
+        message = at === undefined ? undefined : node.arguments[at];
+      }
+    } else if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'PublicationStop') {
+      checked = true;
+      message = node.arguments?.[0];
+    }
+    if (checked) {
+      count++;
+      if (!isFixedMessage(message)) missing.push(node.getText(file).replace(/\s+/g, ' '));
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return { count, missing };
+}
+test('every publisher assertion carries a fixed message', () => {
+  const { count, missing } = assertionsWithoutMessages(readFileSync('scripts/publish-container.mjs', 'utf8'));
+  assert.ok(count >= 20, `Expected the publisher's assertions to be found, saw ${count}`);
+  assert.deepEqual(missing, [], 'Every assertion and stop needs a fixed message so a failure names the check without echoing data');
+  // The check sees two calls on one line, calls split across lines, bare assert(), unlisted methods,
+  // string messages to throws(), and rejects interpolations other than allowlisted reference names.
+  const probe = assertionsWithoutMessages([
+    "assert.equal(a, b, 'fixed'); assert.ok(c);",
+    'assert.deepEqual(',
+    '  a,',
+    '  b',
+    ');',
+    'assert.strictEqual(a, b, `fixed ${ref}`);',
+    'assert(c);',
+    "assert.ifError(c, 'unlisted');",
+    "assert.throws(fn, 'fixed');",
+    "assert.throws(fn, /pattern/, 'fixed');",
+    'assert.throws(fn, /pattern/);',
+    'assert.equal(a, b, `Manifest ${body} differs`);',
+    'assert.equal(a, b, `Alias ${alias.body} differs`);',
+    'throw new PublicationStop(`Anonymous access failed for ${alias}`);',
+    'throw new PublicationStop(`Lookup failed: ${error.stderr}`);',
+  ].join('\n'));
+  assert.equal(probe.count, 13);
+  assert.deepEqual(probe.missing, [
+    'assert.ok(c)', 'assert.deepEqual( a, b )', 'assert(c)', "assert.ifError(c, 'unlisted')", 'assert.throws(fn, /pattern/)',
+    'assert.equal(a, b, `Manifest ${body} differs`)', 'assert.equal(a, b, `Alias ${alias.body} differs`)', 'new PublicationStop(`Lookup failed: ${error.stderr}`)',
+  ]);
+});
+
+// Every shell command a workflow runs, with backslash continuations joined.
+function workflowCommands(path) {
+  const lines = readFileSync(path, 'utf8').replaceAll('\r\n', '\n').split('\n');
+  const scripts = [];
+  for (let i = 0; i < lines.length; i++) {
+    const block = lines[i].match(/^(\s*)(?:- )?run: \|\s*$/);
+    const single = lines[i].match(/^\s*(?:- )?run: (.+)$/);
+    if (block) {
+      const body = [];
+      while (i + 1 < lines.length && (lines[i + 1].trim() === '' || lines[i + 1].search(/\S/) > block[1].length)) body.push(lines[++i]);
+      scripts.push(body.join('\n'));
+    } else if (single) scripts.push(single[1]);
+  }
+  return scripts.join('\n').replace(/\\\n\s*/g, ' ').split('\n').map(line => line.trim()).filter(Boolean);
+}
+test('release and pull-request builds produce a single image manifest, without in-image attestations', () => {
+  for (const path of ['.github/workflows/publish.yml', '.github/workflows/container.yml']) {
+    const commands = workflowCommands(path);
+    // Count builds, not lines: two builds chained on one line must not hide an unflagged one.
+    const occurrences = commands.join('\n').match(/\bdocker (?:buildx )?build\b/g) ?? [];
+    assert.equal(occurrences.length, 1, `Expected exactly one docker build in ${path}`);
+    const builds = commands.filter(command => /\bdocker (?:buildx )?build\b/.test(command));
+    // BuildKit's default provenance turns the pushed tag into an OCI index on the containerd image
+    // store, which the publisher rejects. The attest job signs provenance instead.
+    assert.match(builds[0], / --provenance=false(?: |$)/, `docker build must disable in-image provenance: ${path}`);
+    assert.match(builds[0], / --sbom=false(?: |$)/, `docker build must disable in-image SBOM: ${path}`);
+  }
+});
+
+function containerJob(path) {
+  const workflow = readFileSync(path, 'utf8').replaceAll('\r\n', '\n');
+  const job = workflow.split('\n  container:\n')[1]?.split(/\n  [\w-]+:\n/)[0];
+  assert.ok(job, 'Expected a container job in ' + path);
+  return job;
+}
+function stepScript(job, name) {
+  const step = job.split('\n      - name: ' + name + '\n')[1]?.split('\n      - ')[0];
+  assert.ok(step, 'Expected step ' + name);
+  return step.split('        run: |\n')[1].replace(/^          /gm, '');
+}
+const buildSteps = [['.github/workflows/publish.yml', 'Verify original source and build'], ['.github/workflows/container.yml', 'Build versioned image']];
+test('container builds run on the classic image store runner behind a guard', () => {
+  for (const [path, name] of buildSteps) {
+    const job = containerJob(path);
+    // ubuntu-latest became ubuntu-26.04, whose containerd image store breaks the publisher's identity checks.
+    assert.match(job, /^    runs-on: ubuntu-24\.04$/m, 'Container jobs must stay on the classic-store runner: ' + path);
+    const script = stepScript(job, name);
+    const guard = script.indexOf("docker info --format '{{.Driver}}'");
+    assert.ok(guard >= 0 && guard < script.indexOf('docker build '), 'The image-store guard must run before the build: ' + path);
+  }
+});
+// Execute each guard as the runner does (bash -e) with a synthetic docker. Only the
+// classic overlay2 store may pass; anything else, including a docker error, must stop.
+for (const [path, name] of buildSteps) {
+  for (const [scenario, status] of [['classic', 0], ['containerd', 1], ['unknown-driver', 1], ['docker-error', 1]]) {
+    test(`${path} image-store guard: ${scenario}`, { skip: process.platform === 'win32' }, () => {
+      const script = stepScript(containerJob(path), name).split('\n');
+      const guard = script.slice(script.findIndex(line => line.includes('docker info')), script.findIndex(line => line.startsWith('docker build '))).join('\n');
+      const mock = `
+        docker() {
+          [ "$SCENARIO" = docker-error ] && return 1
+          case "$*" in
+            *DriverStatus*) case "$SCENARIO" in classic) echo '[["Backing Filesystem","extfs"]]' ;; containerd) echo '[["driver-type","io.containerd.snapshotter.v1"]]' ;; *) echo '[]' ;; esac ;;
+            *Driver*) case "$SCENARIO" in classic) echo overlay2 ;; containerd) echo overlayfs ;; *) echo vfs ;; esac ;;
+          esac
+        }
+      `;
+      const result = spawnSync('bash', ['--noprofile', '--norc', '-e', '-c', mock + guard + '\necho guard-passed'], { encoding: 'utf8', env: { ...process.env, SCENARIO: scenario } });
+      assert.ifError(result.error);
+      assert.equal(result.status === 0 ? 0 : 1, status, `${scenario}: ${result.stdout}${result.stderr}`);
+      assert.equal(result.stdout.includes('guard-passed'), status === 0);
+      // Every refusal, including a failed docker info, must explain itself in the job log.
+      if (status !== 0) assert.match(result.stdout, /::error::/, `${scenario} must print an ::error:: annotation`);
+    });
+  }
+}
+// The loopback publisher check must stop when the registry never answers, and must use IPv4 loopback.
+for (const scenario of ['ready', 'never-ready']) {
+  test(`loopback registry step handles ${scenario}`, { skip: process.platform === 'win32' }, () => {
+    const script = stepScript(containerJob('.github/workflows/container.yml'), 'Exercise the release publisher against a loopback registry');
+    const directory = mkdtempSync(join(tmpdir(), 'loopback-control-'));
+    const calls = join(directory, 'calls');
+    try {
+      const mock = `
+        docker() { return 0; }
+        sleep() { return 0; }
+        curl() { printf 'curl %s\\n' "$*" >> "$CALLS"; [ "$SCENARIO" = ready ]; }
+        node() { printf 'node %s\\n' "$*" >> "$CALLS"; }
+      `;
+      const result = spawnSync('bash', ['--noprofile', '--norc', '-e', '-c', mock + script], { encoding: 'utf8', env: { ...process.env, SCENARIO: scenario, CALLS: calls } });
+      assert.ifError(result.error);
+      const invocations = readFileSync(calls, 'utf8').trim().split('\n');
+      const publisher = invocations.filter(call => call.startsWith('node scripts/publish-container.local-registry.mjs'));
+      if (scenario === 'ready') {
+        assert.equal(result.status, 0, result.stderr);
+        assert.ok(invocations[0].includes('http://127.0.0.1:5000/v2/'), invocations[0]);
+        // Each probe needs its own deadline, or one hung connection outlasts the 30-attempt bound.
+        assert.match(invocations[0], /--max-time [1-5](?: |$)/, 'Each readiness probe needs a short --max-time');
+        assert.equal(publisher.length, 1);
+        assert.ok(publisher[0].endsWith(' 127.0.0.1:5000'), publisher[0]);
+      } else {
+        assert.notEqual(result.status, 0, 'An unready registry must fail the step');
+        assert.equal(publisher.length, 0, 'The publisher must not run against an unready registry');
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
 test('private package cannot report a successful public release', () => {
   const f = fixture('private'); assert.throws(f.run, /Anonymous access failed/);
   assert.ok(!f.calls.some(args => args[0] === 'tag' && /:(latest|sha-|[0-9]+\.)/.test(args[2])));

@@ -288,6 +288,31 @@ describe("Markdown conversion through MCP", () => {
     });
   });
 
+  it("refuses a blank create_note body before any request, and still publishes non-blank text", async () => {
+    await withMcp(async (mcp, api) => {
+      const note = vi.spyOn(api, "createNote").mockResolvedValue({ id: 12, body: "x", date: "date" } as never);
+      const fetchMock = vi.fn(async () => new Response("{}"));
+      vi.stubGlobal("fetch", fetchMock);
+      try {
+        // Must fire: each of these previously converted to [{ type: "paragraph" }] and was POSTed.
+        for (const body of ["", "   ", "\n\n\t"]) {
+          const result = await mcp.callTool({ name: "create_note", arguments: { body } });
+          expect(result.isError).toBe(true);
+          expect(JSON.parse((result.content as { text: string }[])[0].text)).toEqual({
+            code: "invalid_input", message: "Note body is empty or whitespace only. No Note was created.", write_attempts: 0,
+          });
+        }
+        expect(note).not.toHaveBeenCalled();
+        expect(fetchMock).not.toHaveBeenCalled();
+        // Must not fire: text surrounded by whitespace is still published once, trimmed by the converter.
+        const ok = await mcp.callTool({ name: "create_note", arguments: { body: "  Hello  " } });
+        expect(ok.isError).toBeFalsy();
+        expect(note).toHaveBeenCalledTimes(1);
+        expect(note.mock.calls[0][0]).toEqual({ type: "doc", attrs: { schemaVersion: "v1" }, content: [{ type: "paragraph", content: [{ type: "text", text: "Hello" }] }] });
+      } finally { vi.unstubAllGlobals(); }
+    });
+  });
+
   it("writes supported rich content and an explicit empty body without fallback flags", async () => {
     await withMcp(async (mcp, api) => {
       const create = vi.spyOn(api, "createDraft").mockResolvedValue({ id: 42 } as never);

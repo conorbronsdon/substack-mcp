@@ -21,7 +21,7 @@ const finding = z.object({ severity: z.enum(["error", "warning"]), code: text, m
 const note = z.object({ id, body: maybeText, date: maybeText, message: text, attachment_id: text.optional() });
 
 /** Legacy object field names stay intact. Legacy arrays remain text-only in 1.x. */
-export const objectOutputSchemas: Record<string, z.AnyZodObject> = {
+export const objectOutputSchemas: Record<string, z.ZodObject> = {
   get_subscriber_count: z.object({ count: z.number().int().min(-1).max(Number.MAX_SAFE_INTEGER), precision: z.enum(["exact", "approximate", "unavailable"]), note: text }),
   list_published_posts: z.object({ total: maybeCount, posts: z.array(post).max(50) }),
   get_post: post.extend({ body_html: maybeText }),
@@ -35,7 +35,7 @@ export const objectOutputSchemas: Record<string, z.AnyZodObject> = {
   create_draft: z.object({ id, title: maybeText, unsupported_nodes: z.array(z.object({}).passthrough()), message: text }),
   list_subscribers: z.object({ count, subscribers: z.array(subscriber).max(50), lastSync: text.optional() }),
   search_subscribers: z.object({ total_matching: count, returned: count.max(50), offset: count, limit: count.min(1).max(50), has_more: z.boolean(), next_offset: count.nullable(),
-    applied_filters: z.record(z.union([text, z.number().int(), z.array(text).max(3)])), sort: z.enum(["created_desc", "created_asc", "activity_desc", "activity_asc"]), note: text,
+    applied_filters: z.record(z.string(), z.union([text, z.number().int(), z.array(text).max(3)])), sort: z.enum(["created_desc", "created_asc", "activity_desc", "activity_asc"]), note: text,
     subscribers: z.array(subscriber.extend({ activity_rating: z.number().finite().nullable().optional(), created_at: text.nullable().optional(), revenue: z.number().finite().nullable().optional(),
       is_comp: z.boolean().nullable().optional(), is_founding: z.boolean().nullable().optional(), is_gift: z.boolean().nullable().optional(), is_free_trial: z.boolean().nullable().optional() })).max(50) }),
   get_subscriber: z.object({ email: text.email().max(254), subscriber: subscriber.nullable(), last_sync: text.nullable(), note: text }),
@@ -52,7 +52,7 @@ const arrayOutputSchemas: Record<string, z.ZodTypeAny> = {
   list_drafts: z.array(draft).max(50),
   list_scheduled_posts: z.array(z.object({ id, title: maybeText, audience: maybeText, scheduled_at: maybeText })).max(50),
   get_sections: z.array(z.object({ id, name: text })),
-  get_post_comments: z.array(z.object({ id, name: maybeText, body: maybeText, date: maybeText, reactions: z.record(count).optional(), replies: maybeCount })),
+  get_post_comments: z.array(z.object({ id, name: maybeText, body: maybeText, date: maybeText, reactions: z.record(z.string(), count).optional(), replies: maybeCount })),
 };
 
 function failure(name: string, code: string, error?: unknown): CallToolResult {

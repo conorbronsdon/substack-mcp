@@ -3,7 +3,7 @@ import { requireEditable, DraftChangeError } from "./draft-changes.js";
 import { SubstackAPIError } from "../utils/errors.js";
 
 const id = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
-const uuid = z.string().uuid();
+const uuid = z.guid();
 const ids = z.array(uuid).max(20);
 export const draftTagsShape = {
   draft_id: id, add: ids.default([]), remove: ids.default([]), dry_run: z.boolean().default(true),

@@ -46,9 +46,10 @@ a desktop bundle needs its own packaging and upgrade verification first.
 commands. Post ranking shipped in 1.2 (`rank_posts`); publication dashboard
 metrics and growth attribution shipped in 1.3 (`get_publication_stats`,
 `get_growth_sources`), and `get_post_analytics` now reads the exact post. Subscriber
-segmentation shipped in 1.3 (`search_subscribers`, live-verified filters only); bulk
-subscriber export remains a separate design decision in
-[#52](https://github.com/conorbronsdon/substack-mcp/issues/52).
+segmentation shipped in 1.3 (`search_subscribers`, live-verified filters only). Bulk
+subscriber export arrived in 1.4 as an experimental, flag-gated CLI command
+(`subscribers export`), not an MCP tool; see the
+[export design](subscriber-export-design.md). Recommendation reads shipped in 1.4.
 Prioritize additions against concrete creator questions and verifiable endpoint
 behavior as feedback arrives. Newsletter-user feedback is a post-release input,
 not a prerequisite for the stability release.
@@ -62,9 +63,11 @@ additions require consent and default to dry-run. These are distinct side effect
 and need appropriate authorization in the calling application.
 
 Public community reads (profiles, profile feeds, Note threads, archives and public
-posts) arrived in 1.3 as anonymous, allowlisted reads; community writes such as
-comments and restacks, reader subscriptions and inbox remain unsupported (see the
-[reader-session evaluation](reader-sessions.md)). The
+posts) arrived in 1.3 as anonymous, allowlisted reads. Comments and restacks
+arrived in 1.4 as experimental tools whose live writes stay disabled unless the
+operator opts in, with per-call consent; live verification is pending (see
+[community writes](community-writes.md)). Reader subscriptions and inbox remain
+unsupported (see the [reader-session evaluation](reader-sessions.md)). The
 optional OS keychain backend (1.3) is verified by a live CI round trip on
 Windows, macOS (temporary keychain) and Linux (gnome-keyring). MCPB and hosted multi-tenant operation remain
 out of scope. Container support starts with Linux

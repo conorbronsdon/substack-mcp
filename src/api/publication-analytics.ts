@@ -11,7 +11,7 @@ const summaryFields = ["appSubscribers", "appSubscribersLast30Days", "subscriber
 const rangeFields = ["totalSubscribersStart", "totalSubscribersEnd", "paidSubscribersStart", "paidSubscribersEnd", "arrStart", "arrEnd", "totalViewsStart", "totalViewsEnd", "pledgedArrStart", "pledgedArrEnd"] as const;
 const summaryRaw = z.object(Object.fromEntries(summaryFields.map(k => [k, finite.nullable().optional()])) as Record<(typeof summaryFields)[number], z.ZodOptional<z.ZodNullable<typeof finite>>>).extend({ pledgeCurrency: z.string().max(32).nullish(), isBestseller: z.boolean().nullish() });
 const rangeRaw = z.object(Object.fromEntries(rangeFields.map(k => [k, finite.nullable().optional()])) as Record<(typeof rangeFields)[number], z.ZodOptional<z.ZodNullable<typeof finite>>>);
-const group = z.object({ status: z.literal("available"), source: z.string(), captured_at: z.string(), metrics: z.record(metric), is_bestseller: z.boolean().nullable().optional() });
+const group = z.object({ status: z.literal("available"), source: z.string(), captured_at: z.string(), metrics: z.record(z.string(), metric), is_bestseller: z.boolean().nullable().optional() });
 export const publicationStatsInput = z.object({ range_days: z.number().int().min(1).max(365).default(30) }).strict();
 export const publicationStatsOutput = z.object({ publication: z.string(), range_days: z.number().int().min(1).max(365), summary: z.union([group, unavailable]), range: z.union([group, unavailable]) });
 

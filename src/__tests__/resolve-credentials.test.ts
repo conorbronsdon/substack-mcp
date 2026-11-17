@@ -94,6 +94,27 @@ describe("resolveCredentials", () => {
     ).toThrow(/not a valid http\(s\) URL.*Refusing to send the stored session token/s);
   });
 
+  it("refuses an identical opaque URL on both sides, which would compare equal as origin \"null\"", () => {
+    const env = { SUBSTACK_PUBLICATION_URL: "javascript:void 0" } as NodeJS.ProcessEnv;
+    expect(() =>
+      resolveCredentials(env, () => ({ ...stored, publicationUrl: "javascript:void 0" })),
+    ).toThrow(/Refusing to send the stored session token/);
+  });
+
+  it("refuses an opaque stored URL paired with a valid https env URL", () => {
+    const env = { SUBSTACK_PUBLICATION_URL: "https://stored.substack.com" } as NodeJS.ProcessEnv;
+    expect(() =>
+      resolveCredentials(env, () => ({ ...stored, publicationUrl: "javascript:void 0" })),
+    ).toThrow(/stored session was captured for a publication URL that is not a valid http\(s\) URL/);
+  });
+
+  it("normalizes only a scheme's own default port: http on :443 is a different origin", () => {
+    for (const url of ["http://stored.substack.com:443", "http://stored.substack.com", "https://stored.substack.com:80"]) {
+      const env = { SUBSTACK_PUBLICATION_URL: url } as NodeJS.ProcessEnv;
+      expect(() => resolveCredentials(env, () => stored), url).toThrow(/Refusing to send the stored session token/);
+    }
+  });
+
   it("never echoes the stored token in the refusal", () => {
     const env = { SUBSTACK_PUBLICATION_URL: "https://other.substack.com" } as NodeJS.ProcessEnv;
     const tokens = [

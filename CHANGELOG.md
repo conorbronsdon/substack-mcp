@@ -8,6 +8,8 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-17
+
 ### Added
 - CLI `images upload <image-file>` and `images upload --url <https-url>` (#198) upload one image through the existing `upload_image` handler and print its `image_url` plus a Markdown image line for `drafts create`. The URL is publicly fetchable (unlisted). Pre-upload refusals report `upload_not_attempted`; later failures report `upload_unverified`; nothing is retried. The MCP tool, its `public-upload` classification and its output contract are unchanged.
 - `substack-mcp login --subscriber-access` completes Substack's "Confirm it's you" step-up (`/api/v1/reauthenticate/start` and `/complete`, with a one-time code from email or an authenticator app, typed in by a person) and saves the session only once subscriber reads succeed. This aims to address stored sessions failing subscriber reads with 403 `reauthentication_required` (follow-up to #190); live verification is pending. The probe requests a reserved `example.invalid` address; unexpected nonempty results fail closed, but an upstream service that ignores the filter could return subscriber data. Without the flag, login is unchanged. No codes or authenticator secrets are stored. See `docs/subscriber-step-up.md`.
@@ -30,8 +32,24 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   result names its direction and source; missing values are `null`, never zero.
 - `docs/reader-sessions.md` evaluates reader-account sessions (subscriptions list, inbox):
   auth model, risks and a recommendation to keep them unsupported for now (#147). No code.
+- The cloud calendar sync worker has an authenticated `GET /export` that returns its ledger in
+  the local state format `/initialize` accepts, so the sync can move back to a local scheduler.
+  It refuses while live sync is enabled or a run holds the ledger.
+
+### Changed
+- Login explains how to find your Substack account user ID (#160).
+- The container image's `node:22-alpine` base is updated to current digests (#170, #188).
 
 ### Fixed
+- A 403 carrying Substack's `reauthentication_required` body is now reported as an
+  authentication error with reason `reauthentication_required` and its own guidance, instead
+  of an expired session. Tool error payloads for authentication errors include `auth_reason`.
+  The local calendar sync names a stable failure reason (for example `lock_held`,
+  `gmail_unreachable`, `scan_cap` or `substack_<code>`) instead of a generic message; the line
+  never includes emails or tool messages (#190).
+- `export --output` creates a missing parent directory instead of failing with a raw `ENOENT`
+  that named the hidden temporary file (#163). Existing-file, directory and symlink refusals
+  are unchanged.
 - Updated the MCP SDK and Cloudflare development tools, plus compatible transitive
   dependencies, to resolve the October 15 dependency audit findings (#180).
 - Browser login waits for the publication dashboard session and checks rotated cookies before saving; custom domains use only their own `connect.sid`, with safe host-specific failure diagnostics.
@@ -53,11 +71,18 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   combinations (duplicate or overlapping tags, no or several image sources, a reversed
   date range) as `invalid_input` with zero attempts. They previously said a write may
   have occurred and asked for reconciliation.
+- `add_free_subscriber` reports a live add without `consent_evidence` (`invalid_input`) and a
+  failed membership lookup before the add (`lookup_failed`) with `write_attempts: 0`, instead
+  of saying a write may have occurred (#203).
 - `upload_image` with `image_path` refuses devices, FIFOs and directories, which could
   hang the server, and files over 25 MB, returning `local_image_unreadable`. Symlinks to
   regular files still work.
 - `profiles migrate --to keychain --name default` no longer silently replaces the legacy
   keychain session, which shares that entry; it requires `--force` like other names.
+
+### Security
+- Transitive dependencies refreshed to patched versions (body-parser, hono, @hono/node-server,
+  fast-uri, qs).
 
 ## [1.3.0] - 2026-09-23
 

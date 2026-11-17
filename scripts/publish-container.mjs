@@ -12,13 +12,19 @@ assert.equal(matches.length, 1, 'Expected one remote manifest descriptor digest 
 assert.match(matches[0], digestPattern, 'Expected a SHA-256 registry manifest digest');
 return matches[0];
 }
-// Name the failed check without echoing registry bodies: only hand-written
-// assertion messages are printed; generated ones can embed whole manifests.
+// The publisher's own stop conditions. Their messages are fixed text plus image references.
+class PublicationStop extends Error {}
+// Name the failed check without echoing registry bodies. Only fixed messages are
+// printed: hand-written assertion messages and PublicationStop. Generated assertion
+// messages can embed whole manifests, and other errors (a JSON.parse SyntaxError,
+// a command failure) can quote registry or daemon output.
 export function describeFailure(error) {
 if (error instanceof assert.AssertionError) {
   return error.generatedMessage ? 'Container identity mismatch; publication stopped.' : `Container identity mismatch; publication stopped: ${error.message}`;
 }
-return String(error?.message).startsWith('Command failed') ? 'Container command failed; inspect the release stage and reconcile before retrying.' : String(error?.message);
+if (error instanceof PublicationStop) return error.message;
+if (error instanceof Error && error.message.startsWith('Command failed')) return 'Container command failed; inspect the release stage and reconcile before retrying.';
+return 'Container publication failed unexpectedly; inspect the release stage and reconcile before retrying.';
 }
 export function githubOutputs(result) {
 return `image=${result.image}\nsubject-name=${result.subject_name}\nmanifest-digest=${result.manifest_digest}\ncandidate-digest=${result.candidate_digest}\nprovenance-eligible=${result.provenance_eligible}\n`;
@@ -38,7 +44,7 @@ const inspectVerbose = ref => JSON.parse(docker('manifest', 'inspect', '--verbos
 const verifyPublic = (ref, expected) => {
   let observed;
   try { observed = JSON.parse(docker('--config', anonymous, 'manifest', 'inspect', ref)); }
-  catch { throw new Error(`Anonymous access failed for ${ref}. Verify the GHCR package is public, then rerun Publish; inspect existing tags before retrying.`); }
+  catch { throw new PublicationStop(`Anonymous access failed for ${ref}. Verify the GHCR package is public, then rerun Publish; inspect existing tags before retrying.`); }
   assert.deepEqual(observed, expected, `Anonymous manifest for ${ref} differs from the authenticated manifest`);
 };
 const candidateManifest = inspect(candidate);
@@ -54,7 +60,7 @@ assert.equal(candidateInfo.Config.Labels['org.opencontainers.image.revision'], r
 let existing;
 try { existing = inspect(versioned); }
 catch (error) {
-  if (!/manifest unknown|no such manifest/i.test(String(error.stderr))) throw new Error('Cannot determine existing container release; stop without moving version tags.');
+  if (!/manifest unknown|no such manifest/i.test(String(error.stderr))) throw new PublicationStop('Cannot determine existing container release; stop without moving version tags.');
 }
 if (existing) {
   docker('pull', versioned);

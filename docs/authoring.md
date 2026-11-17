@@ -85,8 +85,9 @@ because those attributes have no verified mapping here. Keep the original
 Markdown when acknowledging these losses.
 
 `create_note` and `create_note_with_link` reject all conversion diagnostics.
-`create_note` also refuses an empty or whitespace-only body (`invalid_input`,
-`write_attempts: 0`) instead of publishing an empty Note.
+Both also refuse an empty or whitespace-only body (`invalid_input`,
+`write_attempts: 0`) instead of publishing an empty Note; `create_note_with_link`
+refuses it before the link attachment is created.
 Validation happens before either a Note or link attachment is created. Notes
 still publish immediately on a successful call; they have no fallback override.
 Paywall support is for long-form drafts only.

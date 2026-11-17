@@ -73,7 +73,7 @@ export function resolveCredentials(
     if (!storedOrigin || storedOrigin !== envOrigin) {
       throw new Error(
         `The stored session was captured for ${storedOrigin ?? "a publication URL that is not a valid http(s) URL"}, ` +
-          `but SUBSTACK_PUBLICATION_URL names ${envOrigin ?? "a value that is not a valid http(s) URL"}. ` +
+          `but SUBSTACK_PUBLICATION_URL ${envOrigin ? `resolves to origin ${envOrigin}` : "is not a valid http(s) URL"}. ` +
           "Refusing to send the stored session token to a different origin. " +
           "Set SUBSTACK_SESSION_TOKEN for that publication, unset SUBSTACK_PUBLICATION_URL, " +
           "or run substack-mcp-login for it.",

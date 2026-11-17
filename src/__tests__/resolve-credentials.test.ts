@@ -61,6 +61,18 @@ describe("resolveCredentials", () => {
     expect(r.source).toBe("stored");
   });
 
+  it("names the parsed origin, not the raw value, for an env URL with userinfo", () => {
+    const env = { SUBSTACK_PUBLICATION_URL: "https://stored.substack.com:example-pass@evil.example" } as NodeJS.ProcessEnv;
+    let message = "";
+    try {
+      resolveCredentials(env, () => stored);
+    } catch (err) {
+      message = (err as Error).message;
+    }
+    expect(message).toContain("SUBSTACK_PUBLICATION_URL resolves to origin https://evil.example.");
+    expect(message).not.toContain("example-pass");
+  });
+
   it("refuses a stored session token with an env publication URL on a different origin", () => {
     const env = { SUBSTACK_PUBLICATION_URL: "https://other.substack.com" } as NodeJS.ProcessEnv;
     expect(() => resolveCredentials(env, () => stored)).toThrow(

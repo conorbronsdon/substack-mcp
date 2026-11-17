@@ -12,7 +12,7 @@ const PATTERNS: RegExp[] = [
   // new SubstackClient(origin, "<token>", ...)
   /new SubstackClient\(\s*[^,]+,\s*(["'`])((?:(?!\1).)*)\1/g,
   // sessionToken: "<token>"
-  /\bsessionToken\s*:\s*(["'`])((?:(?!\1).)*)\1/g,
+  /\bsessionToken["']?\s*:\s*(["'`])((?:(?!\1).)*)\1/g,
   // SUBSTACK_SESSION_TOKEN / SUBSTACK_PUB_<KEY>_SESSION_TOKEN / SUBSTACK_READER_SESSION_TOKEN: "<token>"
   /SESSION_TOKEN\s*["']?\s*:\s*(["'`])((?:(?!\1).)*)\1/gi,
   // literal cookie values in a Cookie header string
@@ -45,6 +45,7 @@ describe("synthetic credential fixtures", () => {
   it("flags non-example session tokens and accepts example-* ones", () => {
     expect(nonExampleCredentials('new SubstackClient("https://example.substack.com", "tok", "1")')).toEqual(["tok"]);
     expect(nonExampleCredentials('{ sessionToken: "mytoken" }')).toEqual(["mytoken"]);
+    expect(nonExampleCredentials('{"sessionToken": "abcdef"}')).toEqual(["abcdef"]);
     expect(nonExampleCredentials('{ SUBSTACK_PUB_A_SESSION_TOKEN: "FAKE-A" }')).toEqual(["FAKE-A"]);
     expect(nonExampleCredentials('{ Cookie: "connect.sid=s%3Aprivate;" }')).toEqual(["s%3Aprivate"]);
     expect(nonExampleCredentials("{ sessionToken: `${randomUUID()}` }")).toEqual(["${randomUUID()}"]);
@@ -63,14 +64,18 @@ describe("synthetic credential fixtures", () => {
     const self = fileURLToPath(import.meta.url);
     const testsDir = dirname(self);
     const root = join(testsDir, "..", "..");
-    const cloudTests = join(root, "cloud", "test");
+    // Every test source, fixture and script, whatever its extension, so a new
+    // file class (a JSON session fixture, an .mjs helper) is scanned, not skipped.
+    const SCANNED = /\.(?:ts|mts|cts|js|mjs|cjs|json)$/;
+    const walk = (dir: string) =>
+      readdirSync(dir, { recursive: true, encoding: "utf8" })
+        .filter(file => SCANNED.test(file) && !file.split(/[\\/]/).includes("__snapshots__"))
+        .map(file => join(dir, file));
     const files = [
-      ...readdirSync(testsDir, { recursive: true, encoding: "utf8" })
-        .filter(file => file.endsWith(".ts") && !file.split(/[\\/]/).includes("__snapshots__"))
-        .map(file => join(testsDir, file)),
-      ...readdirSync(cloudTests).filter(file => file.endsWith(".ts")).map(file => join(cloudTests, file)),
+      ...walk(testsDir),
+      ...walk(join(root, "cloud", "test")),
+      ...walk(join(root, "scripts")),
       join(root, "cloud", "vitest.config.ts"),
-      join(root, "scripts", "test-package.mjs"),
     ].filter(file => file !== self);
     // The scan must reach the cloud worker suite and the package test, not only this directory.
     expect(files.map(file => relative(root, file).split(sep).join("/"))).toEqual(

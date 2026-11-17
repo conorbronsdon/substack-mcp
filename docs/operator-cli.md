@@ -2,6 +2,15 @@
 
 Configuration, credentials and client setup are in the [README](../README.md#setup).
 
+The examples call the `substack-mcp` command directly. A local
+`npm install @conorbronsdon/substack-mcp` does not put it on your `PATH`, so
+either install it globally (`npm install -g @conorbronsdon/substack-mcp`) or
+prefix each command with `npx @conorbronsdon/substack-mcp`, for example
+`npx @conorbronsdon/substack-mcp status --json`. Use the scoped name: the
+unscoped `substack-mcp` package on npm is a different project, and
+`npx substack-mcp` downloads and runs it when this package is not installed in
+the current directory.
+
 The CLI also exposes workflows through the same MCP handlers. Every command
 below is read-only except `drafts create`, which writes one private draft, and
 `images upload`, which uploads one image and returns a publicly fetchable URL:

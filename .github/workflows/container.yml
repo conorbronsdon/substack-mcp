@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   container:
-    runs-on: ubuntu-latest
+    # Same runner as the Publish container job, so this check sees the release daemon.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -25,6 +26,10 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           REVISION=$(git rev-parse HEAD)
+          if docker info --format '{{json .DriverStatus}}' | grep -q containerd.snapshotter; then
+            echo "::error::Docker uses the containerd image store; publish-container.mjs requires the classic store."
+            exit 1
+          fi
           docker build --provenance=false --sbom=false --build-arg VERSION="$VERSION" --build-arg REVISION="$REVISION" -t substack-mcp:check .
       - name: Verify image ownership and both transports
         run: node scripts/test-container.mjs substack-mcp:check "$(git rev-parse HEAD)"

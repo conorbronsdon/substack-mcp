@@ -102,6 +102,17 @@ test('release and pull-request builds produce a single image manifest, without i
     assert.match(line, / --sbom=false /, 'docker build must disable in-image SBOM');
   }
 });
+test('container builds run on a classic image store runner and refuse the containerd store', () => {
+  for (const path of ['.github/workflows/publish.yml', '.github/workflows/container.yml']) {
+    const workflow = readFileSync(path, 'utf8').replaceAll('\r\n', '\n');
+    const job = workflow.split('\n  container:\n')[1]?.split(/\n  [\w-]+:\n/)[0];
+    assert.ok(job, 'Expected a container job in ' + path);
+    // ubuntu-latest became ubuntu-26.04, whose containerd image store breaks the publisher's identity checks.
+    assert.match(job, /^    runs-on: ubuntu-24\.04$/m, 'Container jobs must stay on the classic-store runner: ' + path);
+    const guard = job.indexOf("docker info --format '{{json .DriverStatus}}' | grep -q containerd.snapshotter");
+    assert.ok(guard > 0 && guard < job.indexOf('docker build '), 'The image-store guard must run before the build: ' + path);
+  }
+});
 test('private package cannot report a successful public release', () => {
   const f = fixture('private'); assert.throws(f.run, /Anonymous access failed/);
   assert.ok(!f.calls.some(args => args[0] === 'tag' && /:(latest|sha-|[0-9]+\.)/.test(args[2])));

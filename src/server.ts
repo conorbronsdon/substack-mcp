@@ -10,7 +10,7 @@ import {
 } from "./api/client.js";
 import { buildAnnotations } from "./annotations.js";
 import { registerPromptsAndResources } from "./prompts.js";
-import { consentEvidenceSchema, subscriberSearchInput, SubscriberSearchError, type ConsentEvidence } from "./api/subscribers.js";
+import { consentEvidenceSchema, subscriberSearchInput, SubscriberSearchError, SubscriberLookupError, type ConsentEvidence } from "./api/subscribers.js";
 import { convertMarkdown, type MarkdownConversion } from "./utils/markdown-to-prosemirror.js";
 import { fileToDataUri } from "./utils/image.js";
 import { RemoteImageError, type RemoteImageFetcher } from "./utils/remote-image-errors.js";
@@ -23,7 +23,7 @@ import { listTagsInput, postTagsInput, listTagsOutput, postTagsOutput } from "./
 import { draftTagsShape, draftTagsInput, draftTagsOutput, DraftTagError, type DraftTagsInput } from "./api/draft-tags.js";
 import { rankPostsInput, rankPostsOutput, RANK_MAX_LIMIT } from "./api/rankings.js";
 import { publicationStatsInput, publicationStatsOutput, growthSourcesInput, growthSourcesOutput, AnalyticsUnavailableError } from "./api/publication-analytics.js";
-import { SubstackAPIError } from "./utils/errors.js";
+import { SubstackAPIError, AuthenticationError } from "./utils/errors.js";
 import { incomingRecommendationsInput, incomingRecommendationsOutput, outgoingRecommendationsInput, outgoingRecommendationsOutput,
   outgoingStatsInput, outgoingStatsOutput, RecommendationScopeError, PublicationIdentityUnavailableError, STATS_MAX_LIMIT, OUTGOING_MAX_LIMIT } from "./api/recommendations.js";
 import { PublicReader, publicReadOrigin, profileInput, feedInput, threadInput, archiveInput, publicPostInput,
@@ -403,9 +403,23 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     description: "Add one explicitly opted-in reader to this publication's free newsletter. Changes email distribution: future newsletter emails may be delivered. Requires verified newsletter consent; never infer consent from a meeting alone. Dry-run by default; set dry_run=false to write. Set send_welcome_email=true to request Substack's welcome email for a new addition; delivery is not verified. Never grants paid access or overrides suppression. Existing members are skipped. An unverified result MUST be reconciled using get_subscriber, not automatically retried. Automated callers must persist an attempt ledger BEFORE invoking this tool; in-memory duplicate protection does not survive restarts or separate HTTP sessions.",
     inputSchema: { email: z.string().trim().email().max(254), consent_confirmed: z.literal(true), consent_evidence: consentEvidenceSchema.optional().describe("Required for a live add: the source reference and timestamp of this email address's explicit newsletter opt-in. Retain the underlying evidence privately; this field records caller attestation, not independent proof."), dry_run: z.boolean().default(true), send_welcome_email: z.boolean().default(false), ...publicationField() },
     annotations: buildAnnotations("add_free_subscriber"),
-  }, async ({ email, consent_confirmed, consent_evidence, dry_run, send_welcome_email, publication }: { email: string; consent_confirmed: true; consent_evidence?: ConsentEvidence; dry_run: boolean; send_welcome_email: boolean; publication?: string }) => ({
-    content: [{ type: "text", text: JSON.stringify({ ...await clientFor(publication).subscribers.add(email, consent_confirmed, dry_run, consent_evidence, send_welcome_email), publication: multi ? publication : pubKeys[0], consent_evidence }) }],
-  }));
+  }, async ({ email, consent_confirmed, consent_evidence, dry_run, send_welcome_email, publication }: { email: string; consent_confirmed: true; consent_evidence?: ConsentEvidence; dry_run: boolean; send_welcome_email: boolean; publication?: string }) => {
+    // Failures before the add request are reported with zero attempts; the
+    // generic write-tool fallback would wrongly say a write may have occurred.
+    if (!dry_run && consent_evidence === undefined) {
+      return invalidInput("A live add requires consent_evidence with the opt-in source reference and recorded_at timestamp. No add request was sent.", { write_attempts: 0 });
+    }
+    let added;
+    try { added = await clientFor(publication).subscribers.add(email, consent_confirmed, dry_run, consent_evidence, send_welcome_email); }
+    catch (error) {
+      if (!(error instanceof SubscriberLookupError)) throw error;
+      const api = error.upstream instanceof SubstackAPIError ? error.upstream : undefined;
+      return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ code: "lookup_failed", status: api?.statusCode, status_source: api?.statusSource,
+        retry_after: api?.retryAfter, auth_reason: error.upstream instanceof AuthenticationError ? error.upstream.reason : undefined, write_attempts: 0,
+        message: "The exact-email membership lookup before the add failed, so no add request was sent. Resolve the lookup failure (for example authentication or reauthentication) before an explicit retry." }) }] };
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify({ ...added, publication: multi ? publication : pubKeys[0], consent_evidence }) }] };
+  });
 
   registerTool(
     "get_subscriber_count",

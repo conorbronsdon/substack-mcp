@@ -74,7 +74,10 @@ it is not an instruction to remove an existing subscriber.
 Live adds require `consent_evidence` containing a nonempty `source` reference
 and an ISO `recorded_at` timestamp. The tool echoes this attestation and the
 publication key for caller audit logs; it cannot independently authenticate a
-caller's evidence. Retain the underlying record privately.
+caller's evidence. Retain the underlying record privately. A live add without
+`consent_evidence` returns `invalid_input`, and a failed exact-email lookup before
+the add (for example `reauthentication_required`) returns `lookup_failed`. Both
+report `write_attempts: 0`: no add request was sent.
 
 Persist an attempt before calling a live add, keyed by publication and email.
 Unknown outcomes require read-only reconciliation, including after a process

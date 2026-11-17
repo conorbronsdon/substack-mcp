@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { draftTagsInput } from "../api/draft-tags.js";
+import { consentEvidenceSchema } from "../api/subscribers.js";
 
 const require = createRequire(import.meta.url);
 
@@ -16,5 +17,14 @@ describe("zod runtime", () => {
     const nonRfcVariant = "123e4567-e89b-02d3-c456-426614174000";
     expect(draftTagsInput.safeParse({ draft_id: 1, add: [nonRfcVariant] }).success).toBe(true);
     expect(draftTagsInput.safeParse({ draft_id: 1, add: ["not-a-uuid"] }).success).toBe(false);
+  });
+
+  it("keeps accepting consent timestamps that zod 3 datetime({ offset: true }) accepted", () => {
+    for (const recorded_at of ["2024-01-01T00:00:00Z", "2024-01-01T00:00:00.123+05:30", "2024-01-01T00:00:00+0530", "2024-01-01T00:00Z"]) {
+      expect(consentEvidenceSchema.safeParse({ source: "form", recorded_at }).success, recorded_at).toBe(true);
+    }
+    for (const recorded_at of ["2024-01-01", "2024-02-30T00:00:00Z", "2024-01-01T00:00:00+05", "2024-01-01T00:00:00"]) {
+      expect(consentEvidenceSchema.safeParse({ source: "form", recorded_at }).success, recorded_at).toBe(false);
+    }
   });
 });

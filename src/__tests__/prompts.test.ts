@@ -70,6 +70,9 @@ describe("prompts", () => {
         await expect(multi.client.getPrompt({ name, arguments: args }), name).rejects.toThrow(
           `MCP error -32602: Invalid arguments for prompt ${name}`,
         );
+        // The same arguments with a configured key are accepted, so `publication` is the only cause.
+        const text = promptText(await multi.client.getPrompt({ name, arguments: { ...args, publication: "a" } }));
+        expect(text, name).toContain('Pass publication "a" to every Substack tool call.');
       }
       // The allowed keys are advertised in the argument description and through completion.
       const review = (await multi.client.listPrompts()).prompts.find(p => p.name === "review_draft")!;

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // AGENTS.md: synthetic credential fixtures must be clearly `example-*`-prefixed,
@@ -46,12 +46,24 @@ describe("synthetic credential fixtures", () => {
     expect(nonExampleCredentials('{ Cookie: "connect.sid=s%3Aexample-private; substack.sid=${token};" }')).toEqual([]);
   });
 
-  it("every test file uses example-* session tokens", () => {
-    const dir = dirname(fileURLToPath(import.meta.url));
-    const self = basename(fileURLToPath(import.meta.url));
-    const offenders = readdirSync(dir)
-      .filter(file => file.endsWith(".ts") && file !== self)
-      .flatMap(file => nonExampleCredentials(readFileSync(join(dir, file), "utf8")).map(value => `${file}: ${value}`));
+  it("every test and test-config file uses example-* session tokens", () => {
+    const self = fileURLToPath(import.meta.url);
+    const testsDir = dirname(self);
+    const root = join(testsDir, "..", "..");
+    const cloudTests = join(root, "cloud", "test");
+    const files = [
+      ...readdirSync(testsDir).filter(file => file.endsWith(".ts")).map(file => join(testsDir, file)),
+      ...readdirSync(cloudTests).filter(file => file.endsWith(".ts")).map(file => join(cloudTests, file)),
+      join(root, "cloud", "vitest.config.ts"),
+      join(root, "scripts", "test-package.mjs"),
+    ].filter(file => file !== self);
+    // The scan must reach the cloud worker suite and the package test, not only this directory.
+    expect(files.map(file => relative(root, file).split(sep).join("/"))).toEqual(
+      expect.arrayContaining(["cloud/test/worker.test.ts", "cloud/vitest.config.ts", "scripts/test-package.mjs"]),
+    );
+    const offenders = files.flatMap(file =>
+      nonExampleCredentials(readFileSync(file, "utf8")).map(value => `${relative(root, file).split(sep).join("/")}: ${value}`),
+    );
     expect(offenders).toEqual([]);
   });
 });

@@ -26,8 +26,9 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           REVISION=$(git rev-parse HEAD)
-          if docker info --format '{{json .DriverStatus}}' | grep -q containerd.snapshotter; then
-            echo "::error::Docker uses the containerd image store; publish-container.mjs requires the classic store."
+          driver="$(docker info --format '{{.Driver}}')"
+          if [ "$driver" != overlay2 ]; then
+            echo "::error::Docker image store driver is '$driver'; publish-container.mjs requires the classic overlay2 store."
             exit 1
           fi
           docker build --provenance=false --sbom=false --build-arg VERSION="$VERSION" --build-arg REVISION="$REVISION" -t substack-mcp:check .
@@ -44,5 +45,13 @@ jobs:
         run: |
           docker info --format 'image store: {{.Driver}} {{json .DriverStatus}}'
           docker run -d --name release-registry -p 127.0.0.1:5000:5000 registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
-          for i in $(seq 1 30); do curl -fsS http://localhost:5000/v2/ >/dev/null 2>&1 && break; sleep 1; done
-          node scripts/publish-container.local-registry.mjs substack-mcp:check "$(git rev-parse HEAD)" localhost:5000
+          ready=false
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:5000/v2/ >/dev/null 2>&1; then ready=true; break; fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            echo "::error::The loopback registry did not answer on 127.0.0.1:5000 within 30 seconds."
+            exit 1
+          fi
+          node scripts/publish-container.local-registry.mjs substack-mcp:check "$(git rev-parse HEAD)" 127.0.0.1:5000

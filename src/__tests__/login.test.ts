@@ -32,11 +32,16 @@ describe("browser login contract", () => {
     const f = fixture(); expect(await runLogin(["--help"], f.deps)).toBe(0);
     expect(f.deps.loadChromium).not.toHaveBeenCalled(); expect(f.deps.ask).not.toHaveBeenCalled(); expect(f.fetch).not.toHaveBeenCalled();
   });
-  it("names the browser install step when Chromium cannot start, and saves nothing", async () => {
-    const f = fixture(); f.launch.mockRejectedValueOnce(new Error("Executable doesn't exist at /example/chromium"));
+  it.each([
+    ["browser not installed", "Executable doesn't exist at /example/chromium"],
+    ["no desktop session", "Missing X server or $DISPLAY at /example/chromium"],
+  ])("names the browser install step when Chromium cannot start (%s), and saves nothing", async (_case, reason) => {
+    const f = fixture(); f.launch.mockRejectedValueOnce(new Error(reason));
     expect(await runLogin(["https://example.com", "--user-id", "42"], f.deps)).toBe(1);
     const errors = f.deps.error.mock.calls.map(call => call[0]).join("\n");
-    expect(errors).toContain("npx playwright install chromium"); expect(errors).not.toContain("/example/chromium");
+    expect(errors).toContain("Playwright could not start Chromium");
+    expect(errors).toContain("npx playwright install chromium"); expect(errors).toContain("desktop session");
+    expect(errors).not.toContain("Login or local saving failed"); expect(errors).not.toContain("/example/chromium");
     expect(loadSession()).toBeNull(); expect(f.fetch).not.toHaveBeenCalled(); expect(f.goto).not.toHaveBeenCalled();
   });
   it("points a missing Playwright install at the scoped package, not the unrelated unscoped npm name", async () => {

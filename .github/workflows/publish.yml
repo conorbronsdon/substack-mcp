@@ -172,7 +172,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$RELEASE_TARGET"
           test "$(node -p "require('./package.json').version")" = "$VERSION"
           npm ci --ignore-scripts
-          docker build --build-arg VERSION="$VERSION" --build-arg REVISION="$RELEASE_TARGET" -t "$IMAGE:build" .
+          docker build --provenance=false --sbom=false --build-arg VERSION="$VERSION" --build-arg REVISION="$RELEASE_TARGET" -t "$IMAGE:build" .
           node scripts/test-container.mjs "$IMAGE:build" "$RELEASE_TARGET"
       - name: Authenticate only after image verification
         env:

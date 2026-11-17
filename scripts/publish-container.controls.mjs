@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { githubOutputs as attestationOutputs, prepareContainerAttestation, SPDX_PREDICATE_TYPE, tamperAttestationBundle } from './container-attestation.mjs';
-import { githubOutputs, publishContainer } from './publish-container.mjs';
+import { describeFailure, githubOutputs, publishContainer } from './publish-container.mjs';
 import pkg from '../package.json' with { type: 'json' };
 const input = { version: pkg.version, revision: 'a'.repeat(40), run: '1', attempt: '1', temp: '/temporary' };
 const image = 'ghcr.io/conorbronsdon/substack-mcp';
@@ -15,6 +15,11 @@ function fixture(mode) {
   const differentManifest = { config: { digest: 'sha256:' + 'c'.repeat(64) } };
   const registryDigest = 'sha256:' + 'e'.repeat(64);
   const differentRegistryDigest = 'sha256:' + 'd'.repeat(64);
+  // What `docker manifest inspect` returns once BuildKit attaches its own attestation manifest.
+  const imageIndex = { schemaVersion: 2, mediaType: 'application/vnd.oci.image.index.v1+json', manifests: [
+    { mediaType: 'application/vnd.oci.image.manifest.v1+json', digest: registryDigest, platform: { architecture: 'amd64', os: 'linux' } },
+    { mediaType: 'application/vnd.oci.image.manifest.v1+json', digest: 'sha256:' + '9'.repeat(64), platform: { architecture: 'unknown', os: 'unknown' }, annotations: { 'vnd.docker.reference.type': 'attestation-manifest' } },
+  ] };
   const usesExistingRelease = ref => mode === 'existing_different' && (ref === `${image}:${pkg.version}` || ref === `${image}:latest` || ref.startsWith(`${image}:sha-`));
   const docker = (...args) => {
     calls.push(args);
@@ -34,6 +39,7 @@ function fixture(mode) {
         if (mode === 'manifest_list') return JSON.stringify([{ Descriptor: { digest: registryDigest } }]);
         return JSON.stringify({ Descriptor: { digest: usesExistingRelease(ref) ? differentRegistryDigest : registryDigest } });
       }
+      if (mode === 'image_index') return JSON.stringify(imageIndex);
       if (args[2] === `${image}:${pkg.version}` && ++versionLookups === 1 && ['absent', 'unknown'].includes(mode)) throw Object.assign(new Error('lookup failed'), { stderr: mode === 'absent' ? 'manifest unknown' : 'unauthorized' });
       return JSON.stringify(usesExistingRelease(args[2]) ? differentManifest : manifest);
     }
@@ -65,6 +71,36 @@ for (const mode of ['unknown', 'mismatch', 'race', 'candidate_race']) test(`${mo
 for (const mode of ['missing_digest', 'conflicting_digests', 'manifest_list']) test(`${mode} stops before release aliases move`, () => {
   const f = fixture(mode); assert.throws(f.run, /manifest descriptor digest/);
   assert.ok(!f.calls.some(args => args[0] === 'tag' && /:(latest|sha-|[0-9]+\.)/.test(args[2])));
+});
+test('an image index candidate stops before release aliases move and names the failed check', () => {
+  const f = fixture('image_index'); let failure;
+  assert.throws(f.run, error => { failure = error; return /single-platform image manifest/.test(error.message); });
+  assert.ok(!f.calls.some(args => args[0] === 'tag' && /:(latest|sha-|[0-9]+\.)/.test(args[2])));
+  assert.ok(!f.calls.some(args => args[0] === 'push' && args[1] !== `${image}:build-1-1`), 'Only the candidate may be pushed');
+  assert.equal(describeFailure(failure), 'Container identity mismatch; publication stopped: Expected a single-platform image manifest');
+});
+test('failure output names hand-written checks but never echoes generated assertion bodies', () => {
+  let generated;
+  try { assert.deepEqual({ config: { digest: 'sha256:' + 'b'.repeat(64) } }, { config: { digest: 'sha256:' + 'c'.repeat(64) } }); } catch (error) { generated = error; }
+  assert.equal(generated.generatedMessage, true);
+  assert.equal(describeFailure(generated), 'Container identity mismatch; publication stopped.');
+  assert.equal(describeFailure(new Error('Command failed: docker push secret-bearing-args')), 'Container command failed; inspect the release stage and reconcile before retrying.');
+  // Every assertion in the publisher carries a fixed message, so a failure is always diagnosable.
+  const source = readFileSync('scripts/publish-container.mjs', 'utf8');
+  for (const call of source.matchAll(/assert\.(?:equal|match|ok|deepEqual)\((.*)\);/g)) {
+    for (const statement of call[0].split(/;\s*/).filter(Boolean)) assert.match(statement, /, ['`][^'`]+['`]\)$/, `Assertion without a message: ${statement}`);
+  }
+});
+test('release and pull-request builds produce a single image manifest, without in-image attestations', () => {
+  const builds = ['.github/workflows/publish.yml', '.github/workflows/container.yml'].map(path =>
+    readFileSync(path, 'utf8').split(/\r?\n/).filter(line => /^\s+docker build /.test(line)));
+  assert.deepEqual(builds.map(lines => lines.length), [1, 1], 'Expected exactly one docker build in each workflow');
+  for (const [line] of builds) {
+    // BuildKit's default provenance turns the pushed tag into an OCI index on the containerd image
+    // store (ubuntu-26.04 runners), which the publisher rejects. The attest job signs provenance instead.
+    assert.match(line, / --provenance=false /, 'docker build must disable in-image provenance');
+    assert.match(line, / --sbom=false /, 'docker build must disable in-image SBOM');
+  }
 });
 test('private package cannot report a successful public release', () => {
   const f = fixture('private'); assert.throws(f.run, /Anonymous access failed/);

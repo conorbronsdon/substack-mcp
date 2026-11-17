@@ -25,7 +25,7 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           REVISION=$(git rev-parse HEAD)
-          docker build --build-arg VERSION="$VERSION" --build-arg REVISION="$REVISION" -t substack-mcp:check .
+          docker build --provenance=false --sbom=false --build-arg VERSION="$VERSION" --build-arg REVISION="$REVISION" -t substack-mcp:check .
       - name: Verify image ownership and both transports
         run: node scripts/test-container.mjs substack-mcp:check "$(git rev-parse HEAD)"
       - name: Reject an image with the wrong source identity

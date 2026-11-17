@@ -12,13 +12,21 @@ assert.equal(matches.length, 1, 'Expected one remote manifest descriptor digest 
 assert.match(matches[0], digestPattern, 'Expected a SHA-256 registry manifest digest');
 return matches[0];
 }
+// Name the failed check without echoing registry bodies: only hand-written
+// assertion messages are printed; generated ones can embed whole manifests.
+export function describeFailure(error) {
+if (error instanceof assert.AssertionError) {
+  return error.generatedMessage ? 'Container identity mismatch; publication stopped.' : `Container identity mismatch; publication stopped: ${error.message}`;
+}
+return String(error?.message).startsWith('Command failed') ? 'Container command failed; inspect the release stage and reconcile before retrying.' : String(error?.message);
+}
 export function githubOutputs(result) {
 return `image=${result.image}\nsubject-name=${result.subject_name}\nmanifest-digest=${result.manifest_digest}\ncandidate-digest=${result.candidate_digest}\nprovenance-eligible=${result.provenance_eligible}\n`;
 }
 export function publishContainer({ version, revision, run, attempt, temp }, { docker, verifyImage, makeDirectory }) {
 const image = 'ghcr.io/conorbronsdon/substack-mcp';
-assert.equal(version, pkg.version); assert.match(version, /^\d+\.\d+\.\d+$/);
-assert.match(revision ?? '', /^[a-f0-9]{40}$/); assert.match(run ?? '', /^\d+$/); assert.match(attempt ?? '', /^\d+$/); assert.ok(temp);
+assert.equal(version, pkg.version, 'Release version differs from package.json'); assert.match(version, /^\d+\.\d+\.\d+$/, 'Release version is not a plain semantic version');
+assert.match(revision ?? '', /^[a-f0-9]{40}$/, 'Release revision is not a full commit SHA'); assert.match(run ?? '', /^\d+$/, 'Run ID is not numeric'); assert.match(attempt ?? '', /^\d+$/, 'Run attempt is not numeric'); assert.ok(temp, 'Runner temporary directory is missing');
 const candidate = `${image}:build-${run}-${attempt}`;
 const versioned = `${image}:${version}`;
 // A fresh candidate establishes package ownership before missing-manifest checks.
@@ -31,7 +39,7 @@ const verifyPublic = (ref, expected) => {
   let observed;
   try { observed = JSON.parse(docker('--config', anonymous, 'manifest', 'inspect', ref)); }
   catch { throw new Error(`Anonymous access failed for ${ref}. Verify the GHCR package is public, then rerun Publish; inspect existing tags before retrying.`); }
-  assert.deepEqual(observed, expected);
+  assert.deepEqual(observed, expected, `Anonymous manifest for ${ref} differs from the authenticated manifest`);
 };
 const candidateManifest = inspect(candidate);
 assert.ok(candidateManifest.config?.digest, 'Expected a single-platform image manifest');
@@ -40,9 +48,9 @@ verifyPublic(candidate, candidateManifest);
 // local config/image ID, it cannot become ambiguous across multiple manifests.
 const candidateDigest = manifestDigest(inspectVerbose(candidate));
 const candidateInfo = JSON.parse(docker('image', 'inspect', candidate))[0];
-assert.equal(candidateInfo.Id, candidateManifest.config.digest);
-assert.equal(candidateInfo.Config.Labels['org.opencontainers.image.version'], version);
-assert.equal(candidateInfo.Config.Labels['org.opencontainers.image.revision'], revision);
+assert.equal(candidateInfo.Id, candidateManifest.config.digest, 'Local candidate image ID differs from the pushed manifest config digest');
+assert.equal(candidateInfo.Config.Labels['org.opencontainers.image.version'], version, 'Candidate version label differs from the release version');
+assert.equal(candidateInfo.Config.Labels['org.opencontainers.image.revision'], revision, 'Candidate revision label differs from the release commit');
 let existing;
 try { existing = inspect(versioned); }
 catch (error) {
@@ -52,14 +60,14 @@ if (existing) {
   docker('pull', versioned);
   const releaseInfo = JSON.parse(docker('image', 'inspect', versioned))[0];
   assert.equal(releaseInfo.Id, existing.config?.digest, 'Pulled image differs from the inspected release manifest');
-  assert.equal(releaseInfo.Config.Labels['org.opencontainers.image.version'], version);
-  assert.equal(releaseInfo.Config.Labels['org.opencontainers.image.revision'], revision);
+  assert.equal(releaseInfo.Config.Labels['org.opencontainers.image.version'], version, 'Existing release version label differs from the release version');
+  assert.equal(releaseInfo.Config.Labels['org.opencontainers.image.revision'], revision, 'Existing release revision label differs from the release commit');
   verifyPublic(versioned, existing);
 } else {
   docker('tag', candidate, versioned); docker('push', versioned);
 }
 const manifest = inspect(versioned);
-assert.deepEqual(manifest, existing ?? candidateManifest);
+assert.deepEqual(manifest, existing ?? candidateManifest, 'Version tag manifest differs from the verified manifest');
 verifyPublic(versioned, manifest);
 verifyImage(versioned, revision);
 const releaseDigest = manifestDigest(inspectVerbose(versioned));
@@ -88,5 +96,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     });
     if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, githubOutputs(result));
     console.log(JSON.stringify(result));
-  } catch (error) { console.error(error instanceof assert.AssertionError ? 'Container identity mismatch; publication stopped.' : error.message.startsWith('Command failed') ? 'Container command failed; inspect the release stage and reconcile before retrying.' : error.message); process.exitCode = 1; }
+  } catch (error) { console.error(describeFailure(error)); process.exitCode = 1; }
 }

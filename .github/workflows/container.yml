@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   container:
-    runs-on: ubuntu-latest
+    # Same runner as the Publish container job, so this check sees the release daemon.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -25,7 +26,11 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           REVISION=$(git rev-parse HEAD)
-          docker build --build-arg VERSION="$VERSION" --build-arg REVISION="$REVISION" -t substack-mcp:check .
+          if docker info --format '{{json .DriverStatus}}' | grep -q containerd.snapshotter; then
+            echo "::error::Docker uses the containerd image store; publish-container.mjs requires the classic store."
+            exit 1
+          fi
+          docker build --provenance=false --sbom=false --build-arg VERSION="$VERSION" --build-arg REVISION="$REVISION" -t substack-mcp:check .
       - name: Verify image ownership and both transports
         run: node scripts/test-container.mjs substack-mcp:check "$(git rev-parse HEAD)"
       - name: Reject an image with the wrong source identity
@@ -34,3 +39,10 @@ jobs:
             echo "Identity control incorrectly accepted a mismatched source revision"
             exit 1
           fi
+      - name: Exercise the release publisher against a loopback registry
+        # Same publisher, same daemon, plain-HTTP registry on loopback; nothing reaches GHCR.
+        run: |
+          docker info --format 'image store: {{.Driver}} {{json .DriverStatus}}'
+          docker run -d --name release-registry -p 127.0.0.1:5000:5000 registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
+          for i in $(seq 1 30); do curl -fsS http://localhost:5000/v2/ >/dev/null 2>&1 && break; sleep 1; done
+          node scripts/publish-container.local-registry.mjs substack-mcp:check "$(git rev-parse HEAD)" localhost:5000

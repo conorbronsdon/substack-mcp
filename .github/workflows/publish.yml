@@ -143,7 +143,11 @@ jobs:
   container:
     needs: publish
     if: needs.publish.outputs.container == 'true'
-    runs-on: ubuntu-latest
+    # publish-container.mjs needs the classic image store: a single image
+    # manifest whose config digest is the local image ID. ubuntu-26.04
+    # (ubuntu-latest since October 2026) uses the containerd store, where
+    # neither holds. Keep in step with container.yml.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     outputs:
       image: ${{ steps.publish.outputs.image }}
@@ -172,7 +176,11 @@ jobs:
           test "$(git rev-parse HEAD)" = "$RELEASE_TARGET"
           test "$(node -p "require('./package.json').version")" = "$VERSION"
           npm ci --ignore-scripts
-          docker build --build-arg VERSION="$VERSION" --build-arg REVISION="$RELEASE_TARGET" -t "$IMAGE:build" .
+          if docker info --format '{{json .DriverStatus}}' | grep -q containerd.snapshotter; then
+            echo "::error::Docker uses the containerd image store; publish-container.mjs requires the classic store. Stop before pushing."
+            exit 1
+          fi
+          docker build --provenance=false --sbom=false --build-arg VERSION="$VERSION" --build-arg REVISION="$RELEASE_TARGET" -t "$IMAGE:build" .
           node scripts/test-container.mjs "$IMAGE:build" "$RELEASE_TARGET"
       - name: Authenticate only after image verification
         env:

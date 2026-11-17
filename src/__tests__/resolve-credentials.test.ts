@@ -83,13 +83,18 @@ describe("resolveCredentials", () => {
   it("refuses the stored token when the env URL differs only by scheme or subdomain", () => {
     for (const url of ["http://stored.substack.com", "https://www.stored.substack.com", "https://substack.com"]) {
       const env = { SUBSTACK_PUBLICATION_URL: url } as NodeJS.ProcessEnv;
-      expect(() => resolveCredentials(env, () => stored), url).toThrow(/stored session/);
+      const origin = new URL(url).origin.replace(/[.:/]/g, "\\$&");
+      expect(() => resolveCredentials(env, () => stored), url).toThrow(
+        new RegExp(`captured for https://stored\\.substack\\.com, but SUBSTACK_PUBLICATION_URL resolves to origin ${origin}\\.`),
+      );
     }
   });
 
   it("refuses the stored token when the env URL is not a parseable URL", () => {
     const env = { SUBSTACK_PUBLICATION_URL: "stored.substack.com" } as NodeJS.ProcessEnv;
-    expect(() => resolveCredentials(env, () => stored)).toThrow(/stored session/);
+    expect(() => resolveCredentials(env, () => stored)).toThrow(
+      /captured for https:\/\/stored\.substack\.com, but SUBSTACK_PUBLICATION_URL is not a valid http\(s\) URL\./,
+    );
   });
 
   it("refuses the stored token when the stored URL is not a parseable URL", () => {

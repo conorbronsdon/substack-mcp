@@ -82,14 +82,22 @@ describe("resolveCredentials", () => {
 
   it("never echoes the stored token in the refusal", () => {
     const env = { SUBSTACK_PUBLICATION_URL: "https://other.substack.com" } as NodeJS.ProcessEnv;
-    let message = "";
-    try {
-      resolveCredentials(env, () => stored);
-    } catch (e) {
-      message = (e as Error).message;
+    const tokens = [
+      "example-stored-token",
+      "s%3Aexample-not-real.Zq8%2Bv3kTqY9e%2FexampleSig",
+      "s:example-not-real.decoded-form",
+    ];
+    for (const token of tokens) {
+      let message = "";
+      try {
+        resolveCredentials(env, () => ({ ...stored, sessionToken: token }));
+      } catch (e) {
+        message = (e as Error).message;
+      }
+      expect(message, token).toMatch(/Refusing to send the stored session token/);
+      expect(message, token).not.toContain(token);
+      expect(message, token).not.toContain(decodeURIComponent(token));
     }
-    expect(message).toMatch(/Refusing to send the stored session token/);
-    expect(message).not.toContain("example-stored-token");
   });
 
   it("still resolves a stored token with an env URL on the same origin (source=mixed)", () => {

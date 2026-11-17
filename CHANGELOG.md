@@ -8,7 +8,7 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 
 ## [Unreleased]
 
-## [1.4.0] - 2026-11-16
+## [1.4.0] - 2026-11-17
 
 ### Added
 - CLI `images upload <image-file>` and `images upload --url <https-url>` (#198) upload one image through the existing `upload_image` handler and print its `image_url` plus a Markdown image line for `drafts create`. The URL is publicly fetchable (unlisted). Pre-upload refusals report `upload_not_attempted`; later failures report `upload_unverified`; nothing is retried. The MCP tool, its `public-upload` classification and its output contract are unchanged.
@@ -68,6 +68,9 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   combinations (duplicate or overlapping tags, no or several image sources, a reversed
   date range) as `invalid_input` with zero attempts. They previously said a write may
   have occurred and asked for reconciliation.
+- `add_free_subscriber` reports a live add without `consent_evidence` (`invalid_input`) and a
+  failed membership lookup before the add (`lookup_failed`) with `write_attempts: 0`, instead
+  of saying a write may have occurred (#203).
 - `upload_image` with `image_path` refuses devices, FIFOs and directories, which could
   hang the server, and files over 25 MB, returning `local_image_unreadable`. Symlinks to
   regular files still work.

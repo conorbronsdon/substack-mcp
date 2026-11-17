@@ -29,9 +29,11 @@ const FIELDS = [
   ["userId", "SUBSTACK_USER_ID"],
 ] as const;
 
+// Only an http(s) URL has a real origin; opaque schemes all report "null".
 function originOf(url: string): string | null {
   try {
-    return new URL(url).origin;
+    const u = new URL(url);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.origin : null;
   } catch {
     return null;
   }
@@ -70,8 +72,8 @@ export function resolveCredentials(
     const envOrigin = originOf(out.publicationUrl);
     if (!storedOrigin || storedOrigin !== envOrigin) {
       throw new Error(
-        `The stored session was captured for ${storedOrigin ?? "an unparseable publication URL"}, ` +
-          `but SUBSTACK_PUBLICATION_URL names ${envOrigin ?? "an unparseable URL"}. ` +
+        `The stored session was captured for ${storedOrigin ?? "a publication URL that is not a valid http(s) URL"}, ` +
+          `but SUBSTACK_PUBLICATION_URL names ${envOrigin ?? "a value that is not a valid http(s) URL"}. ` +
           "Refusing to send the stored session token to a different origin. " +
           "Set SUBSTACK_SESSION_TOKEN for that publication, unset SUBSTACK_PUBLICATION_URL, " +
           "or run substack-mcp-login for it.",

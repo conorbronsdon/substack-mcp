@@ -84,7 +84,14 @@ describe("resolveCredentials", () => {
     const env = { SUBSTACK_PUBLICATION_URL: "https://stored.substack.com" } as NodeJS.ProcessEnv;
     expect(() =>
       resolveCredentials(env, () => ({ ...stored, publicationUrl: "not a url" })),
-    ).toThrow(/stored session was captured for an unparseable publication URL/);
+    ).toThrow(/stored session was captured for a publication URL that is not a valid http\(s\) URL/);
+  });
+
+  it("refuses the stored token when both URLs use an opaque non-http(s) scheme", () => {
+    const env = { SUBSTACK_PUBLICATION_URL: "javascript:void 0" } as NodeJS.ProcessEnv;
+    expect(() =>
+      resolveCredentials(env, () => ({ ...stored, publicationUrl: "data:text/html,x" })),
+    ).toThrow(/not a valid http\(s\) URL.*Refusing to send the stored session token/s);
   });
 
   it("never echoes the stored token in the refusal", () => {
@@ -115,6 +122,13 @@ describe("resolveCredentials", () => {
       expect(r.publicationUrl, url).toBe(url);
       expect(r.source, url).toBe("mixed");
     }
+  });
+
+  it("normalizes the stored URL as well as the env URL before comparing origins", () => {
+    const env = { SUBSTACK_PUBLICATION_URL: "https://stored.substack.com" } as NodeJS.ProcessEnv;
+    const r = resolveCredentials(env, () => ({ ...stored, publicationUrl: "https://STORED.substack.com:443/" }));
+    expect(r.sessionToken).toBe("example-stored-token");
+    expect(r.source).toBe("mixed");
   });
 
   it("still lets an env token pair with an env URL on any origin, ignoring the stored session", () => {

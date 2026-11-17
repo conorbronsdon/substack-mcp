@@ -32,10 +32,13 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
   result names its direction and source; missing values are `null`, never zero.
 - `docs/reader-sessions.md` evaluates reader-account sessions (subscriptions list, inbox):
   auth model, risks and a recommendation to keep them unsupported for now (#147). No code.
-
 - The cloud calendar sync worker has an authenticated `GET /export` that returns its ledger in
   the local state format `/initialize` accepts, so the sync can move back to a local scheduler.
   It refuses while live sync is enabled or a run holds the ledger.
+
+### Changed
+- Login explains how to find your Substack account user ID (#160).
+- The container image's `node:22-alpine` base is updated to current digests (#170, #188).
 
 ### Fixed
 - A 403 carrying Substack's `reauthentication_required` body is now reported as an
@@ -77,9 +80,9 @@ and the git tag history (`v0.1.0`–`v0.5.0`).
 - `profiles migrate --to keychain --name default` no longer silently replaces the legacy
   keychain session, which shares that entry; it requires `--force` like other names.
 
-### Changed
-- Login explains how to find your Substack account user ID (#160).
-- The container image's `node:22-alpine` base is updated to current digests (#170, #188).
+### Security
+- Transitive dependencies refreshed to patched versions (body-parser, hono, @hono/node-server,
+  fast-uri, qs).
 
 ## [1.3.0] - 2026-09-23
 

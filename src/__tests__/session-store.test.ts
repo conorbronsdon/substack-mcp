@@ -33,12 +33,12 @@ describe("session store", () => {
   it("round-trips a saved session", () => {
     saveSession({
       publicationUrl: "https://x.substack.com",
-      sessionToken: "tok",
+      sessionToken: "example-token",
       userId: "42",
     });
     const loaded = loadSession();
     expect(loaded?.publicationUrl).toBe("https://x.substack.com");
-    expect(loaded?.sessionToken).toBe("tok");
+    expect(loaded?.sessionToken).toBe("example-token");
     expect(loaded?.userId).toBe("42");
     expect(typeof loaded?.savedAt).toBe("string");
   });
@@ -61,7 +61,7 @@ describe("session store", () => {
   it("returns null when the ciphertext is tampered (GCM auth fails)", () => {
     saveSession({
       publicationUrl: "https://x.substack.com",
-      sessionToken: "tok",
+      sessionToken: "example-token",
       userId: "1",
     });
     const file = join(dir, "session.json");
@@ -87,7 +87,7 @@ describe("session store", () => {
   });
 
   it("clearSession removes the file", () => {
-    saveSession({ publicationUrl: "u", sessionToken: "t", userId: "1" });
+    saveSession({ publicationUrl: "u", sessionToken: "example-token", userId: "1" });
     expect(existsSync(join(dir, "session.json"))).toBe(true);
     clearSession();
     expect(existsSync(join(dir, "session.json"))).toBe(false);

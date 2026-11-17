@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { completable } from "@modelcontextprotocol/sdk/server/completable.js";
 import { z } from "zod";
 
 /**
@@ -28,11 +29,20 @@ export function intArg(value: string | undefined, fallback: number, max: number)
 
 export function registerPromptsAndResources(server: McpServer, publications: PromptPublication[]): void {
   const multi = publications.length > 1;
-  const keys = publications.map((p) => p.key);
+  const keys = publications.map((p) => p.key) as [string, ...string[]];
   // With one publication the tools take no `publication` field, so the prompts
-  // must not mention one either. With several, every tool call needs it.
-  const publicationArg: Record<string, z.ZodString> = multi
-    ? { publication: z.string().describe(`Which publication: ${keys.join(", ")}.`) }
+  // must not mention one either. With several, every tool call needs it, and the
+  // prompt accepts exactly the keys the tools' `publication` enum accepts: an
+  // unknown key is rejected here instead of being written into the prompt text.
+  // MCP prompt arguments carry no schema, so the keys are advertised through
+  // the description and through argument completion.
+  const publicationArg: Record<string, z.ZodTypeAny> = multi
+    ? {
+        publication: completable(
+          z.enum(keys).describe(`Which publication. One of: ${publications.map((p) => `${p.key} (${p.label})`).join(", ")}.`),
+          (value) => keys.filter((k) => k.startsWith(value ?? "")),
+        ),
+      }
     : {};
   const target = (publication?: string) =>
     multi ? `Pass publication "${publication}" to every Substack tool call.\n\n` : "";

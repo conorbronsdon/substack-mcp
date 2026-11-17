@@ -106,7 +106,7 @@ it("sends an aggregate report once and retains its delivery claim", async () => 
   let sent=0, message="";
   const mock=vi.spyOn(globalThis,'fetch').mockImplementation(async (input,init)=>{
     const url=String(input);
-    if(url.includes('oauth2.googleapis.com'))return Response.json({access_token:'test'});
+    if(url.includes('oauth2.googleapis.com'))return Response.json({access_token:'example-access-token'});
     if(url.endsWith('/profile'))return Response.json({emailAddress:'host@example.org'});
     if(url.endsWith('/messages/send')) { sent++;message=Buffer.from(JSON.parse(String(init?.body)).raw,'base64url').toString();return Response.json({id:'test-report'}); }
     throw new Error('Unexpected outbound request');
@@ -125,7 +125,7 @@ it("does not repeat a report whose send outcome is uncertain", async()=>{
   const stub=env.SYNC.getByName(crypto.randomUUID());await stub.initialize(state());
   let sent=0;
   const mock=vi.spyOn(globalThis,'fetch').mockImplementation(async input=>{
-    if(String(input).includes('oauth2.googleapis.com'))return Response.json({access_token:'test'});
+    if(String(input).includes('oauth2.googleapis.com'))return Response.json({access_token:'example-access-token'});
     if(String(input).endsWith('/profile'))return Response.json({emailAddress:'host@example.org'});
     sent++;throw new Error('Network lost after send');
   });
@@ -145,7 +145,7 @@ it("runs the registered MCP add with durable state and never repeats its welcome
   let inspectAttempt: () => Promise<string | undefined> = async()=>undefined;
   const mock=vi.spyOn(globalThis,'fetch').mockImplementation(async(input,init)=>{
     const url=String(input);
-    if(url.includes('oauth2.googleapis.com'))return Response.json({access_token:'test'});
+    if(url.includes('oauth2.googleapis.com'))return Response.json({access_token:'example-access-token'});
     if(url.endsWith('/profile'))return Response.json({emailAddress:'host@example.org'});
     if(url.includes('gmail.googleapis.com')&&url.includes('/messages?'))return Response.json({resultSizeEstimate:0});
     if(url.endsWith('/subscriber-stats'))return Response.json(adds?{count:1,subscribers:[{user_email_address:email,subscription_id:123,subscription_interval:'free'}]}:{count:0,subscribers:[]});

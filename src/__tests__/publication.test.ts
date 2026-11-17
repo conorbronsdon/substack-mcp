@@ -45,7 +45,7 @@ describe("publication context", () => {
   it("exposes structured output and routes only the selected publication without writes", async () => {
     const fetchMock = vi.fn(async (_url: string, _options?: RequestInit) => new Response(JSON.stringify({ ...publication, subdomain: "b" })));
     vi.stubGlobal("fetch", fetchMock);
-    const server = createServer(["a", "b"].map(key => ({ key, label: key, client: new SubstackClient(`https://${key}.substack.com`, "fixture", "1") })));
+    const server = createServer(["a", "b"].map(key => ({ key, label: key, client: new SubstackClient(`https://${key}.substack.com`, "example-fixture-token", "1") })));
     const [ct, st] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test", version: "1" });
     await Promise.all([client.connect(ct), server.connect(st)]);

@@ -29,7 +29,7 @@ describe("multi-publication support", () => {
 
   it("adds no `publication` field to any tool when only one publication is configured", async () => {
     const client = await connect([
-      { key: "default", label: "Default", client: new SubstackClient("https://a.substack.com", "tok", "1") },
+      { key: "default", label: "Default", client: new SubstackClient("https://a.substack.com", "example-token", "1") },
     ]);
     const { tools } = await client.listTools();
     const tool = tools.find((t) => t.name === "get_sections");
@@ -40,8 +40,8 @@ describe("multi-publication support", () => {
 
   it("requires `publication` (enum of configured keys) once 2+ publications are configured", async () => {
     const client = await connect([
-      { key: "kevin-muldoon", label: "Kevin Muldoon", client: new SubstackClient("https://a.substack.com", "tok", "1") },
-      { key: "sapere", label: "Sapere", client: new SubstackClient("https://b.substack.com", "tok", "2") },
+      { key: "kevin-muldoon", label: "Kevin Muldoon", client: new SubstackClient("https://a.substack.com", "example-token", "1") },
+      { key: "sapere", label: "Sapere", client: new SubstackClient("https://b.substack.com", "example-token", "2") },
     ]);
     const { tools } = await client.listTools();
     const tool = tools.find((t) => t.name === "get_sections");
@@ -53,8 +53,8 @@ describe("multi-publication support", () => {
   it("rejects an unconfigured publication value before any network call", async () => {
     const fetchMock = stubFetch();
     const client = await connect([
-      { key: "kevin-muldoon", label: "Kevin Muldoon", client: new SubstackClient("https://a.substack.com", "tok", "1") },
-      { key: "sapere", label: "Sapere", client: new SubstackClient("https://b.substack.com", "tok", "2") },
+      { key: "kevin-muldoon", label: "Kevin Muldoon", client: new SubstackClient("https://a.substack.com", "example-token", "1") },
+      { key: "sapere", label: "Sapere", client: new SubstackClient("https://b.substack.com", "example-token", "2") },
     ]);
 
     const result = await client.callTool({
@@ -69,8 +69,8 @@ describe("multi-publication support", () => {
   it("routes a call to the client matching the given publication key", async () => {
     const fetchMock = stubFetch();
     const client = await connect([
-      { key: "kevin-muldoon", label: "Kevin Muldoon", client: new SubstackClient("https://a.substack.com", "tok", "1") },
-      { key: "sapere", label: "Sapere", client: new SubstackClient("https://b.substack.com", "tok", "2") },
+      { key: "kevin-muldoon", label: "Kevin Muldoon", client: new SubstackClient("https://a.substack.com", "example-token", "1") },
+      { key: "sapere", label: "Sapere", client: new SubstackClient("https://b.substack.com", "example-token", "2") },
     ]);
 
     const result = await client.callTool({

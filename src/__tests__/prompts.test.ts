@@ -59,6 +59,47 @@ describe("prompts", () => {
     } finally { await multi.client.close(); await multi.server.close(); }
   });
 
+  it("accepts only configured publication keys, matching the tools' enum", async () => {
+    const multi = await connect(["a", "b"]);
+    try {
+      // Must fire: a key that is not configured is rejected before any prompt text is built.
+      for (const name of PROMPT_NAMES) {
+        const args: Record<string, string> = { draft_id: "7", idea: "example idea", publication: "c" };
+        if (name !== "review_draft") delete args.draft_id;
+        if (name !== "draft_from_idea") delete args.idea;
+        await expect(multi.client.getPrompt({ name, arguments: args }), name).rejects.toThrow(
+          `MCP error -32602: Invalid arguments for prompt ${name}`,
+        );
+      }
+      // The allowed keys are advertised in the argument description and through completion.
+      const review = (await multi.client.listPrompts()).prompts.find(p => p.name === "review_draft")!;
+      expect(review.arguments?.find(a => a.name === "publication")?.description).toBe("Which publication. One of: a (Label a), b (Label b).");
+      const complete = (value: string) => multi.client.complete({
+        ref: { type: "ref/prompt", name: "review_draft" }, argument: { name: "publication", value },
+      });
+      expect((await complete("")).completion.values).toEqual(["a", "b"]);
+      expect((await complete("b")).completion.values).toEqual(["b"]);
+      expect((await complete("c")).completion.values).toEqual([]);
+      // Must not fire: every configured key is accepted.
+      for (const key of ["a", "b"]) {
+        const text = promptText(await multi.client.getPrompt({ name: "what_worked", arguments: { publication: key } }));
+        expect(text).toContain(`Pass publication "${key}" to every Substack tool call.`);
+      }
+      expect(multi.fetchMock).not.toHaveBeenCalled();
+    } finally { await multi.client.close(); await multi.server.close(); }
+
+    // Must not fire: a single publication still has no publication argument and no completion capability.
+    const single = await connect(["a"]);
+    try {
+      for (const prompt of (await single.client.listPrompts()).prompts) {
+        expect(prompt.arguments?.some(a => a.name === "publication") ?? false, prompt.name).toBe(false);
+      }
+      expect(single.client.getServerCapabilities()?.completions).toBeUndefined();
+      const text = promptText(await single.client.getPrompt({ name: "what_worked", arguments: {} }));
+      expect(text.startsWith("Work out what has worked on my Substack")).toBe(true);
+    } finally { await single.client.close(); await single.server.close(); }
+  });
+
   it("plan_notes never instructs the model to post, because Notes publish immediately", async () => {
     const { client, server } = await connect(["a"]);
     try {

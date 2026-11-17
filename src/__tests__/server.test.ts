@@ -29,7 +29,7 @@ describe("tool pagination limits (regression: #28)", () => {
 
   async function connect() {
     const server = createServer([
-      { key: "default", label: "Default", client: new SubstackClient("https://example.substack.com", "tok", "1") },
+      { key: "default", label: "Default", client: new SubstackClient("https://example.substack.com", "example-token", "1") },
     ]);
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();

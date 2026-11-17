@@ -80,6 +80,13 @@ describe("resolveCredentials", () => {
     expect(() => resolveCredentials(env, () => stored)).toThrow(/stored session/);
   });
 
+  it("refuses the stored token when the stored URL is not a parseable URL", () => {
+    const env = { SUBSTACK_PUBLICATION_URL: "https://stored.substack.com" } as NodeJS.ProcessEnv;
+    expect(() =>
+      resolveCredentials(env, () => ({ ...stored, publicationUrl: "not a url" })),
+    ).toThrow(/stored session was captured for an unparseable publication URL/);
+  });
+
   it("never echoes the stored token in the refusal", () => {
     const env = { SUBSTACK_PUBLICATION_URL: "https://other.substack.com" } as NodeJS.ProcessEnv;
     const tokens = [

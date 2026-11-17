@@ -17,14 +17,22 @@ const PATTERNS: RegExp[] = [
   /SESSION_TOKEN\s*["']?\s*:\s*(["'`])((?:(?!\1).)*)\1/gi,
   // literal cookie values in a Cookie header string
   /\b(?:connect|substack)\.sid=()([^;"'`\s$]+)/g,
+  // a token-named variable passed on by identifier: const testSessionToken = "<token>"
+  /\b(?:const|let|var)\s+\w*[Tt]oken\w*\s*=\s*(["'`])((?:(?!\1).)*)\1/g,
 ];
+
+// A value that starts with a bare `${name}` reference takes its token from that
+// variable, which the last pattern checks where it is assigned (malformed-cookie
+// tests append junk such as `${token}; other=value`). Anything else that starts
+// with `${`, such as a call like `${randomUUID()}`, is not an example-* value.
+const IDENTIFIER_REFERENCE = /^\$\{\s*[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\s*\}/;
 
 export function nonExampleCredentials(source: string): string[] {
   const found: string[] = [];
   for (const pattern of PATTERNS) {
     for (const match of source.matchAll(pattern)) {
       const value = match[2];
-      if (value.trim() === "" || value.startsWith("${")) continue;
+      if (value.trim() === "" || IDENTIFIER_REFERENCE.test(value)) continue;
       // A URL-encoded signed cookie keeps its `s%3A` / `s:` prefix before the name.
       const name = value.replace(/^s(?:%3A|:)/i, "");
       if (!name.startsWith("example-")) found.push(value);
@@ -39,11 +47,16 @@ describe("synthetic credential fixtures", () => {
     expect(nonExampleCredentials('{ sessionToken: "mytoken" }')).toEqual(["mytoken"]);
     expect(nonExampleCredentials('{ SUBSTACK_PUB_A_SESSION_TOKEN: "FAKE-A" }')).toEqual(["FAKE-A"]);
     expect(nonExampleCredentials('{ Cookie: "connect.sid=s%3Aprivate;" }')).toEqual(["s%3Aprivate"]);
+    expect(nonExampleCredentials("{ sessionToken: `${randomUUID()}` }")).toEqual(["${randomUUID()}"]);
+    expect(nonExampleCredentials('const testSessionToken = "mytoken";\nconst c = { sessionToken: testSessionToken };')).toEqual(["mytoken"]);
 
     expect(nonExampleCredentials('new SubstackClient(origin, "example-token", "1")')).toEqual([]);
     expect(nonExampleCredentials('{ sessionToken: "example-private-token", other: "" }')).toEqual([]);
     expect(nonExampleCredentials('{ SUBSTACK_SESSION_TOKEN: "", SUBSTACK_PUB_A_SESSION_TOKEN: "   " }')).toEqual([]);
     expect(nonExampleCredentials('{ Cookie: "connect.sid=s%3Aexample-private; substack.sid=${token};" }')).toEqual([]);
+    expect(nonExampleCredentials("{ sessionToken: `${testSessionToken}` }")).toEqual([]);
+    expect(nonExampleCredentials("{ SUBSTACK_SESSION_TOKEN: `${testSessionToken}; other=value` }")).toEqual([]);
+    expect(nonExampleCredentials("const testSessionToken = `example-${randomUUID()}`;")).toEqual([]);
   });
 
   it("every test and test-config file uses example-* session tokens", () => {
@@ -52,7 +65,9 @@ describe("synthetic credential fixtures", () => {
     const root = join(testsDir, "..", "..");
     const cloudTests = join(root, "cloud", "test");
     const files = [
-      ...readdirSync(testsDir).filter(file => file.endsWith(".ts")).map(file => join(testsDir, file)),
+      ...readdirSync(testsDir, { recursive: true, encoding: "utf8" })
+        .filter(file => file.endsWith(".ts") && !file.split(/[\\/]/).includes("__snapshots__"))
+        .map(file => join(testsDir, file)),
       ...readdirSync(cloudTests).filter(file => file.endsWith(".ts")).map(file => join(cloudTests, file)),
       join(root, "cloud", "vitest.config.ts"),
       join(root, "scripts", "test-package.mjs"),

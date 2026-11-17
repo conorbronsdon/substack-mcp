@@ -176,8 +176,9 @@ jobs:
           test "$(git rev-parse HEAD)" = "$RELEASE_TARGET"
           test "$(node -p "require('./package.json').version")" = "$VERSION"
           npm ci --ignore-scripts
-          if docker info --format '{{json .DriverStatus}}' | grep -q containerd.snapshotter; then
-            echo "::error::Docker uses the containerd image store; publish-container.mjs requires the classic store. Stop before pushing."
+          driver="$(docker info --format '{{.Driver}}')" || { echo "::error::docker info failed; cannot verify the classic image store"; exit 1; }
+          if [ "$driver" != overlay2 ]; then
+            echo "::error::Docker image store driver is '$driver'; publish-container.mjs requires the classic overlay2 store. Stop before pushing."
             exit 1
           fi
           docker build --provenance=false --sbom=false --build-arg VERSION="$VERSION" --build-arg REVISION="$RELEASE_TARGET" -t "$IMAGE:build" .

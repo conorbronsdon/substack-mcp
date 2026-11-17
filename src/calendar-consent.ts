@@ -5,7 +5,7 @@ const emailSchema = z.string().email().max(254);
 const contactSchema = z.object({ email: emailSchema, answer: z.string(), message_id: z.string(), received_at: z.number().int().nonnegative(), decision: z.enum(["yes", "no", "review"]) });
 export type Contact = z.infer<typeof contactSchema>;
 const attemptSchema = z.object({ status: z.enum(["attempting", "existing", "verified", "blocked", "unverified", "retryable", "busy"]), message_id: z.string(), attempted_at: z.string(), welcome_email_requested: z.boolean().optional() });
-export const stateSchema = z.object({ version: z.literal(1), publication_url: z.string().url(), organizer_email: emailSchema, seen_ids: z.array(z.string()), contacts: z.record(contactSchema), attempts: z.record(attemptSchema) });
+export const stateSchema = z.object({ version: z.literal(1), publication_url: z.string().url(), organizer_email: emailSchema, seen_ids: z.array(z.string()), contacts: z.record(z.string(), contactSchema), attempts: z.record(z.string(), attemptSchema) });
 export type SyncState = z.infer<typeof stateSchema>;
 export const contactKey = (email: string) => createHash("sha256").update(email.toLowerCase()).digest("hex");
 

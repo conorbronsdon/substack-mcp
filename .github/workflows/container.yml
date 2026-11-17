@@ -47,7 +47,7 @@ jobs:
           docker run -d --name release-registry -p 127.0.0.1:5000:5000 registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
           ready=false
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:5000/v2/ >/dev/null 2>&1; then ready=true; break; fi
+            if curl -fsS --max-time 2 http://127.0.0.1:5000/v2/ >/dev/null 2>&1; then ready=true; break; fi
             sleep 1
           done
           if [ "$ready" != true ]; then

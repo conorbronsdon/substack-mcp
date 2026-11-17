@@ -191,8 +191,11 @@ function workflowCommands(path) {
 }
 test('release and pull-request builds produce a single image manifest, without in-image attestations', () => {
   for (const path of ['.github/workflows/publish.yml', '.github/workflows/container.yml']) {
-    const builds = workflowCommands(path).filter(command => /\bdocker (?:buildx )?build\b/.test(command));
-    assert.equal(builds.length, 1, `Expected exactly one docker build in ${path}`);
+    const commands = workflowCommands(path);
+    // Count builds, not lines: two builds chained on one line must not hide an unflagged one.
+    const occurrences = commands.join('\n').match(/\bdocker (?:buildx )?build\b/g) ?? [];
+    assert.equal(occurrences.length, 1, `Expected exactly one docker build in ${path}`);
+    const builds = commands.filter(command => /\bdocker (?:buildx )?build\b/.test(command));
     // BuildKit's default provenance turns the pushed tag into an OCI index on the containerd image
     // store, which the publisher rejects. The attest job signs provenance instead.
     assert.match(builds[0], / --provenance=false(?: |$)/, `docker build must disable in-image provenance: ${path}`);
@@ -267,6 +270,8 @@ for (const scenario of ['ready', 'never-ready']) {
       if (scenario === 'ready') {
         assert.equal(result.status, 0, result.stderr);
         assert.ok(invocations[0].includes('http://127.0.0.1:5000/v2/'), invocations[0]);
+        // Each probe needs its own deadline, or one hung connection outlasts the 30-attempt bound.
+        assert.match(invocations[0], /--max-time [1-5](?: |$)/, 'Each readiness probe needs a short --max-time');
         assert.equal(publisher.length, 1);
         assert.ok(publisher[0].endsWith(' 127.0.0.1:5000'), publisher[0]);
       } else {

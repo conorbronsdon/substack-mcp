@@ -104,20 +104,40 @@ test('failure output names only fixed messages', () => {
 });
 
 // The message argument position for each assert method the publisher may use.
-const messageArgument = { ok: 1, equal: 2, notEqual: 2, strictEqual: 2, notStrictEqual: 2, deepEqual: 2, notDeepEqual: 2, deepStrictEqual: 2, notDeepStrictEqual: 2, match: 2, doesNotMatch: 2, throws: 2, doesNotThrow: 2, fail: 0 };
+const messageArgument = { ok: 1, equal: 2, notEqual: 2, strictEqual: 2, notStrictEqual: 2, deepEqual: 2, notDeepEqual: 2, deepStrictEqual: 2, notDeepStrictEqual: 2, match: 2, doesNotMatch: 2, throws: 2, doesNotThrow: 2, rejects: 2, doesNotReject: 2, fail: 0 };
+// For these, a string literal second argument is the message (no error validator given).
+const optionalValidator = new Set(['throws', 'doesNotThrow', 'rejects', 'doesNotReject']);
+// Names that may be interpolated into a printed message: image references built from the
+// fixed image name and validated tags. Nothing here can hold a registry or daemon body.
+const printableNames = new Set(['ref', 'alias']);
+function isFixedMessage(node) {
+  if (!node) return false;
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return true;
+  return ts.isTemplateExpression(node) && node.templateSpans.every(span => ts.isIdentifier(span.expression) && printableNames.has(span.expression.text));
+}
+// Every printed message source in the publisher: assertions and PublicationStop.
 function assertionsWithoutMessages(source) {
   const file = ts.createSourceFile('publisher.mjs', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
   const missing = []; let count = 0;
   const visit = node => {
+    let message, checked = false;
     if (ts.isCallExpression(node)) {
       const callee = node.expression;
       const method = ts.isIdentifier(callee) && callee.text === 'assert' ? 'ok'
         : ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression) && callee.expression.text === 'assert' ? callee.name.text : undefined;
       if (method) {
-        count++;
-        const message = method in messageArgument ? node.arguments[messageArgument[method]] : undefined;
-        if (!message || !(ts.isStringLiteral(message) || ts.isNoSubstitutionTemplateLiteral(message) || ts.isTemplateExpression(message))) missing.push(node.getText(file).replace(/\s+/g, ' '));
+        checked = true;
+        const second = node.arguments[1];
+        const at = optionalValidator.has(method) && second && (ts.isStringLiteral(second) || ts.isNoSubstitutionTemplateLiteral(second) || ts.isTemplateExpression(second)) ? 1 : messageArgument[method];
+        message = at === undefined ? undefined : node.arguments[at];
       }
+    } else if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'PublicationStop') {
+      checked = true;
+      message = node.arguments?.[0];
+    }
+    if (checked) {
+      count++;
+      if (!isFixedMessage(message)) missing.push(node.getText(file).replace(/\s+/g, ' '));
     }
     ts.forEachChild(node, visit);
   };
@@ -127,20 +147,31 @@ function assertionsWithoutMessages(source) {
 test('every publisher assertion carries a fixed message', () => {
   const { count, missing } = assertionsWithoutMessages(readFileSync('scripts/publish-container.mjs', 'utf8'));
   assert.ok(count >= 20, `Expected the publisher's assertions to be found, saw ${count}`);
-  assert.deepEqual(missing, [], 'Every assertion needs a fixed message so a failure names the check');
-  // The check sees two calls on one line, calls split across lines, bare assert() and unlisted methods.
+  assert.deepEqual(missing, [], 'Every assertion and stop needs a fixed message so a failure names the check without echoing data');
+  // The check sees two calls on one line, calls split across lines, bare assert(), unlisted methods,
+  // string messages to throws(), and rejects interpolations other than allowlisted reference names.
   const probe = assertionsWithoutMessages([
     "assert.equal(a, b, 'fixed'); assert.ok(c);",
     'assert.deepEqual(',
     '  a,',
     '  b',
     ');',
-    'assert.strictEqual(a, b, `fixed ${a}`);',
+    'assert.strictEqual(a, b, `fixed ${ref}`);',
     'assert(c);',
     "assert.ifError(c, 'unlisted');",
+    "assert.throws(fn, 'fixed');",
+    "assert.throws(fn, /pattern/, 'fixed');",
+    'assert.throws(fn, /pattern/);',
+    'assert.equal(a, b, `Manifest ${body} differs`);',
+    'assert.equal(a, b, `Alias ${alias.body} differs`);',
+    'throw new PublicationStop(`Anonymous access failed for ${alias}`);',
+    'throw new PublicationStop(`Lookup failed: ${error.stderr}`);',
   ].join('\n'));
-  assert.equal(probe.count, 6);
-  assert.deepEqual(probe.missing, ['assert.ok(c)', 'assert.deepEqual( a, b )', 'assert(c)', "assert.ifError(c, 'unlisted')"]);
+  assert.equal(probe.count, 13);
+  assert.deepEqual(probe.missing, [
+    'assert.ok(c)', 'assert.deepEqual( a, b )', 'assert(c)', "assert.ifError(c, 'unlisted')", 'assert.throws(fn, /pattern/)',
+    'assert.equal(a, b, `Manifest ${body} differs`)', 'assert.equal(a, b, `Alias ${alias.body} differs`)', 'new PublicationStop(`Lookup failed: ${error.stderr}`)',
+  ]);
 });
 
 // Every shell command a workflow runs, with backslash continuations joined.
@@ -211,6 +242,8 @@ for (const [path, name] of buildSteps) {
       assert.ifError(result.error);
       assert.equal(result.status === 0 ? 0 : 1, status, `${scenario}: ${result.stdout}${result.stderr}`);
       assert.equal(result.stdout.includes('guard-passed'), status === 0);
+      // Every refusal, including a failed docker info, must explain itself in the job log.
+      if (status !== 0) assert.match(result.stdout, /::error::/, `${scenario} must print an ::error:: annotation`);
     });
   }
 }

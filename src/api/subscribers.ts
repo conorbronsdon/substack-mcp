@@ -54,6 +54,14 @@ export class SubscriberSearchError extends SubstackAPIError {
   }
 }
 
+/** The membership lookup before an add failed, so no add request was sent. */
+export class SubscriberLookupError extends Error {
+  constructor(readonly upstream: unknown) {
+    super("The membership lookup before the add failed; no add request was sent.");
+    this.name = "SubscriberLookupError";
+  }
+}
+
 export type Subscriber = z.infer<typeof rowSchema>;
 export interface SubscriberResult {
   status: "existing" | "verified" | "dry_run" | "blocked" | "unverified" | "busy" | "retryable";
@@ -168,7 +176,9 @@ export class SubscriberService {
     if (this.busy.has(normalized)) return { status: "busy", email: normalized, note: "Another operation is in progress for this email. This call performed no write; wait for that operation to finish." };
     this.busy.add(normalized);
     try {
-      const before = await this.get(normalized);
+      let before: Awaited<ReturnType<SubscriberService["get"]>>;
+      try { before = await this.get(normalized); }
+      catch (error) { throw new SubscriberLookupError(error); }
       if (before.subscriber) return { status: "existing", email: normalized, subscriber: before.subscriber, note: "Already listed; no write performed." };
       if (this.blocked.has(normalized)) return { status: "blocked", email: normalized, note: "Substack previously rejected this address. No write performed; review without bypassing suppression." };
       if (this.attempted.has(normalized)) return { status: "unverified", email: normalized, note: "A previous write has an unknown outcome. No second write performed. Reconcile through Substack before retrying." };

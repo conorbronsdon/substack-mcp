@@ -182,4 +182,37 @@ describe("subscriber tools over MCP", () => {
       expect(tools.find(t => t.name === "add_free_subscriber")?.annotations).toMatchObject({ readOnlyHint: false, openWorldHint: true, destructiveHint: false });
     } finally { await client.close(); await server.close(); }
   });
+
+  // A failure before the add request is sent must not be reported as a possible write.
+  async function callAdd(fetchMock: ReturnType<typeof vi.fn>, args: Record<string, unknown>) {
+    vi.stubGlobal("fetch", fetchMock);
+    const server = createServer([{ key: "default", label: "default", client: new SubstackClient("https://example-pub.substack.com", "example-session-token", "1") }]);
+    const client = new Client({ name: "test", version: "1" });
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    await Promise.all([client.connect(ct), server.connect(st)]);
+    try {
+      const result = await client.callTool({ name: "add_free_subscriber", arguments: args });
+      return { result, body: JSON.parse((result.content as Array<{ text: string }>)[0].text) };
+    } finally { await client.close(); await server.close(); }
+  }
+
+  it("reports a live add without consent evidence as invalid input with no write attempt", async () => {
+    const fetchMock = vi.fn();
+    const { result, body } = await callAdd(fetchMock, { email, consent_confirmed: true, dry_run: false });
+    expect(result.isError).toBe(true);
+    expect(body).toMatchObject({ code: "invalid_input", write_attempts: 0 });
+    expect(body.message).not.toMatch(/write may have occurred/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed pre-write membership lookup as no write attempt, keeping the auth reason", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ error: "For your security, please sign out and sign back in to do this.", type: "reauthentication_required" }),
+      { status: 403, headers: { "content-type": "application/json" } }));
+    const { result, body } = await callAdd(fetchMock, { email, consent_confirmed: true, dry_run: false, consent_evidence: evidence });
+    expect(result.isError).toBe(true);
+    expect(body).toMatchObject({ code: "lookup_failed", status: 403, auth_reason: "reauthentication_required", write_attempts: 0 });
+    expect(body.message).not.toMatch(/write may have occurred/i);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://example-pub.substack.com/api/v1/subscriber-stats");
+  });
 });

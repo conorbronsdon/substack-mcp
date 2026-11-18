@@ -6,6 +6,10 @@
  * session fills any gap. This keeps the zero-config env-var path (used in most
  * MCP client configs) working unchanged, while letting the browser-login flow
  * supply credentials when the env vars are absent.
+ *
+ * One mix is refused: a stored session token paired with an env publication
+ * URL on a different origin. The token was captured for the stored origin, so
+ * sending it elsewhere would leak it to a host that never issued it.
  */
 import { loadSession, type StoredSession } from "./session-store.js";
 
@@ -25,6 +29,16 @@ const FIELDS = [
   ["userId", "SUBSTACK_USER_ID"],
 ] as const;
 
+// Only an http(s) URL has a real origin; opaque schemes all report "null".
+function originOf(url: string): string | null {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.origin : null;
+  } catch {
+    return null;
+  }
+}
+
 export function resolveCredentials(
   env: NodeJS.ProcessEnv = process.env,
   loader: () => StoredSession | null = loadSession,
@@ -35,18 +49,35 @@ export function resolveCredentials(
   let usedStored = false;
   const out: Record<string, string> = {};
   const missing: string[] = [];
+  const sources: Record<string, "env" | "stored"> = {};
 
   for (const [key, envName] of FIELDS) {
     const fromEnv = env[envName];
     if (fromEnv) {
       out[key] = fromEnv;
+      sources[key] = "env";
       usedEnv = true;
     } else if (stored && stored[key]) {
       out[key] = stored[key];
+      sources[key] = "stored";
       usedStored = true;
     } else {
       out[key] = "";
       missing.push(envName);
+    }
+  }
+
+  if (sources.sessionToken === "stored" && sources.publicationUrl === "env") {
+    const storedOrigin = originOf(stored!.publicationUrl);
+    const envOrigin = originOf(out.publicationUrl);
+    if (!storedOrigin || storedOrigin !== envOrigin) {
+      throw new Error(
+        `The stored session was captured for ${storedOrigin ?? "a publication URL that is not a valid http(s) URL"}, ` +
+          `but SUBSTACK_PUBLICATION_URL ${envOrigin ? `resolves to origin ${envOrigin}` : "is not a valid http(s) URL"}. ` +
+          "Refusing to send the stored session token to a different origin. " +
+          "Set SUBSTACK_SESSION_TOKEN for that publication, unset SUBSTACK_PUBLICATION_URL, " +
+          "or run substack-mcp-login for it.",
+      );
     }
   }
 

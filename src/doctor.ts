@@ -19,7 +19,7 @@ export async function doctor(checkAuth = false, resolve: () => ReturnType<typeof
   const storeMetadata = { ...metadata, credential_store: store, keychain_cli: keychainCli };
   let publications: ReturnType<typeof resolvePublications>;
   try { publications = await resolve(); }
-  catch { return { ...storeMetadata, ok: false, code: "invalid_configuration", publications: [], guidance: "Check publication triplets, duplicate keys, selected profiles and keychain access. SUBSTACK_PROFILES cannot be combined with publication credential variables. No credential values are printed." }; }
+  catch { return { ...storeMetadata, ok: false, code: "invalid_configuration", publications: [], guidance: "Check publication triplets, duplicate keys, selected profiles and keychain access. SUBSTACK_PROFILES cannot be combined with publication credential variables. A stored session cannot be used with a SUBSTACK_PUBLICATION_URL on another origin; the server's startup error names both origins. No credential values are printed." }; }
   const reports = [];
   for (const p of publications) {
     const origin = publicationOrigin(p.publicationUrl);

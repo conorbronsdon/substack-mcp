@@ -288,6 +288,50 @@ describe("Markdown conversion through MCP", () => {
     });
   });
 
+  it("refuses a blank create_note body before any request, and still publishes non-blank text", async () => {
+    await withMcp(async (mcp, api) => {
+      const note = vi.spyOn(api, "createNote").mockResolvedValue({ id: 12, body: "x", date: "date" } as never);
+      // Must fire: each of these previously converted to [{ type: "paragraph" }] and was POSTed.
+      for (const body of ["", "   ", "\n\n\t"]) {
+        const result = await mcp.callTool({ name: "create_note", arguments: { body } });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse((result.content as { text: string }[])[0].text)).toEqual({
+          code: "invalid_input", message: "Note body is empty or whitespace only. No Note was created.", write_attempts: 0,
+        });
+      }
+      // createNote is the only write path for this tool, so this is the "no request" check.
+      expect(note).not.toHaveBeenCalled();
+      // Must not fire: text surrounded by whitespace is still published once, trimmed by the converter.
+      const ok = await mcp.callTool({ name: "create_note", arguments: { body: "  Hello  " } });
+      expect(ok.isError).toBeFalsy();
+      expect(note).toHaveBeenCalledTimes(1);
+      expect(note.mock.calls[0][0]).toEqual({ type: "doc", attrs: { schemaVersion: "v1" }, content: [{ type: "paragraph", content: [{ type: "text", text: "Hello" }] }] });
+    });
+  });
+
+  it("refuses a blank create_note_with_link body before the attachment or the Note is created", async () => {
+    await withMcp(async (mcp, api) => {
+      const attach = vi.spyOn(api, "createNoteAttachment").mockResolvedValue({ id: "example-attachment" } as never);
+      const note = vi.spyOn(api, "createNote").mockResolvedValue({ id: 13, body: "x", date: "date" } as never);
+      // Must fire: no attachment and no Note for a blank body.
+      for (const body of ["", "   ", "\n\n\t"]) {
+        const result = await mcp.callTool({ name: "create_note_with_link", arguments: { body, url: "https://example.com/post" } });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse((result.content as { text: string }[])[0].text)).toEqual({
+          code: "invalid_input", message: "Note body is empty or whitespace only. No Note or link attachment was created.", write_attempts: 0,
+        });
+      }
+      expect(attach).not.toHaveBeenCalled();
+      expect(note).not.toHaveBeenCalled();
+      // Must not fire: a non-blank body creates the attachment once and the Note once with it.
+      const ok = await mcp.callTool({ name: "create_note_with_link", arguments: { body: "Read this", url: "https://example.com/post" } });
+      expect(ok.isError).toBeFalsy();
+      expect(attach.mock.calls).toEqual([["https://example.com/post"]]);
+      expect(note).toHaveBeenCalledTimes(1);
+      expect(note.mock.calls[0][1]).toEqual(["example-attachment"]);
+    });
+  });
+
   it("writes supported rich content and an explicit empty body without fallback flags", async () => {
     await withMcp(async (mcp, api) => {
       const create = vi.spyOn(api, "createDraft").mockResolvedValue({ id: 42 } as never);

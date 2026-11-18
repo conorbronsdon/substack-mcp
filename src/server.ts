@@ -109,7 +109,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
   // Zod itself then rejects an unconfigured or
   // missing value before any handler (and therefore any Substack API call)
   // runs, so a write tool can never silently land on the wrong publication.
-  function publicationField(): Record<string, z.ZodTypeAny> {
+  function publicationField(): Record<string, z.ZodType<any>> {
     if (!multi) return {};
     const options = publications.map((p) => `${p.key} (${p.label})`).join(", ");
     return {
@@ -172,7 +172,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
 
   registerTool("get_profile_feed", {
     description: "Anonymous public profile feed, no credentials sent. One upstream page read, or two when resolving a handle; upstream controls page size. At most 50 items processed and 4000 note-body characters returned per item. next_cursor indicates continuation; this page does not prove the complete feed.",
-    inputSchema: { ...feedInput.innerType().shape, ...publicationField() }, outputSchema: feedOutput.shape,
+    inputSchema: { ...feedInput.shape, ...publicationField() }, outputSchema: feedOutput.shape,
     annotations: buildAnnotations("get_profile_feed"),
   }, async ({ publication: _publication, ...input }: { user_id?: number; handle?: string; cursor?: string; publication?: string }) => {
     const result = await publicReader.getFeed(input);
@@ -274,7 +274,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
 
   registerTool("get_growth_sources", {
     description: "Read growth sources for an ordered inclusive date range of at most 366 days ending no later than tomorrow UTC. One authenticated read, or two when include_events is true; no writes. Optional events report available items or an unavailable reason without discarding sources; authentication failure still stops the call. Returns up to 20 top-level sources by default, at most 50, in Substack's users-descending order. Processes at most 500 nodes, depth 3 and 400 timeseries points per metric; truncation flags identify cut data. total_sources and has_more describe only the unpaginated response's top-level array, not all upstream sources or complete attribution.",
-    inputSchema: growthSourcesInput.innerType().extend(publicationField()).strict(),
+    inputSchema: z.object(growthSourcesInput.shape).extend(publicationField()).strict(),
     outputSchema: growthSourcesOutput.shape,
     annotations: buildAnnotations("get_growth_sources"),
   }, async ({ publication, ...input }) => {
@@ -290,7 +290,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
     return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
   });
 
-  async function recommendationResponse(publication: string | undefined, run: () => Promise<Record<string, unknown>>, schema: z.AnyZodObject) {
+  async function recommendationResponse(publication: string | undefined, run: () => Promise<Record<string, unknown>>, schema: z.ZodObject) {
     try {
       const result = schema.parse({ ...await run(), publication: publication ?? pubKeys[0] });
       return { structuredContent: result, content: [{ type: "text" as const, text: JSON.stringify(result) }] };
@@ -371,7 +371,7 @@ export function createServer(publications: PublicationConfig[], options: ServerO
 
   registerTool("search_subscribers", {
     description: "Read one page of private subscriber data with Substack-side filters and sorting. One authenticated read, no writes; 1–50 rows (default 10). Returns email, subscription ID and interval by default; include selects extra fields. total_matching is Substack's count at read time; dashboard data may lag writes and pagination is not a snapshot. Search matching is controlled by Substack, and a result does not prove all current subscribers were captured.",
-    inputSchema: subscriberSearchInput.innerType().extend({
+    inputSchema: z.object(subscriberSearchInput.shape).extend({
       created_before: z.string().optional().describe("YYYY-MM-DD, exclusive: created before the start of this date; Substack's day boundary timezone is not verified"),
       created_on_or_after: z.string().optional().describe("YYYY-MM-DD, created on or after this date"),
     }).extend(publicationField()).strict(),

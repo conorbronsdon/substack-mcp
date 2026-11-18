@@ -53,7 +53,7 @@ export type RankPostsResult = Omit<z.output<typeof rankPostsOutput>, "publicatio
 
 const text = z.string().max(10_000).nullish();
 const upstream = z.object({
-  rows: z.array(z.record(z.unknown())).max(RANK_MAX_LIMIT),
+  rows: z.array(z.record(z.string(), z.unknown())).max(RANK_MAX_LIMIT),
   total: count,
 });
 // post_date is Substack's own timestamp string, returned unchanged; it must at least parse as a date.

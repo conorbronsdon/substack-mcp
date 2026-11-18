@@ -277,3 +277,39 @@ describe("resolvePublications: key collisions", () => {
     expect(resolvePublications(env, () => null).map((p) => p.key)).toEqual(["alpha"]);
   });
 });
+
+describe("resolvePublications and the stored-session origin check", () => {
+  const otherOrigin = "https://other.substack.com";
+
+  it("applies the check on the legacy fallback path", () => {
+    const env = { SUBSTACK_PUBLICATION_URL: otherOrigin } as NodeJS.ProcessEnv;
+    expect(() => resolvePublications(env, () => stored)).toThrow(/Refusing to send the stored session token/);
+  });
+
+  it("does not consult the stored session for a SUBSTACK_PUB_<KEY>_* triplet, so no origin comparison runs", () => {
+    const loader = vi.fn(() => stored);
+    const env = {
+      SUBSTACK_PUB_WORK_PUBLICATION_URL: otherOrigin,
+      SUBSTACK_PUB_WORK_SESSION_TOKEN: "example-work-token",
+      SUBSTACK_PUB_WORK_USER_ID: "7",
+    } as NodeJS.ProcessEnv;
+    const pubs = resolvePublications(env, loader);
+    expect(loader).not.toHaveBeenCalled();
+    expect(pubs.map((p) => [p.publicationUrl, p.sessionToken])).toEqual([[otherOrigin, "example-work-token"]]);
+  });
+
+  it("refuses SUBSTACK_PROFILES with an env publication URL, so a profile token is never paired with it", () => {
+    const loader = vi.fn(() => stored);
+    const profileLoader = vi.fn(() => stored);
+    const env = { SUBSTACK_PROFILES: "work", SUBSTACK_PUBLICATION_URL: otherOrigin } as NodeJS.ProcessEnv;
+    expect(() => resolvePublications(env, loader, profileLoader)).toThrow(/cannot be combined/);
+    expect(loader).not.toHaveBeenCalled();
+    expect(profileLoader).not.toHaveBeenCalled();
+  });
+
+  it("takes a profile's URL and token from the same stored record", () => {
+    const profileLoader = vi.fn(() => ({ ...stored, publicationUrl: otherOrigin, sessionToken: "example-profile-token" }));
+    const pubs = resolvePublications({ SUBSTACK_PROFILES: "work" } as NodeJS.ProcessEnv, () => stored, profileLoader);
+    expect(pubs.map((p) => [p.publicationUrl, p.sessionToken])).toEqual([[otherOrigin, "example-profile-token"]]);
+  });
+});

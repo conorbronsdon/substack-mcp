@@ -69,7 +69,7 @@ export async function askSecret(question: string, input: Readable = stdin, outpu
 async function loadChromium(): Promise<Chromium> {
   const moduleName = "playwright";
   try { return (await import(moduleName)).chromium; }
-  catch { throw new Error("Install the package and Playwright together in a local tools directory: npm install @conorbronsdon/substack-mcp playwright; then npx playwright install chromium; then npx substack-mcp login."); }
+  catch { throw new Error("Install the package and Playwright together in a local tools directory: npm install @conorbronsdon/substack-mcp playwright; then npx playwright install chromium; then npx @conorbronsdon/substack-mcp login."); }
 }
 const defaults = { ask, loadChromium, out: (text: string) => console.log(text), error: (text: string) => console.error(text) };
 export async function runLogin(args: string[], deps: typeof defaults & { keychain?: ReturnType<typeof createKeychain>; askSecret?: typeof askSecret; pollIntervalMs?: number; publicationWaitMs?: number; sleep?: (ms: number) => Promise<void> } = defaults): Promise<number> {
@@ -100,8 +100,9 @@ export async function runLogin(args: string[], deps: typeof defaults & { keychai
     if (!publicationUrl) { deps.error("Use a direct HTTPS publication origin."); return 2; }
     try { if (userId !== undefined) validateCredentials(publicationUrl, "validation-only", userId); } catch { deps.error("Use your positive numeric Substack user ID."); return 2; }
     let chromium: Chromium;
-    try { chromium = await deps.loadChromium(); } catch { deps.error("Browser login needs Playwright. In a local tools directory run npm install @conorbronsdon/substack-mcp playwright, then npx playwright install chromium, then npx substack-mcp login."); return 1; }
-    browser = await chromium.launch({ headless: false });
+    try { chromium = await deps.loadChromium(); } catch { deps.error("Browser login needs Playwright. In a local tools directory run npm install @conorbronsdon/substack-mcp playwright, then npx playwright install chromium, then npx @conorbronsdon/substack-mcp login."); return 1; }
+    try { browser = await chromium.launch({ headless: false }); }
+    catch { throw new LoginDiagnosticError("Playwright could not start Chromium. No session was saved. If the browser is not installed, run npx playwright install chromium in the same tools directory, then retry; browser login also needs a desktop session that can open a window."); }
     const context = await browser.newContext(), page = await context.newPage();
     deps.out("Sign in to Substack in the opened browser, including any CAPTCHA. Waiting up to five minutes.");
     await page.goto("https://substack.com/sign-in");

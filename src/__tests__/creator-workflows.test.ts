@@ -126,7 +126,7 @@ describe("doctor", () => {
     expect((await doctor(false, () => [{ ...credential, userId }])).ok).toBe(false);
   });
   it("stops with invalid_configuration when a stored token meets an env URL on another origin", async () => {
-    const storedToken = randomUUID();
+    const storedToken = `example-stored-${randomUUID()}`;
     const stored = { publicationUrl: "https://stored.substack.com", sessionToken: storedToken, userId: "99", savedAt: "2026-01-01T00:00:00Z" };
     const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
     const env = { SUBSTACK_PUBLICATION_URL: "https://other.substack.com" } as NodeJS.ProcessEnv;

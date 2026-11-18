@@ -51,7 +51,16 @@ For 1.0 setup coverage and account eligibility, see [compatibility](docs/compati
 3. **Connect your MCP client.** Add the server to
    [Claude Desktop or Claude Code](#2-configure-your-mcp-client), or use the
    [Codex plugin](#codex-plugin). Environment variables take precedence; omit
-   them to use the stored browser-login session. Then ask your assistant:
+   them to use the stored browser-login session. A stored session token is never
+   sent to a `SUBSTACK_PUBLICATION_URL` env var on a different origin (scheme,
+   host and port; the path is ignored); startup fails instead, as it does when
+   the stored URL or that env var is not a valid http(s) URL. Run
+   `substack-mcp-login` for the other host, including a publication's custom
+   domain. Only a stored token is checked. A token you set yourself, in
+   `SUBSTACK_SESSION_TOKEN` or a `SUBSTACK_PUB_<KEY>_SESSION_TOKEN` triplet, has
+   no recorded origin and is sent to whichever URL resolves, including the
+   stored URL.
+   Then ask your assistant:
    "How many Substack subscribers do I have?"
 4. **Prepare a draft for review.** Follow the [draft workflow](docs/workflow.md):
    `create_draft`, `search_posts`, `export_draft`, `preflight_draft`, then

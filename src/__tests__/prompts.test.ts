@@ -90,8 +90,10 @@ describe("prompts", () => {
       }
       expect(multi.fetchMock).not.toHaveBeenCalled();
     } finally { await multi.client.close(); await multi.server.close(); }
+  });
 
-    // Must not fire: a single publication still has no publication argument and no completion capability.
+  it("with one publication, prompts take no publication argument and advertise no completions", async () => {
+    // Must not fire: independent of the multi-publication test so a failure there cannot skip it.
     const single = await connect(["a"]);
     try {
       for (const prompt of (await single.client.listPrompts()).prompts) {

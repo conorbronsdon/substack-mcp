@@ -7,7 +7,7 @@ import { SubstackClient } from "../api/client.js";
 import { searchPosts } from "../api/search.js";
 import { preflightDraft } from "../utils/draft-preflight.js";
 import { doctor } from "../doctor.js";
-import type { PublicationCredentials } from "../auth/resolve-publications.js";
+import { resolvePublications, type PublicationCredentials } from "../auth/resolve-publications.js";
 
 afterEach(() => vi.unstubAllGlobals());
 const body = (content: unknown[]) => JSON.stringify({ type: "doc", content });
@@ -124,6 +124,18 @@ describe("doctor", () => {
   });
   it.each(["0", "1foo", "-2", "9007199254740992"])("rejects invalid user ID %s", async userId => {
     expect((await doctor(false, () => [{ ...credential, userId }])).ok).toBe(false);
+  });
+  it("stops with invalid_configuration when a stored token meets an env URL on another origin", async () => {
+    const storedToken = randomUUID();
+    const stored = { publicationUrl: "https://stored.substack.com", sessionToken: storedToken, userId: "99", savedAt: "2026-01-01T00:00:00Z" };
+    const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+    const env = { SUBSTACK_PUBLICATION_URL: "https://other.substack.com" } as NodeJS.ProcessEnv;
+    const report = await doctor(true, () => resolvePublications(env, () => stored));
+    expect(report).toMatchObject({ ok: false, code: "invalid_configuration", publications: [] });
+    expect(JSON.stringify(report)).not.toContain(storedToken);
+    expect(fetchMock).not.toHaveBeenCalled();
+    const sameOrigin = await doctor(false, () => resolvePublications({ SUBSTACK_PUBLICATION_URL: "https://stored.substack.com/" } as NodeJS.ProcessEnv, () => stored));
+    expect(sameOrigin.ok).toBe(true);
   });
   it("redacts configuration exceptions", async () => {
     const result = await doctor(false, () => { throw new Error("secret-value"); });

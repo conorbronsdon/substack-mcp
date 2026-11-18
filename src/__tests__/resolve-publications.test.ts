@@ -286,7 +286,7 @@ describe("resolvePublications and the stored-session origin check", () => {
     expect(() => resolvePublications(env, () => stored)).toThrow(/Refusing to send the stored session token/);
   });
 
-  it("never reads the stored session for a SUBSTACK_PUB_<KEY>_* triplet on another origin", () => {
+  it("does not consult the stored session for a SUBSTACK_PUB_<KEY>_* triplet, so no origin comparison runs", () => {
     const loader = vi.fn(() => stored);
     const env = {
       SUBSTACK_PUB_WORK_PUBLICATION_URL: otherOrigin,

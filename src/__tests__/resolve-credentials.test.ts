@@ -108,14 +108,18 @@ describe("resolveCredentials", () => {
     const env = { SUBSTACK_PUBLICATION_URL: "javascript:void 0" } as NodeJS.ProcessEnv;
     expect(() =>
       resolveCredentials(env, () => ({ ...stored, publicationUrl: "data:text/html,x" })),
-    ).toThrow(/not a valid http\(s\) URL.*Refusing to send the stored session token/s);
+    ).toThrow(
+      /captured for a publication URL that is not a valid http\(s\) URL, but SUBSTACK_PUBLICATION_URL is not a valid http\(s\) URL\./,
+    );
   });
 
   it("refuses an identical opaque URL on both sides, which would compare equal as origin \"null\"", () => {
     const env = { SUBSTACK_PUBLICATION_URL: "javascript:void 0" } as NodeJS.ProcessEnv;
     expect(() =>
       resolveCredentials(env, () => ({ ...stored, publicationUrl: "javascript:void 0" })),
-    ).toThrow(/Refusing to send the stored session token/);
+    ).toThrow(
+      /captured for a publication URL that is not a valid http\(s\) URL, but SUBSTACK_PUBLICATION_URL is not a valid http\(s\) URL\./,
+    );
   });
 
   it("refuses an opaque stored URL paired with a valid https env URL", () => {

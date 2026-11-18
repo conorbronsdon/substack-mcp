@@ -56,8 +56,10 @@ For 1.0 setup coverage and account eligibility, see [compatibility](docs/compati
    host and port; the path is ignored); startup fails instead, as it does when
    the stored URL or that env var is not a valid http(s) URL. Run
    `substack-mcp-login` for the other host, including a publication's custom
-   domain. A token you set in `SUBSTACK_SESSION_TOKEN` is yours to pair with
-   any URL, so it is not checked.
+   domain. Only a stored token is checked. A token you set yourself, in
+   `SUBSTACK_SESSION_TOKEN` or a `SUBSTACK_PUB_<KEY>_SESSION_TOKEN` triplet, has
+   no recorded origin and is sent to whichever URL resolves, including the
+   stored URL.
    Then ask your assistant:
    "How many Substack subscribers do I have?"
 4. **Prepare a draft for review.** Follow the [draft workflow](docs/workflow.md):

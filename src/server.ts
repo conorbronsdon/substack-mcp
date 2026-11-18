@@ -922,6 +922,9 @@ export function createServer(publications: PublicationConfig[], options: ServerO
       annotations: buildAnnotations("create_note"),
     },
     async ({ body, publication }: { body: string; publication?: string }) => {
+      // A blank body converts to one empty paragraph, which would publish an
+      // empty public Note immediately. Refuse it before any request.
+      if (body.trim() === "") return invalidInput("Note body is empty or whitespace only. No Note was created.", { write_attempts: 0 });
       const conversion = convertMarkdown(body, "note");
       if (conversion.unsupported_nodes.length) return conversionError(conversion, true);
       const bodyJson = {
@@ -962,6 +965,10 @@ export function createServer(publications: PublicationConfig[], options: ServerO
       annotations: buildAnnotations("create_note_with_link"),
     },
     async ({ body, url, publication }: { body: string; url: string; publication?: string }) => {
+      // Same rule as create_note: a blank body would publish an empty paragraph
+      // with the link card, immediately and publicly. Refuse before the
+      // attachment or the Note is created.
+      if (body.trim() === "") return invalidInput("Note body is empty or whitespace only. No Note or link attachment was created.", { write_attempts: 0 });
       const client = clientFor(publication);
       const conversion = convertMarkdown(body, "note");
       if (conversion.unsupported_nodes.length) return conversionError(conversion, true);

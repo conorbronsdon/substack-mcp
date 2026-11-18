@@ -103,6 +103,21 @@ describe("prompts", () => {
     } finally { await single.client.close(); await single.server.close(); }
   });
 
+  it("completes a partial publication key by prefix, including a key that prefixes another", async () => {
+    const { client, server } = await connect(["news", "newsletter", "blog"]);
+    try {
+      const complete = async (value: string) => (await client.complete({
+        ref: { type: "ref/prompt", name: "review_draft" }, argument: { name: "publication", value },
+      })).completion.values;
+      expect(await complete("ne")).toEqual(["news", "newsletter"]);
+      expect(await complete("news")).toEqual(["news", "newsletter"]);
+      expect(await complete("newsl")).toEqual(["newsletter"]);
+      expect(await complete("x")).toEqual([]);
+      // A prefix match, not a substring match.
+      expect(await complete("letter")).toEqual([]);
+    } finally { await client.close(); await server.close(); }
+  });
+
   it("plan_notes never instructs the model to post, because Notes publish immediately", async () => {
     const { client, server } = await connect(["a"]);
     try {

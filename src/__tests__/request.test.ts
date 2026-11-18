@@ -143,13 +143,13 @@ describe("response classification", () => {
     for (const body of [{ error: "x".repeat(600) }, { message: "x".repeat(600) }, { errors: ["x".repeat(600)] }]) {
       expect(extractErrorDetail(JSON.stringify(body), "fallback")).toBe("x".repeat(500) + "...");
     }
-    vi.stubGlobal("fetch", vi.fn(async () => new Response('{"error":"s%3Aprivate and s:private"}', { status: 400 })));
-    const error = await requestJson(url, { headers: { Cookie: "connect.sid=s%3Aprivate;" } }).catch(error => error) as Error;
+    vi.stubGlobal("fetch", vi.fn(async () => new Response('{"error":"s%3Aexample-private and s:example-private"}', { status: 400 })));
+    const error = await requestJson(url, { headers: { Cookie: "connect.sid=s%3Aexample-private;" } }).catch(error => error) as Error;
     expect(error.message).not.toContain("private");
     expect(error.message).toContain("[redacted] and [redacted]");
     const prefix = "x".repeat(495);
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: prefix + "s%3Aprivate" }), { status: 400 })));
-    const boundary = await requestJson(url, { headers: { Cookie: "connect.sid=s%3Aprivate" } }).catch(error => error) as Error;
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: prefix + "s%3Aexample-private" }), { status: 400 })));
+    const boundary = await requestJson(url, { headers: { Cookie: "connect.sid=s%3Aexample-private" } }).catch(error => error) as Error;
     expect(boundary.message).not.toContain("s%3A");
     expect(boundary.message).toContain("[reda...");
   });

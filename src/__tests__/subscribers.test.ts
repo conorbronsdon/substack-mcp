@@ -159,7 +159,7 @@ describe("subscriber tools over MCP", () => {
   it("routes to the selected publication and rejects missing consent/publication without requests", async () => {
     const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify(empty)));
     vi.stubGlobal("fetch", fetchMock);
-    const server = createServer(["one", "two"].map(key => ({ key, label: key, client: new SubstackClient(`https://${key}.substack.com`, "token", "1") })));
+    const server = createServer(["one", "two"].map(key => ({ key, label: key, client: new SubstackClient(`https://${key}.substack.com`, "example-token", "1") })));
     const client = new Client({ name: "test", version: "1" });
     const [ct, st] = InMemoryTransport.createLinkedPair();
     await Promise.all([client.connect(ct), server.connect(st)]);

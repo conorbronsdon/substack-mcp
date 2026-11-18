@@ -47,7 +47,7 @@ try {
   // A deliberately tiny environment excludes actual credentials and multi-publication config.
   const env = Object.fromEntries(Object.entries(process.env).filter(([key, value]) =>
     /^(PATH|SYSTEMROOT|WINDIR|TEMP|TMP)$/i.test(key) && value !== undefined));
-  const testSessionToken = randomUUID();
+  const testSessionToken = `example-${randomUUID()}`;
   const readerSessionToken = `example-${randomUUID()}`;
   Object.assign(env, {
     SUBSTACK_MCP_HOME: join(scratch, 'empty-session'),

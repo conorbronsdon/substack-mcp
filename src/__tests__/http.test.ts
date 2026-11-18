@@ -8,7 +8,7 @@ import { startHttpServer, type HttpTransportOptions } from "../transport/http.js
 
 function makeServer() {
   return createServer([
-    { key: "default", label: "example", client: new SubstackClient("https://example.substack.com", "tok", "1") },
+    { key: "default", label: "example", client: new SubstackClient("https://example.substack.com", "example-token", "1") },
   ]);
 }
 

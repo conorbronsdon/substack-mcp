@@ -92,7 +92,7 @@ describe("rank_posts through MCP", () => {
   it.each([1, 2])("publishes a read-only contract and routes to the selected publication with %s configured", async count => {
     const fetchMock = vi.fn(async (_url: string, _options?: RequestInit) => Response.json({ rows: [row(11), row(12, { views: 40 })], total: 2 }));
     vi.stubGlobal("fetch", fetchMock);
-    const server = createServer((count === 1 ? ["b"] : ["a", "b"]).map(key => ({ key, label: key, client: new SubstackClient(`https://${key}.substack.com`, "fixture", "1") })));
+    const server = createServer((count === 1 ? ["b"] : ["a", "b"]).map(key => ({ key, label: key, client: new SubstackClient(`https://${key}.substack.com`, "example-fixture-token", "1") })));
     const [ct, st] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test", version: "1" });
     await Promise.all([client.connect(ct), server.connect(st)]);
@@ -123,7 +123,7 @@ describe("rank_posts through MCP", () => {
   it.each([403, 404])("reports HTTP %s from statistics as analytics_unavailable, not an empty ranking", async status => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ error: "private-upstream-detail" }), { status, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
-    const server = createServer([{ key: "b", label: "b", client: new SubstackClient("https://b.substack.com", "fixture", "1") }]);
+    const server = createServer([{ key: "b", label: "b", client: new SubstackClient("https://b.substack.com", "example-fixture-token", "1") }]);
     const [ct, st] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test", version: "1" });
     await Promise.all([client.connect(ct), server.connect(st)]);
@@ -143,7 +143,7 @@ describe("rank_posts through MCP", () => {
     ];
     const fetchMock = vi.fn(async () => responses.shift()!);
     vi.stubGlobal("fetch", fetchMock);
-    const server = createServer([{ key: "b", label: "b", client: new SubstackClient("https://b.substack.com", "fixture", "1") }]);
+    const server = createServer([{ key: "b", label: "b", client: new SubstackClient("https://b.substack.com", "example-fixture-token", "1") }]);
     const [ct, st] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test", version: "1" });
     await Promise.all([client.connect(ct), server.connect(st)]);

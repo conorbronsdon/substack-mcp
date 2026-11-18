@@ -483,7 +483,9 @@ prompt adds no endpoint, write path or permission:
 | `plan_notes` | Proposes Notes that resurface recent posts as text only. It never calls `create_note`: Notes publish immediately, so you post each approved one yourself |
 
 With several publications configured, each prompt takes a required `publication`
-argument, matching the tools.
+argument that accepts only the configured keys, matching the tools' enum. The
+keys are listed in the argument description and offered through argument
+completion; an unknown key is rejected.
 
 The `substack://publications` resource lists the configured publications (key,
 label, origin) from local configuration, so a client can load them without a

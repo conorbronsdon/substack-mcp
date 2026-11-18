@@ -90,7 +90,7 @@ describe("tag MCP routing", () => {
       url.endsWith("/api/v1/publication") ? { id: 7, name: "Sample", subdomain: "b" } :
         url.includes("/post/42/") ? [link("a")] : [tag("a")])));
     vi.stubGlobal("fetch", fetchMock);
-    const server = createServer((count === 1 ? ["b"] : ["a", "b"]).map(key => ({ key, label: key, client: new SubstackClient(`https://${key}.substack.com`, "fixture", "1") })));
+    const server = createServer((count === 1 ? ["b"] : ["a", "b"]).map(key => ({ key, label: key, client: new SubstackClient(`https://${key}.substack.com`, "example-fixture-token", "1") })));
     const [ct, st] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test", version: "1" });
     await Promise.all([client.connect(ct), server.connect(st)]);

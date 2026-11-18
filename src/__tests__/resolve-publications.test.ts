@@ -42,7 +42,7 @@ describe("resolvePublications", () => {
   it("resolves a single complete prefixed triplet, slugging the key and deriving a label", () => {
     const env = {
       SUBSTACK_PUB_KEVIN_MULDOON_PUBLICATION_URL: "https://kevinmuldoon.substack.com",
-      SUBSTACK_PUB_KEVIN_MULDOON_SESSION_TOKEN: "tok-1",
+      SUBSTACK_PUB_KEVIN_MULDOON_SESSION_TOKEN: "example-tok-1",
       SUBSTACK_PUB_KEVIN_MULDOON_USER_ID: "111",
     } as NodeJS.ProcessEnv;
     const pubs = resolvePublications(env, () => null);
@@ -51,7 +51,7 @@ describe("resolvePublications", () => {
         key: "kevin-muldoon",
         label: "Kevin Muldoon",
         publicationUrl: "https://kevinmuldoon.substack.com",
-        sessionToken: "tok-1",
+        sessionToken: "example-tok-1",
         userId: "111",
         source: "env",
         missing: [],
@@ -62,10 +62,10 @@ describe("resolvePublications", () => {
   it("resolves multiple complete prefixed triplets", () => {
     const env = {
       SUBSTACK_PUB_KEVIN_MULDOON_PUBLICATION_URL: "https://kevinmuldoon.substack.com",
-      SUBSTACK_PUB_KEVIN_MULDOON_SESSION_TOKEN: "tok-1",
+      SUBSTACK_PUB_KEVIN_MULDOON_SESSION_TOKEN: "example-tok-1",
       SUBSTACK_PUB_KEVIN_MULDOON_USER_ID: "111",
       SUBSTACK_PUB_SAPERE_PUBLICATION_URL: "https://sapere.substack.com",
-      SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "tok-2",
+      SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "example-tok-2",
       SUBSTACK_PUB_SAPERE_USER_ID: "222",
     } as NodeJS.ProcessEnv;
     const pubs = resolvePublications(env, () => null);
@@ -76,7 +76,7 @@ describe("resolvePublications", () => {
   it("throws naming the offending key when a triplet is incomplete", () => {
     const env = {
       SUBSTACK_PUB_SAPERE_PUBLICATION_URL: "https://sapere.substack.com",
-      SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "tok-2",
+      SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "example-tok-2",
       // SUBSTACK_PUB_SAPERE_USER_ID missing
     } as NodeJS.ProcessEnv;
     expect(() => resolvePublications(env, () => null)).toThrow(/sapere/);
@@ -89,7 +89,7 @@ describe("resolvePublications", () => {
       SUBSTACK_SESSION_TOKEN: "example-legacy-token",
       SUBSTACK_USER_ID: "1",
       SUBSTACK_PUB_SAPERE_PUBLICATION_URL: "https://sapere.substack.com",
-      SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "tok-2",
+      SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "example-tok-2",
       SUBSTACK_PUB_SAPERE_USER_ID: "222",
     } as NodeJS.ProcessEnv;
     const pubs = resolvePublications(env, () => null);
@@ -123,7 +123,7 @@ describe("resolvePublications: an empty named publication must not disappear", (
     const loader = vi.fn(() => stored);
     const env = {
       SUBSTACK_PUB_SAPERE_PUBLICATION_URL: "https://sapere.substack.com",
-      SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "tok-2",
+      SUBSTACK_PUB_SAPERE_SESSION_TOKEN: "example-tok-2",
       SUBSTACK_PUB_SAPERE_USER_ID: "222",
       SUBSTACK_PUB_OTHER_PUBLICATION_URL: "",
       SUBSTACK_PUB_OTHER_SESSION_TOKEN: "",
@@ -173,7 +173,7 @@ describe("resolvePublications: an empty named publication must not disappear", (
 describe("resolvePublications: names that do not match the grammar", () => {
   const validA = {
     SUBSTACK_PUB_A_PUBLICATION_URL: "https://a.substack.com",
-    SUBSTACK_PUB_A_SESSION_TOKEN: "FAKE-A",
+    SUBSTACK_PUB_A_SESSION_TOKEN: "example-fake-A",
     SUBSTACK_PUB_A_USER_ID: "1",
   };
 
@@ -182,7 +182,7 @@ describe("resolvePublications: names that do not match the grammar", () => {
       "a hyphen in the key",
       {
         "SUBSTACK_PUB_B-PUB_PUBLICATION_URL": "https://b.substack.com",
-        "SUBSTACK_PUB_B-PUB_SESSION_TOKEN": "FAKE-B",
+        "SUBSTACK_PUB_B-PUB_SESSION_TOKEN": "example-fake-B",
         "SUBSTACK_PUB_B-PUB_USER_ID": "2",
       } as NodeJS.ProcessEnv,
       /B-PUB_PUBLICATION_URL/,
@@ -191,7 +191,7 @@ describe("resolvePublications: names that do not match the grammar", () => {
       "trailing whitespace in the name",
       {
         "SUBSTACK_PUB_B_PUBLICATION_URL ": "https://b.substack.com",
-        "SUBSTACK_PUB_B_SESSION_TOKEN ": "FAKE-B",
+        "SUBSTACK_PUB_B_SESSION_TOKEN ": "example-fake-B",
         "SUBSTACK_PUB_B_USER_ID ": "2",
       } as NodeJS.ProcessEnv,
       /SUBSTACK_PUB_B_USER_ID /,
@@ -200,7 +200,7 @@ describe("resolvePublications: names that do not match the grammar", () => {
       "a lowercase suffix",
       {
         SUBSTACK_PUB_B_publication_url: "https://b.substack.com",
-        SUBSTACK_PUB_B_session_token: "FAKE-B",
+        SUBSTACK_PUB_B_session_token: "example-fake-B",
         SUBSTACK_PUB_B_user_id: "2",
       } as NodeJS.ProcessEnv,
       /SUBSTACK_PUB_B_publication_url/,
@@ -209,7 +209,7 @@ describe("resolvePublications: names that do not match the grammar", () => {
       "a non-ASCII key",
       {
         "SUBSTACK_PUB_CAFÉ_PUBLICATION_URL": "https://c.substack.com",
-        "SUBSTACK_PUB_CAFÉ_SESSION_TOKEN": "FAKE-C",
+        "SUBSTACK_PUB_CAFÉ_SESSION_TOKEN": "example-fake-C",
         "SUBSTACK_PUB_CAFÉ_USER_ID": "3",
       } as NodeJS.ProcessEnv,
       /CAFÉ_SESSION_TOKEN/,
@@ -236,7 +236,7 @@ describe("resolvePublications: names that do not match the grammar", () => {
     const env = {
       ...validA,
       SUBSTACK_PUB_B_PUB_PUBLICATION_URL: "https://b.substack.com",
-      SUBSTACK_PUB_B_PUB_SESSION_TOKEN: "FAKE-B",
+      SUBSTACK_PUB_B_PUB_SESSION_TOKEN: "example-fake-B",
       SUBSTACK_PUB_B_PUB_USER_ID: "2",
     } as NodeJS.ProcessEnv;
     expect(resolvePublications(env, () => null).map((p) => p.key).sort()).toEqual(["a", "b-pub"]);

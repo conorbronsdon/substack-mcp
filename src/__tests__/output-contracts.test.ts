@@ -7,8 +7,8 @@ import { contractResult, MAX_TOOL_RESULT_BYTES } from "../output-contracts.js";
 const result = (value: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(value) }] });
 afterEach(() => vi.restoreAllMocks());
 async function connected(multi = false) {
-  const first = new SubstackClient("https://first.example", "synthetic-token", "1");
-  const second = new SubstackClient("https://second.example", "synthetic-token", "2");
+  const first = new SubstackClient("https://first.example", "example-synthetic-token", "1");
+  const second = new SubstackClient("https://second.example", "example-synthetic-token", "2");
   const pubs = [{ key: "first", label: "First", client: first }, ...(multi ? [{ key: "second", label: "Second", client: second }] : [])];
   const server = createServer(pubs), client = new Client({ name: "contract-test", version: "1" });
   const [ct, st] = InMemoryTransport.createLinkedPair();

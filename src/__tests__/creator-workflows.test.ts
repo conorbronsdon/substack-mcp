@@ -102,7 +102,7 @@ describe("draft preflight", () => {
   });
 });
 
-const testSessionToken = randomUUID();
+const testSessionToken = `example-${randomUUID()}`;
 const credential: PublicationCredentials = { key: "example", label: "Example", publicationUrl: "https://example.substack.com", sessionToken: testSessionToken, userId: "123", source: "env", missing: [] };
 describe("doctor", () => {
   it("is offline by default and omits credentials and user IDs", async () => {

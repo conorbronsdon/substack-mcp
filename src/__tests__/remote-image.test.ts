@@ -216,7 +216,7 @@ describe("fetchRemoteImage", () => {
 afterEach(() => vi.restoreAllMocks());
 
 async function withMcp(options: ServerOptions, run: (mcp: Client, api: SubstackClient) => Promise<void>) {
-  const api = new SubstackClient("https://example.substack.com", "test-only", "1");
+  const api = new SubstackClient("https://example.substack.com", "example-test-only-token", "1");
   const server = createServer([{ key: "example", label: "Example", client: api }], options);
   const [ct, st] = InMemoryTransport.createLinkedPair();
   const mcp = new Client({ name: "remote-image-test", version: "1" });

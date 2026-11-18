@@ -20,13 +20,13 @@ import {
 describe("SubstackClient constructor", () => {
   it("parses valid numeric userId without throwing", () => {
     expect(
-      () => new SubstackClient("https://example.substack.com", "tok123", "42")
+      () => new SubstackClient("https://example.substack.com", "example-tok123", "42")
     ).not.toThrow();
   });
 
   it("throws with clear message for invalid userId", () => {
     expect(
-      () => new SubstackClient("https://example.substack.com", "tok123", "abc")
+      () => new SubstackClient("https://example.substack.com", "example-tok123", "abc")
     ).toThrow('Invalid SUBSTACK_USER_ID: use a positive safe integer containing only digits.');
   });
 
@@ -34,7 +34,7 @@ describe("SubstackClient constructor", () => {
     // Access the private field via any cast to verify behavior
     const client = new SubstackClient(
       "https://example.substack.com/",
-      "tok",
+      "example-token",
       "1"
     ) as any;
     expect(client.publicationUrl).toBe("https://example.substack.com");
@@ -43,11 +43,11 @@ describe("SubstackClient constructor", () => {
   it("sets cookie string with both connect.sid and substack.sid", () => {
     const client = new SubstackClient(
       "https://example.substack.com",
-      "mytoken",
+      "example-mytoken",
       "1"
     ) as any;
-    expect(client.cookie).toContain("connect.sid=mytoken");
-    expect(client.cookie).toContain("substack.sid=mytoken");
+    expect(client.cookie).toContain("connect.sid=example-mytoken");
+    expect(client.cookie).toContain("substack.sid=example-mytoken");
   });
 });
 
@@ -62,7 +62,7 @@ describe("SubstackClient requests", () => {
 
   it("getDrafts uses post_management/drafts with ordering and unwraps posts[]", async () => {
     const fetchMock = stubFetch({ posts: [{ id: 7, draft_title: "hi" }], total: 1 });
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     const drafts = await client.getDrafts(0, 5);
 
     expect(drafts).toHaveLength(1);
@@ -88,7 +88,7 @@ describe("SubstackClient requests", () => {
         },
       ],
     });
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     const sections = await client.getSections();
 
     expect(sections).toHaveLength(2);
@@ -106,7 +106,7 @@ describe("SubstackClient requests", () => {
         },
       ],
     });
-    const client = new SubstackClient("https://newsletter.example.com", "tok", "1");
+    const client = new SubstackClient("https://newsletter.example.com", "example-token", "1");
     const sections = await client.getSections();
     expect(sections).toEqual([{ id: 7, name: "Custom" }]);
     expect(fetchMock.mock.calls[0][0]).toContain("/api/v1/subscriptions");
@@ -121,14 +121,14 @@ describe("SubstackClient requests", () => {
         { hostname: "example.substack.com", sections: [{ id: 2, name: "Right" }] },
       ],
     });
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     const sections = await client.getSections();
     expect(sections).toEqual([{ id: 2, name: "Right" }]);
   });
 
   it("getSections returns [] when no publication matches", async () => {
     stubFetch({ publications: [{ hostname: "nope.substack.com", sections: [{ id: 1, name: "X" }] }] });
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     expect(await client.getSections()).toEqual([]);
   });
 
@@ -136,7 +136,7 @@ describe("SubstackClient requests", () => {
     const fetchMock = stubFetch({
       posts: [{ id: 5, draft_title: "Queued", audience: "everyone", trigger_at: "2030-01-01T00:00:00Z" }],
     });
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     const posts = await client.getScheduledPosts(0, 10);
 
     expect(posts).toHaveLength(1);
@@ -155,7 +155,7 @@ describe("SubstackClient requests", () => {
       ],
       total: 2,
     });
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     const post = await client.getPostAnalytics(200);
 
     expect(post?.id).toBe(200);
@@ -165,7 +165,7 @@ describe("SubstackClient requests", () => {
 
   it("getPostAnalytics returns null and stops paging when the feed is exhausted", async () => {
     const fetchMock = stubFetch({ posts: [{ id: 1, title: "only" }], total: 1 });
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     const post = await client.getPostAnalytics(999);
 
     expect(post).toBeNull();
@@ -176,7 +176,7 @@ describe("SubstackClient requests", () => {
 
   it("sends a browser User-Agent and a Referer by default", async () => {
     const fetchMock = stubFetch({ posts: [] });
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     await client.getDrafts();
 
     const opts = fetchMock.mock.calls[0][1] as { headers: Record<string, string> };
@@ -186,7 +186,7 @@ describe("SubstackClient requests", () => {
 
   it("honors a custom User-Agent override", async () => {
     const fetchMock = stubFetch({ posts: [] });
-    const client = new SubstackClient("https://example.substack.com", "tok", "1", "MyUA/1.0");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1", "MyUA/1.0");
     await client.getDrafts();
 
     const opts = fetchMock.mock.calls[0][1] as { headers: Record<string, string> };
@@ -195,7 +195,7 @@ describe("SubstackClient requests", () => {
 
   it("omits Content-Type on a bodyless GET", async () => {
     const fetchMock = stubFetch({ posts: [] });
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     await client.getDrafts();
 
     const opts = fetchMock.mock.calls[0][1] as { headers: Record<string, string> };
@@ -204,7 +204,7 @@ describe("SubstackClient requests", () => {
 
   it("sends Content-Type on a request with a body", async () => {
     const fetchMock = stubFetch({ id: 1, draft_title: "hi" });
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     await client.createDraft("hi");
 
     const opts = fetchMock.mock.calls[0][1] as { headers: Record<string, string> };
@@ -268,7 +268,7 @@ describe("pagination limit cap (regression: #28)", () => {
 
   it("getPostAnalytics sends a limit value within the cap on every page", async () => {
     const fetchMock = stubPagedFeed(10_000); // feed deeper than the scan bound
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
 
     // An id past the scan depth, so the loop runs to its bound.
     const post = await client.getPostAnalytics(9_999);
@@ -285,7 +285,7 @@ describe("pagination limit cap (regression: #28)", () => {
 
   it("getPostAnalytics tiles offsets across exactly the scan depth", async () => {
     const fetchMock = stubPagedFeed(10_000);
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     await client.getPostAnalytics(9_999);
 
     const offsets = paramValues(fetchMock, "offset");
@@ -299,7 +299,7 @@ describe("pagination limit cap (regression: #28)", () => {
   });
 
   it("findPostAnalytics reports why a post was not found and passes isCapped through", async () => {
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     stubPagedFeed(10_000);
     expect(await client.findPostAnalytics(9_999)).toEqual({ post: null, outcome: "scan_bound_reached", scanned: ANALYTICS_SCAN_DEPTH, feed_capped: null });
     stubPagedFeed(120);
@@ -314,7 +314,7 @@ describe("pagination limit cap (regression: #28)", () => {
   });
 
   it("findPostAnalytics classifies the search with the feed's reported total", async () => {
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     const feed = (pages: (offset: number) => { posts: unknown[]; total?: unknown }) => vi.stubGlobal("fetch", vi.fn(async (url: any) =>
       new Response(JSON.stringify(pages(Number(new URL(String(url)).searchParams.get("offset") ?? 0))))));
     const posts = (offset: number, count: number) => Array.from({ length: count }, (_, i) => ({ id: offset + i + 1, title: "Post" }));
@@ -339,7 +339,7 @@ describe("pagination limit cap (regression: #28)", () => {
   });
 
   it("findPostAnalytics never claims exhaustion from inconsistent pages", async () => {
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     const feed = (pages: (offset: number) => { posts: unknown[]; total?: unknown }) => vi.stubGlobal("fetch", vi.fn(async (url: any) =>
       new Response(JSON.stringify(pages(Number(new URL(String(url)).searchParams.get("offset") ?? 0))))));
     const posts = (offset: number, count: number) => Array.from({ length: count }, (_, i) => ({ id: offset + i + 1, title: "Post" }));
@@ -371,7 +371,7 @@ describe("pagination limit cap (regression: #28)", () => {
 
   it("getPostAnalytics stops as soon as the post is found", async () => {
     const fetchMock = stubPagedFeed(10_000);
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
 
     // Post 60 lands on page 1 (offset 50), so page 2 must never be requested.
     const post = await client.getPostAnalytics(60);
@@ -392,19 +392,19 @@ describe("SubstackClient error mapping (end-to-end through request())", () => {
 
   it("maps a 401 response to AuthenticationError", async () => {
     stubFetchError(401, "Not authorized");
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     await expect(client.getDrafts()).rejects.toBeInstanceOf(AuthenticationError);
   });
 
   it("maps a 403 Cloudflare-style block to AuthenticationError", async () => {
     stubFetchError(403, "error code: 1010");
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     await expect(client.getDrafts()).rejects.toBeInstanceOf(AuthenticationError);
   });
 
   it("maps a 429 response to RateLimitError with the body as detail", async () => {
     stubFetchError(429, JSON.stringify({ error: "Too many requests" }));
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     try {
       await client.getDrafts();
       throw new Error("should have thrown");
@@ -416,7 +416,7 @@ describe("SubstackClient error mapping (end-to-end through request())", () => {
 
   it("maps a 400 response to ValidationError", async () => {
     stubFetchError(400, JSON.stringify({ error: "draft_title is required" }));
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     try {
       await client.createDraft("");
       throw new Error("should have thrown");
@@ -428,7 +428,7 @@ describe("SubstackClient error mapping (end-to-end through request())", () => {
 
   it("maps a 404 response to NotFoundError", async () => {
     stubFetchError(404, "Draft not found");
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     try {
       await client.getDraft(999);
       throw new Error("should have thrown");
@@ -440,7 +440,7 @@ describe("SubstackClient error mapping (end-to-end through request())", () => {
 
   it("maps a 500 response to ServerError", async () => {
     stubFetchError(500, "Internal Server Error");
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     try {
       await client.getDrafts();
       throw new Error("should have thrown");
@@ -452,7 +452,7 @@ describe("SubstackClient error mapping (end-to-end through request())", () => {
 
   it("falls back to base SubstackAPIError for an unmapped status", async () => {
     stubFetchError(418, "I'm a teapot");
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
     try {
       await client.getDrafts();
       throw new Error("should have thrown");
@@ -495,7 +495,7 @@ describe("parseMagnitude", () => {
 
 describe("SubstackClient.getSubscriberCount", () => {
   const client = () =>
-    new SubstackClient("https://example.substack.com", "tok123", "42");
+    new SubstackClient("https://example.substack.com", "example-tok123", "42");
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -563,7 +563,7 @@ describe("SubstackClient request timeout", () => {
 
   it("attaches an AbortSignal to every request", async () => {
     const fetchMock = stubOk();
-    await new SubstackClient("https://example.substack.com", "tok", "1").getDrafts();
+    await new SubstackClient("https://example.substack.com", "example-token", "1").getDrafts();
 
     const opts = fetchMock.mock.calls[0][1] as RequestInit;
     expect(opts.signal).toBeInstanceOf(AbortSignal);
@@ -572,7 +572,7 @@ describe("SubstackClient request timeout", () => {
   it("uses a 30s deadline by default", async () => {
     const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
     stubOk();
-    await new SubstackClient("https://example.substack.com", "tok", "1").getDrafts();
+    await new SubstackClient("https://example.substack.com", "example-token", "1").getDrafts();
 
     expect(DEFAULT_REQUEST_TIMEOUT_MS).toBe(30_000);
     expect(timeoutSpy).toHaveBeenCalledWith(30_000);
@@ -581,7 +581,7 @@ describe("SubstackClient request timeout", () => {
   it("honors an explicit timeout override", async () => {
     const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
     stubOk();
-    await new SubstackClient("https://example.substack.com", "tok", "1", undefined, 1234).getDrafts();
+    await new SubstackClient("https://example.substack.com", "example-token", "1", undefined, 1234).getDrafts();
 
     expect(timeoutSpy).toHaveBeenCalledWith(1234);
   });
@@ -589,7 +589,7 @@ describe("SubstackClient request timeout", () => {
   it.each([0, -1, NaN])("falls back to the default for a nonsense override (%s)", async (bad) => {
     const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
     stubOk();
-    await new SubstackClient("https://example.substack.com", "tok", "1", undefined, bad).getDrafts();
+    await new SubstackClient("https://example.substack.com", "example-token", "1", undefined, bad).getDrafts();
 
     expect(timeoutSpy).toHaveBeenCalledWith(DEFAULT_REQUEST_TIMEOUT_MS);
   });
@@ -601,7 +601,7 @@ describe("SubstackClient request timeout", () => {
         throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
       }),
     );
-    const client = new SubstackClient("https://example.substack.com", "tok", "1", undefined, 5000);
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1", undefined, 5000);
 
     await expect(client.getDrafts()).rejects.toBeInstanceOf(TimeoutError);
     await expect(client.getDrafts()).rejects.toThrow(/timed out after 5000ms/);
@@ -615,7 +615,7 @@ describe("SubstackClient request timeout", () => {
         throw new TypeError("fetch failed");
       }),
     );
-    const client = new SubstackClient("https://example.substack.com", "tok", "1");
+    const client = new SubstackClient("https://example.substack.com", "example-token", "1");
 
     await expect(client.getDrafts()).rejects.toBeInstanceOf(TypeError);
     await expect(client.getDrafts()).rejects.not.toBeInstanceOf(TimeoutError);
@@ -631,7 +631,7 @@ describe("SubstackClient request timeout", () => {
     );
     const r = await new SubstackClient(
       "https://example.substack.com",
-      "tok",
+      "example-token",
       "1",
       undefined,
       7000,
@@ -649,11 +649,11 @@ describe("authentication evidence", () => {
   afterEach(() => vi.unstubAllGlobals());
   it("never identifies the signed-in user from a draft byline", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ posts: [{ draft_bylines: [{ id: 999 }] }] })));
-    const client = new SubstackClient("https://example.invalid", "synthetic-token", "42");
+    const client = new SubstackClient("https://example.invalid", "example-synthetic-token", "42");
     expect(await client.validateAuth()).toEqual({ authentication: "authenticated_read_succeeded", user_identity: "not_verified" });
   });
   it.each([{}, { posts: null }, { posts: "not-an-array" }])("rejects malformed successful authentication responses: %j", async body => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json(body)));
-    await expect(new SubstackClient("https://example.invalid", "synthetic-token", "42").validateAuth()).rejects.toThrow("unexpected response");
+    await expect(new SubstackClient("https://example.invalid", "example-synthetic-token", "42").validateAuth()).rejects.toThrow("unexpected response");
   });
 });

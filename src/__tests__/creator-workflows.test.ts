@@ -132,6 +132,7 @@ describe("doctor", () => {
     const env = { SUBSTACK_PUBLICATION_URL: "https://other.substack.com" } as NodeJS.ProcessEnv;
     const report = await doctor(true, () => resolvePublications(env, () => stored));
     expect(report).toMatchObject({ ok: false, code: "invalid_configuration", publications: [] });
+    expect(report.guidance).toMatch(/stored session cannot be used with a SUBSTACK_PUBLICATION_URL on another origin/);
     expect(JSON.stringify(report)).not.toContain(storedToken);
     expect(fetchMock).not.toHaveBeenCalled();
     const sameOrigin = await doctor(false, () => resolvePublications({ SUBSTACK_PUBLICATION_URL: "https://stored.substack.com/" } as NodeJS.ProcessEnv, () => stored));

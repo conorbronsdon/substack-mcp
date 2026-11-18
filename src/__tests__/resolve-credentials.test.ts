@@ -80,7 +80,7 @@ describe("resolveCredentials", () => {
     );
   });
 
-  it("refuses the stored token when the env URL differs only by scheme or subdomain", () => {
+  it("refuses the stored token when the env URL differs by scheme, a child subdomain or the parent domain", () => {
     for (const url of ["http://stored.substack.com", "https://www.stored.substack.com", "https://substack.com"]) {
       const env = { SUBSTACK_PUBLICATION_URL: url } as NodeJS.ProcessEnv;
       const origin = new URL(url).origin.replace(/[.:/]/g, "\\$&");
@@ -88,6 +88,13 @@ describe("resolveCredentials", () => {
         new RegExp(`captured for https://stored\\.substack\\.com, but SUBSTACK_PUBLICATION_URL resolves to origin ${origin}\\.`),
       );
     }
+  });
+
+  it("treats a trailing-dot host as a different origin and refuses it", () => {
+    const env = { SUBSTACK_PUBLICATION_URL: "https://stored.substack.com." } as NodeJS.ProcessEnv;
+    expect(() => resolveCredentials(env, () => stored)).toThrow(
+      /captured for https:\/\/stored\.substack\.com, but SUBSTACK_PUBLICATION_URL resolves to origin https:\/\/stored\.substack\.com\.\./,
+    );
   });
 
   it("refuses the stored token when the env URL is not a parseable URL", () => {

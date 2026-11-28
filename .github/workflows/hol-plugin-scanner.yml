@@ -22,7 +22,7 @@ jobs:
         with:
           persist-credentials: false
       # This action revision installs the attested plugin-scanner 3.59.0 wheel.
-      - uses: hashgraph-online/ai-plugin-scanner-action@013b123a036a252a6d74ddb52836ee923498150c # v1.2.817
+      - uses: hashgraph-online/ai-plugin-scanner-action@6ed3f34b07bbd674da934c532cc7473ab6365d29 # v1.2.821
         with:
           # Verify deliberately safety-skips command-based MCP servers; test:package covers runtime execution.
           mode: scan
